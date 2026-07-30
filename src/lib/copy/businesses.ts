@@ -18,6 +18,8 @@ export const miNegocioCopy = {
     pendingNote: 'Tu negocio está siendo revisado por nuestro equipo. Te notificaremos cuando esté aprobado.',
     editButton: 'Editar información',
     experiencesSubtitle: 'Administra tus actividades y servicios',
+    activeBookings: 'Reservas activas',
+    activeBookingsNote: 'confirmadas y pendientes de pago',
   },
   experiences: {
     title: 'Mis experiencias',
