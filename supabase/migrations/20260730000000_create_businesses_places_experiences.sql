@@ -59,9 +59,10 @@ CREATE TRIGGER businesses_set_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- Prevent business owners from self-approving their listing.
--- On INSERT: non-admins must supply verified=false and status='pending'.
--- On UPDATE: non-admins may not change verified or status at all.
--- Mirrors the prevent_role_escalation pattern from the profiles migration.
+-- On INSERT: non-admins must start with verified=false and status='pending'.
+-- On UPDATE: non-admins may set status='inactive' (soft-disable) but cannot
+--   set status to 'active' or 'pending', and cannot change verified at all.
+--   Only admins drive the pending→active approval transition.
 CREATE OR REPLACE FUNCTION public.prevent_business_status_escalation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -75,9 +76,11 @@ BEGIN
         RAISE EXCEPTION 'new businesses must start as pending and unverified';
       END IF;
     ELSIF TG_OP = 'UPDATE' THEN
-      IF NEW.verified IS DISTINCT FROM OLD.verified
-         OR NEW.status IS DISTINCT FROM OLD.status THEN
-        RAISE EXCEPTION 'insufficient privileges to change business verification or status';
+      IF NEW.verified IS DISTINCT FROM OLD.verified THEN
+        RAISE EXCEPTION 'insufficient privileges to change business verification';
+      END IF;
+      IF NEW.status IS DISTINCT FROM OLD.status AND NEW.status != 'inactive' THEN
+        RAISE EXCEPTION 'business owners may only set status to inactive';
       END IF;
     END IF;
   END IF;
@@ -316,12 +319,24 @@ CREATE POLICY "commission_config_select_admin"
 -- this function cannot be called via the Supabase RPC endpoint by clients.
 CREATE OR REPLACE FUNCTION public.get_commission_rate(p_service_type text)
 RETURNS numeric
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT rate FROM public.commission_config WHERE service_type = p_service_type
+DECLARE
+  v_rate numeric;
+BEGIN
+  SELECT rate INTO v_rate
+  FROM public.commission_config
+  WHERE service_type = p_service_type;
+
+  IF v_rate IS NULL THEN
+    RAISE EXCEPTION 'unknown commission service type: %', p_service_type;
+  END IF;
+
+  RETURN v_rate;
+END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.get_commission_rate(text) FROM PUBLIC;
