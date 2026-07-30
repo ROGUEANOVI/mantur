@@ -1,0 +1,214 @@
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { CheckCircle2, Clock, XCircle } from 'lucide-react'
+
+import { createClient } from '@/lib/supabase/server'
+import { bookingsCopy } from '@/lib/copy/bookings'
+import { cn } from '@/lib/utils'
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+type BookingDetail = {
+  id: string
+  booking_date: string
+  people_count: number
+  total_amount: number
+  status: string
+  created_at: string
+  experiences: {
+    name: string
+    businesses: { name: string } | null
+  } | null
+}
+
+function formatDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+const STATUS_ICON: Record<string, React.ElementType> = {
+  confirmed: CheckCircle2,
+  pending_payment: Clock,
+  cancelled: XCircle,
+  completed: CheckCircle2,
+}
+
+const STATUS_ICON_CLASS: Record<string, string> = {
+  confirmed: 'text-green-600 dark:text-green-400',
+  pending_payment: 'text-yellow-600 dark:text-yellow-400',
+  cancelled: 'text-red-600 dark:text-red-400',
+  completed: 'text-blue-600 dark:text-blue-400',
+}
+
+function getTitle(status: string): string {
+  if (status === 'confirmed' || status === 'completed') {
+    return bookingsCopy.confirmation.titleConfirmed
+  }
+  if (status === 'cancelled') return bookingsCopy.confirmation.titleCancelled
+  return bookingsCopy.confirmation.titlePending
+}
+
+function getSubtitle(status: string): string {
+  if (status === 'confirmed' || status === 'completed') {
+    return bookingsCopy.confirmation.subtitleConfirmed
+  }
+  if (status === 'cancelled') return bookingsCopy.confirmation.subtitleCancelled
+  return bookingsCopy.confirmation.subtitlePending
+}
+
+export default async function ConfirmacionPage({
+  params,
+}: {
+  params: Promise<{ bookingId: string }>
+}) {
+  const { bookingId } = await params
+
+  if (!UUID_RE.test(bookingId)) notFound()
+
+  const supabase = await createClient()
+
+  const { data: booking, error } = await supabase
+    .from('bookings')
+    .select(
+      'id, booking_date, people_count, total_amount, status, created_at, experiences(name, businesses(name))',
+    )
+    .eq('id', bookingId)
+    .single()
+
+  if (error || !booking) notFound()
+
+  const b = booking as unknown as BookingDetail
+  const statusColors =
+    bookingsCopy.list.statusColors[b.status] ??
+    bookingsCopy.list.statusColors.pending_payment
+  const statusLabel =
+    bookingsCopy.list.status[b.status] ??
+    bookingsCopy.list.status.pending_payment
+  const StatusIcon = STATUS_ICON[b.status] ?? Clock
+  const iconClass = STATUS_ICON_CLASS[b.status] ?? STATUS_ICON_CLASS.pending_payment
+  const experienceName = b.experiences?.name ?? '—'
+  const businessName = b.experiences?.businesses?.name ?? '—'
+
+  return (
+    <main className="min-h-screen bg-background px-4 py-6 pb-10">
+      <div className="mx-auto max-w-lg space-y-5">
+        {/* Status icon + title */}
+        <div className="flex flex-col items-center text-center pt-4 pb-2 space-y-3">
+          <div
+            className={cn(
+              'flex items-center justify-center rounded-full bg-muted size-16',
+            )}
+          >
+            <StatusIcon
+              className={cn('size-8', iconClass)}
+              aria-hidden="true"
+              strokeWidth={1.5}
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">
+            {getTitle(b.status)}
+          </h1>
+          <p className="text-sm text-muted-foreground">{getSubtitle(b.status)}</p>
+        </div>
+
+        {/* Booking detail card */}
+        <div className="rounded-2xl border border-border bg-card shadow-sm p-5 space-y-4">
+          {/* Status badge */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {bookingsCopy.confirmation.statusLabel}
+            </span>
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                statusColors,
+              )}
+            >
+              {statusLabel}
+            </span>
+          </div>
+
+          <hr className="border-border" />
+
+          {/* Details list */}
+          <dl className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-sm text-muted-foreground shrink-0">
+                {bookingsCopy.confirmation.bookingRef}
+              </dt>
+              <dd className="text-sm font-medium text-foreground font-mono">
+                {b.id.slice(0, 8).toUpperCase()}
+              </dd>
+            </div>
+
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-sm text-muted-foreground shrink-0">
+                {bookingsCopy.confirmation.experienceLabel}
+              </dt>
+              <dd className="text-sm font-medium text-foreground text-right">
+                {experienceName}
+              </dd>
+            </div>
+
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-sm text-muted-foreground shrink-0">
+                {bookingsCopy.confirmation.businessLabel}
+              </dt>
+              <dd className="text-sm font-medium text-foreground text-right">
+                {businessName}
+              </dd>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-sm text-muted-foreground shrink-0">
+                {bookingsCopy.confirmation.date}
+              </dt>
+              <dd className="text-sm font-medium text-foreground">
+                {formatDate(b.booking_date)}
+              </dd>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-sm text-muted-foreground shrink-0">
+                {bookingsCopy.confirmation.people}
+              </dt>
+              <dd className="text-sm font-medium text-foreground">
+                {b.people_count}
+              </dd>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-sm text-muted-foreground shrink-0">
+                {bookingsCopy.confirmation.total}
+              </dt>
+              <dd className="text-base font-semibold text-primary">
+                ${Number(b.total_amount).toLocaleString('es-CO')} COP
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        {/* CTAs */}
+        <div className="space-y-3 pt-1">
+          <Link
+            href="/mis-reservas"
+            className="inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
+          >
+            {bookingsCopy.confirmation.myBookings}
+          </Link>
+          <Link
+            href="/negocios"
+            className="inline-flex w-full items-center justify-center min-h-[44px] text-sm text-primary underline-offset-4 hover:underline"
+          >
+            {bookingsCopy.confirmation.explore}
+          </Link>
+        </div>
+      </div>
+    </main>
+  )
+}

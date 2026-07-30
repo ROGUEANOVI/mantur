@@ -85,6 +85,13 @@ export default async function MiNegocioPage() {
 
   // ── Business exists: show overview ───────────────────────────────────────
   const b = business as Business
+
+  const { count: activeBookingsCount } = await supabase
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('business_id', b.id)
+    .in('status', ['confirmed', 'pending_payment'])
+
   const statusConfig = STATUS_MAP[b.status] ?? STATUS_MAP.inactive
   const StatusIcon = statusConfig.Icon
   const typeLabel =
@@ -149,6 +156,19 @@ export default async function MiNegocioPage() {
               {b.description}
             </p>
           )}
+        </div>
+
+        {/* Active bookings stat */}
+        <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
+          <p className="text-sm text-muted-foreground">
+            {miNegocioCopy.overview.activeBookings}
+          </p>
+          <p className="text-3xl font-bold text-foreground mt-1">
+            {activeBookingsCount ?? 0}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {miNegocioCopy.overview.activeBookingsNote}
+          </p>
         </div>
 
         {/* Link to experiences management */}
