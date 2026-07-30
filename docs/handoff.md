@@ -70,6 +70,50 @@
 - Modified `negocios/[id]/page.tsx` — "Reservar" Link on each ExperienceCard
 - Modified `mi-negocio/page.tsx` — active bookings count stat card
 
+### Phase 5 — Admin panel (PR #7, merged ✅)
+Phase 5 was implemented before Phase 4 — admin approval was needed for the marketplace to function (businesses stay `pending` until approved).
+
+- `src/app/(app)/admin/layout.tsx` — role guard; redirects non-admin to `/`; sticky nav with links to Dashboard, Negocios, Lugares, Comisiones
+- `src/app/(app)/admin/page.tsx` — dashboard: stat cards (pending businesses, active businesses, total bookings, lugares count, experience commission rate); pending alert banner linking to approval queue
+- `src/app/(app)/admin/negocios/page.tsx` — business approval list; status filter tabs (Pendientes/Activos/Rechazados); FIFO order; approve/reject form buttons per pending card
+- `src/app/(app)/admin/comisiones/page.tsx` — reads `commission_config` rows, renders one `CommissionForm` per row
+- `src/components/admin/CommissionForm.tsx` — Client Component with `useActionState`; inline success/error feedback per row
+- `src/app/(app)/admin/actions.ts` — `getAuthenticatedAdmin()` helper (validates JWT → checks role via RLS-enforced client → returns `{ admin: createAdminClient(), adminId: user.id }`); `approveBusiness` / `rejectBusiness` (void, redirect on error); `updateCommissionRate` (ActionResult, `updated_by: adminId` explicit because service_role has `auth.uid() = NULL`)
+- `src/lib/copy/admin.ts` — Spanish copy for entire admin panel
+
+**Security fixes found and applied during this PR:**
+- `rejectBusiness` silently failed — `'rejected'` was missing from `businesses.status` CHECK constraint → migration `20260730210000_add_rejected_business_status.sql` added it
+- `updated_by` was always NULL (service_role context) → fixed by returning `adminId` from `getAuthenticatedAdmin()` and passing explicitly
+- `parseFloat("10.5abc")` returns `10.5` → replaced with `Number()` which rejects trailing garbage
+
+**To create an admin user** (no UI by design — avoids self-escalation):
+```sql
+UPDATE public.profiles SET role = 'admin' WHERE id = '<uuid>';
+```
+Run in Supabase SQL Editor as postgres superuser — `prevent_role_escalation` trigger allows `auth.uid() IS NULL`.
+
+### Phase 5 — Public pages (PR #8, merged ✅)
+- Moved `/negocios`, `/negocios/[id]`, `/lugares` from `(app)/` to `(public)/` route group
+- `src/app/(public)/layout.tsx` — minimal layout, no auth guard (`return <>{children}</>`)
+- `src/app/(public)/negocios/[id]/page.tsx` — checks auth without redirecting; computes `isTourist` boolean; shows "Reservar" CTA for tourists, "Inicia sesión para reservar" (outline, links to /login) for everyone else
+- `src/lib/copy/businesses.ts` — added `bookGuest: 'Inicia sesión para reservar'` to `experiences` section
+
+**Key decision:** Only `role = 'tourist'` gets the booking CTA. Business owners and admins browsing `/negocios/[id]` see the guest CTA — correct since they cannot book.
+
+### Phase 5 — Places management + Admin business creation (PR #9, merged ✅)
+**Places CRUD:**
+- `src/app/(app)/admin/lugares/page.tsx` — list with edit link and delete form per item
+- `src/app/(app)/admin/lugares/nuevo/page.tsx` — create form
+- `src/app/(app)/admin/lugares/[id]/editar/page.tsx` — edit form; UUID-validates param, fetches via admin client
+- `src/components/admin/LugarForm.tsx` — reusable Client Component (create + edit); `wrap.bind(null, action)` pattern for `useActionState` with swappable Server Action; PLACE_TYPES allowlist validation
+- Actions added: `createPlace`, `updatePlace`, `deletePlace`
+
+**Admin business creation:**
+- `src/app/(app)/admin/negocios/nuevo/page.tsx` — Server Component; fetches all `business_owner` profiles via admin client, passes as prop to `AdminBusinessForm`
+- `src/components/admin/AdminBusinessForm.tsx` — Client Component; owner select, type select (reuses `businessesCopy.businesses.types`); `useActionState` with `wrap.bind` pattern
+- `createBusinessAsAdmin` Server Action — validates type against `BUSINESS_TYPES` allowlist, UUID-validates `ownerId`; inserts with `status: 'active', verified: true` (bypasses approval queue by design)
+- "Nuevo negocio" button added to `/admin/negocios` header
+
 ---
 
 ## Current schema (all applied in production)
@@ -78,7 +122,7 @@
 auth.users              → Supabase managed
 profiles                → id (FK auth.users), role (user_role), full_name, avatar_url, phone
 businesses              → id, owner_id (FK profiles), name, description, type, address, phone,
-                          images[], verified, status, lat, lng
+                          images[], verified, status (pending|active|inactive|rejected), lat, lng
 places                  → id, name, description, type, images[], lat, lng
 experiences             → id, business_id (FK businesses), name, description, price,
                           capacity, duration_minutes, images[], status
@@ -95,6 +139,7 @@ Migrations applied:
 - `supabase/migrations/20260729000000_create_profiles.sql`
 - `supabase/migrations/20260730000000_create_businesses_places_experiences.sql`
 - `supabase/migrations/20260730200000_create_bookings_transactions.sql`
+- `supabase/migrations/20260730210000_add_rejected_business_status.sql`
 
 ---
 
@@ -124,8 +169,9 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 - **`get_commission_rate()`** EXECUTE revoked from PUBLIC, granted only to `service_role`
 - **Business/place type values** are English canonical keys; Spanish labels in `src/lib/copy/businesses.ts`
 - **Server Components by default**; Client Components only for interactive forms
-- **`useActionState`** (React 19) for form state with Server Actions; adapter wrapper `bookingFormAction(_prevState, formData)` needed for async Server Actions
-- **`Number.isFinite()`** over `isNaN()` in `parsePrice()` — rejects `Infinity`
+- **`useActionState`** (React 19) for form state with Server Actions; `wrap.bind(null, action)` pattern used in `LugarForm` and `AdminBusinessForm` to make a single Client Component work with swappable Server Actions
+- **`Number.isFinite()`** over `isNaN()` — rejects `Infinity` and trailing-garbage strings (`Number("10.5abc") === NaN`)
+- **`Number()` over `parseFloat()`** — `parseFloat("10.5abc")` returns `10.5`; `Number("10.5abc")` returns `NaN`
 - **`.select('id')`** on update/toggle Server Actions to detect silent RLS blocks (0 rows updated)
 - **`@base-ui/react` has no `asChild` prop** — use `<Link>` with Tailwind classes directly instead of `<Button asChild>`
 - **PGRST116** = real 404 (no rows); distinguish from transient errors for proper `notFound()` vs `throw`
@@ -135,6 +181,11 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 - **`business_id` is denormalized** in `bookings` to avoid a JOIN through `experiences` in RLS policies for business owners
 - **Commission stored at booking time** in `transactions.commission_rate` + `commission_amount_cents` — never recalculated retroactively
 - **Simulated payment for MVP** — Wompi fields (`wompi_reference`, `wompi_link_id`, `wompi_link_url`) are nullable in schema so future integration requires no migration
+- **`form action={}` in Server Components** expects `Promise<void>` — `approveBusiness`/`rejectBusiness` return void and redirect on error; `useActionState` actions return `ActionResult`
+- **`updated_by` must be set explicitly** in admin actions because `createAdminClient()` uses service_role and `auth.uid() = NULL` in that connection context — pass `adminId` returned from `getAuthenticatedAdmin()`
+- **`getAuthenticatedAdmin()`** returns `{ admin: createAdminClient(), adminId: user.id }` — uses RLS-enforced client to validate the role, then creates service_role client for the actual operation
+- **Route groups don't affect URLs** — moving pages from `(app)/negocios` to `(public)/negocios` keeps the URL `/negocios` identical
+- **`isTourist` check**: only `role = 'tourist'` gets booking CTA; business owners / admins browsing public pages see the guest CTA
 
 ---
 
@@ -147,27 +198,50 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ---
 
-## Next session — Phase 5: Admin panel (minimum viable)
+## Next session — feat/public-landing
 
-Phase 5 before Phase 4 because admin approval is needed for the marketplace to function in production (businesses stay `pending` until approved).
+### Context
+`/` is currently an auth-gated placeholder inside `(app)/`. No public landing page exists. The app has no shared navigation bar.
 
 ### Scope
-1. **Business approval** — admin sees all `pending` businesses, can approve (`status → active`) or reject (`status → rejected`)
-2. **Commission management** — admin can update `commission_config.rate` per `service_type`
 
-### Route structure
-- `/admin` — admin layout with role guard (redirect non-admin to `/`)
-- `/admin/negocios` — list of businesses filterable by status; approve/reject actions
-- `/admin/comisiones` — read + update commission rates per service type
+**1. Migration** — add `is_featured BOOLEAN DEFAULT false` to `businesses`:
+- No RLS change needed (not user data)
+- Admin toggles it manually from `/admin/negocios` (businesses pay to be featured — manual activation for MVP)
+
+**2. Shared navigation (`PublicNav`)**
+- Server Component in `src/components/layout/PublicNav.tsx`
+- Added to `(public)/layout.tsx`
+- Logo VayaTur → `/`; links: Negocios, Lugares
+- Without session: Login + Registrarse buttons
+- With session: user's name + Cerrar sesión; if admin → link to `/admin`
+- Auth check with `supabase.auth.getUser()` — no redirect, just conditional rendering
+
+**3. Landing page — `/` in `(public)`**
+- Move `/` out of `(app)/` (currently a placeholder with sign-out button only)
+- Sections in order:
+  1. **Hero** — "Descubre Manaure Balcón del Cesar", primary CTA Explorar negocios → `/negocios`, secondary Ver lugares → `/lugares`; tropical gradient background
+  2. **Destacados** — horizontal scroll grid (mobile) of businesses where `is_featured = true AND status = 'active'`; badge "Destacado"; section hidden if no featured businesses
+  3. **Categorías** — chips/pills per business type (`resort/restaurant/farm/eatery/other`) linking to `/negocios?type=<key>`; filter on `/negocios` page needs to read `?type=` search param
+  4. **Lugares preview** — 3 most recent places with link to `/lugares`
+
+**4. Admin toggle — destacar negocio**
+- `toggleFeaturedBusiness` Server Action in `admin/actions.ts`
+- "Destacar" / "Quitar destacado" button on each active business card in `/admin/negocios`
+
+**5. `/negocios` page** — accept `?type=` search param filter (already has `?status=` logic in admin, same pattern for public page)
 
 ### Files to read at session start
 - `docs/handoff.md` (this file)
-- `CLAUDE.md` — project rules
-- `src/app/(app)/mi-negocio/actions.ts` — `getAuthenticatedOwner` pattern to follow for `getAuthenticatedAdmin`
-- `src/app/(app)/mi-negocio/page.tsx` — stat card UI pattern
-- `supabase/migrations/20260730000000_create_businesses_places_experiences.sql` — `prevent_business_status_escalation` trigger and `commission_config` table
+- `src/app/(public)/layout.tsx` — where PublicNav will be added
+- `src/app/(app)/page.tsx` — current placeholder to be replaced/removed
+- `src/app/(public)/negocios/page.tsx` — to add `?type=` filter
+- `src/app/(app)/admin/negocios/page.tsx` — to add featured toggle button
+- `src/app/(app)/admin/actions.ts` — to add `toggleFeaturedBusiness`
+- `src/lib/copy/admin.ts` — to add featured toggle copy
+- `src/lib/copy/businesses.ts` — type maps for category chips
 
-### Phase 4 — Transporters (after Phase 5)
+### Phase 4 — Transporters (after public landing)
 - `transporters` table (driver profile, availability status)
 - `transport_requests` table (tourist requests a ride; transporter accepts/rejects)
 - Public page: `/transportistas`
@@ -186,3 +260,6 @@ Phase 5 before Phase 4 because admin approval is needed for the marketplace to f
 - PR #4: feat(mi-negocio): add business owner self-management panel — **merged** ✅
 - PR #5: feat(bookings): add bookings and transactions schema with RLS — **merged** ✅
 - PR #6: feat(booking-flow): add tourist booking flow — **merged** ✅
+- PR #7: feat(admin): add admin panel — business approval, commission management — **merged** ✅
+- PR #8: feat(public): make negocios and lugares publicly accessible — **merged** ✅
+- PR #9: feat(admin-lugares): add places management and admin business creation — **merged** ✅
