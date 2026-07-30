@@ -9,7 +9,7 @@ type ExperienceRow = {
   id: string
   name: string
   description: string | null
-  price: number
+  price: string | number
   capacity: number | null
   duration_minutes: number | null
   images: string[] | null
@@ -41,6 +41,8 @@ export default async function NegocioDetailPage({
       'id, name, description, type, address, phone, images, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
     )
     .eq('id', id)
+    .eq('verified', true)
+    .eq('status', 'active')
     .single()
 
   // PGRST116 = no rows found → real 404; any other code = transient error
