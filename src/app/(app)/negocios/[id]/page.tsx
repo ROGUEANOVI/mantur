@@ -35,13 +35,19 @@ export default async function NegocioDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: business } = await supabase
+  const { data: business, error } = await supabase
     .from('businesses')
-    .select('*, experiences(*)')
+    .select(
+      'id, name, description, type, address, phone, images, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
+    )
     .eq('id', id)
     .single()
 
-  if (!business) notFound()
+  // PGRST116 = no rows found → real 404; any other code = transient error
+  if (error) {
+    if (error.code === 'PGRST116') notFound()
+    throw new Error(error.message)
+  }
 
   const b = business as BusinessDetail
   const copyDetail = businessesCopy.detail
@@ -190,7 +196,7 @@ function ExperienceCard({ experience: exp }: { experience: ExperienceRow }) {
           )}
 
           <p className="text-base font-semibold text-accent">
-            ${exp.price.toLocaleString('es-CO')} COP
+            ${Number(exp.price).toLocaleString('es-CO')} COP
           </p>
 
           <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">

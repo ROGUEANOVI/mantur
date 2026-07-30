@@ -14,11 +14,12 @@ type PlaceRow = {
 export default async function LugaresPage() {
   const supabase = await createClient()
 
-  // RLS allows public SELECT on places
-  const { data: places } = await supabase
+  const { data: places, error } = await supabase
     .from('places')
     .select('id, name, description, type, images')
     .order('name')
+
+  if (error) throw new Error(error.message)
 
   const copy = businessesCopy.places
 

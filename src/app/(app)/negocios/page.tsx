@@ -16,10 +16,16 @@ type BusinessRow = {
 export default async function NegociosPage() {
   const supabase = await createClient()
 
-  // RLS automatically filters: only verified=true AND status='active'
-  const { data: businesses } = await supabase
+  // Explicit filters mirror the public RLS condition — authenticated owners
+  // and admins would otherwise see their own non-public listings here too.
+  const { data: businesses, error } = await supabase
     .from('businesses')
     .select('id, name, description, type, images, address')
+    .eq('verified', true)
+    .eq('status', 'active')
+    .order('name')
+
+  if (error) throw new Error(error.message)
 
   const copy = businessesCopy.businesses
 
