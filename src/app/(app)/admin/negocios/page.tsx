@@ -52,9 +52,17 @@ export default async function AdminNegociosPage({
   return (
     <main className="px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg space-y-5">
-        <h1 className="text-2xl font-bold text-foreground">
-          {adminCopy.negocios.title}
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-foreground">
+            {adminCopy.negocios.title}
+          </h1>
+          <Link
+            href="/admin/negocios/nuevo"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors min-h-[44px] flex items-center"
+          >
+            {adminCopy.negocios.new}
+          </Link>
+        </div>
 
         {/* Status filter tabs */}
         <div className="flex gap-1 p-1 rounded-xl bg-muted">

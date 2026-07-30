@@ -65,6 +65,128 @@ export async function rejectBusiness(formData: FormData): Promise<void> {
   revalidatePath('/admin/negocios')
 }
 
+const BUSINESS_TYPES = ['resort', 'restaurant', 'farm', 'eatery', 'other'] as const
+
+export async function createBusinessAsAdmin(
+  formData: FormData,
+): Promise<ActionResult> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const name = (formData.get('name') as string).trim()
+  if (!name) return { error: adminCopy.negocios.form.errors.nameRequired }
+
+  const type = formData.get('type') as string
+  if (!BUSINESS_TYPES.includes(type as (typeof BUSINESS_TYPES)[number]))
+    return { error: adminCopy.negocios.form.errors.typeRequired }
+
+  const ownerId = formData.get('ownerId') as string
+  if (!UUID_RE.test(ownerId))
+    return { error: adminCopy.negocios.form.errors.ownerRequired }
+
+  const description = (formData.get('description') as string).trim() || null
+  const address = (formData.get('address') as string).trim() || null
+  const phone = (formData.get('phone') as string).trim() || null
+
+  const { error } = await admin.from('businesses').insert({
+    name,
+    type,
+    description,
+    address,
+    phone,
+    owner_id: ownerId,
+    status: 'active',
+    verified: true,
+  })
+
+  if (error) return { error: adminCopy.negocios.form.errors.generic }
+
+  revalidatePath('/admin/negocios')
+  revalidatePath('/negocios')
+  return { success: true }
+}
+
+const PLACE_TYPES = ['waterfall', 'river', 'viewpoint', 'beach', 'park', 'other'] as const
+
+export async function createPlace(formData: FormData): Promise<ActionResult> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const name = (formData.get('name') as string).trim()
+  if (!name) return { error: adminCopy.lugares.errors.nameRequired }
+
+  const type = formData.get('type') as string
+  if (!PLACE_TYPES.includes(type as (typeof PLACE_TYPES)[number]))
+    return { error: adminCopy.lugares.errors.typeRequired }
+
+  const description = (formData.get('description') as string).trim() || null
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: adminCopy.lugares.errors.invalidCoords }
+  }
+
+  const { error } = await admin
+    .from('places')
+    .insert({ name, description, type, lat, lng })
+
+  if (error) return { error: adminCopy.lugares.errors.generic }
+
+  revalidatePath('/admin/lugares')
+  revalidatePath('/lugares')
+  return { success: true }
+}
+
+export async function updatePlace(formData: FormData): Promise<ActionResult> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const placeId = formData.get('placeId') as string
+  if (!UUID_RE.test(placeId)) return { error: adminCopy.lugares.errors.notFound }
+
+  const name = (formData.get('name') as string).trim()
+  if (!name) return { error: adminCopy.lugares.errors.nameRequired }
+
+  const type = formData.get('type') as string
+  if (!PLACE_TYPES.includes(type as (typeof PLACE_TYPES)[number]))
+    return { error: adminCopy.lugares.errors.typeRequired }
+
+  const description = (formData.get('description') as string).trim() || null
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: adminCopy.lugares.errors.invalidCoords }
+  }
+
+  const { data, error } = await admin
+    .from('places')
+    .update({ name, description, type, lat, lng })
+    .eq('id', placeId)
+    .select('id')
+
+  if (error || !data?.length) return { error: adminCopy.lugares.errors.generic }
+
+  revalidatePath('/admin/lugares')
+  revalidatePath('/lugares')
+  return { success: true }
+}
+
+export async function deletePlace(formData: FormData): Promise<void> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const placeId = formData.get('placeId') as string
+  if (!UUID_RE.test(placeId)) redirect('/admin/lugares')
+
+  await admin.from('places').delete().eq('id', placeId)
+
+  revalidatePath('/admin/lugares')
+  revalidatePath('/lugares')
+  redirect('/admin/lugares')
+}
+
 export async function updateCommissionRate(
   formData: FormData,
 ): Promise<ActionResult> {

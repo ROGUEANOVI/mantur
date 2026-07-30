@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, Building2, CalendarDays, Percent, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Building2, CalendarDays, Percent, TreePine, ChevronRight } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,7 @@ export default async function AdminPage() {
     { count: pendingCount },
     { count: activeCount },
     { count: bookingsCount },
+    { count: lugaresCount },
     { data: commissions },
   ] = await Promise.all([
     admin
@@ -22,6 +23,7 @@ export default async function AdminPage() {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'active'),
     admin.from('bookings').select('id', { count: 'exact', head: true }),
+    admin.from('places').select('id', { count: 'exact', head: true }),
     admin.from('commission_config').select('service_type, rate'),
   ])
 
@@ -115,6 +117,22 @@ export default async function AdminPage() {
 
           <div className="rounded-2xl border border-border bg-card shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
+              <TreePine
+                className="size-4 text-primary"
+                aria-hidden="true"
+                strokeWidth={1.5}
+              />
+              <p className="text-xs text-muted-foreground">
+                {adminCopy.dashboard.stats.totalLugares}
+              </p>
+            </div>
+            <p className="text-3xl font-bold text-foreground">
+              {lugaresCount ?? 0}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card shadow-sm p-4">
+            <div className="flex items-center gap-2 mb-2">
               <Percent
                 className="size-4 text-primary"
                 aria-hidden="true"
@@ -150,6 +168,33 @@ export default async function AdminPage() {
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {adminCopy.dashboard.sections.businessesDesc}
+                </p>
+              </div>
+            </div>
+            <ChevronRight
+              className="size-5 text-muted-foreground shrink-0"
+              aria-hidden="true"
+            />
+          </Link>
+
+          <Link
+            href="/admin/lugares"
+            className="flex items-center justify-between rounded-2xl border border-border bg-card shadow-sm p-4 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <TreePine
+                  className="size-5 text-primary"
+                  aria-hidden="true"
+                  strokeWidth={1.5}
+                />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">
+                  {adminCopy.dashboard.sections.lugares}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {adminCopy.dashboard.sections.lugaresDesc}
                 </p>
               </div>
             </div>
