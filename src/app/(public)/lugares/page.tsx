@@ -25,9 +25,9 @@ export default async function LugaresPage() {
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      <section className="px-4 py-8 bg-gradient-to-br from-primary/10 to-accent/10">
-        <h1 className="text-2xl font-bold text-foreground">{copy.pageTitle}</h1>
-        <p className="mt-1 text-base text-muted-foreground">{copy.pageSubtitle}</p>
+      <section className="px-4 py-8 bg-gradient-to-br from-emerald-600 to-teal-600">
+        <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
+        <p className="mt-1 text-base text-white/80">{copy.pageSubtitle}</p>
       </section>
 
       <section className="px-4 mt-6">
