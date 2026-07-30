@@ -121,3 +121,5 @@ so they read well in the changelog/history.
 - `db-schema-agent` — designs/migrates Postgres schema + RLS policies
 - `security-reviewer` — reviews any diff touching auth, payments, or money
   logic before it's considered done
+- `ui-agent` — builds and reviews pages/components following the VayaTur
+  design system (mobile-first, tourism aesthetic, shadcn/ui Vega)
