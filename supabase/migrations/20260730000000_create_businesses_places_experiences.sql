@@ -39,8 +39,8 @@ CREATE TABLE public.businesses (
   owner_id    uuid           NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   name        text           NOT NULL,
   description text,
-  -- 'otro' is the catch-all for categories not yet enumerated
-  type        text           NOT NULL CHECK (type IN ('balneario','restaurante','finca','estadero','otro')),
+  -- English canonical keys; Spanish labels live in src/lib/copy/businesses.ts
+  type        text           NOT NULL CHECK (type IN ('resort','restaurant','farm','eatery','other')),
   address     text,
   phone       text,
   images      text[]         NOT NULL DEFAULT '{}',
@@ -59,9 +59,9 @@ CREATE TRIGGER businesses_set_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- Prevent business owners from self-approving their listing.
--- Only admins may change `verified` or `status`; all other column
--- updates by the owner go through normally.  Mirrors the pattern
--- used by `prevent_role_escalation` in the profiles migration.
+-- On INSERT: non-admins must supply verified=false and status='pending'.
+-- On UPDATE: non-admins may not change verified or status at all.
+-- Mirrors the prevent_role_escalation pattern from the profiles migration.
 CREATE OR REPLACE FUNCTION public.prevent_business_status_escalation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -70,9 +70,15 @@ SET search_path = ''
 AS $$
 BEGIN
   IF NOT public.is_admin() THEN
-    IF NEW.verified IS DISTINCT FROM OLD.verified
-       OR NEW.status IS DISTINCT FROM OLD.status THEN
-      RAISE EXCEPTION 'insufficient privileges to change business verification or status';
+    IF TG_OP = 'INSERT' THEN
+      IF NEW.verified = true OR NEW.status != 'pending' THEN
+        RAISE EXCEPTION 'new businesses must start as pending and unverified';
+      END IF;
+    ELSIF TG_OP = 'UPDATE' THEN
+      IF NEW.verified IS DISTINCT FROM OLD.verified
+         OR NEW.status IS DISTINCT FROM OLD.status THEN
+        RAISE EXCEPTION 'insufficient privileges to change business verification or status';
+      END IF;
     END IF;
   END IF;
   RETURN NEW;
@@ -80,7 +86,7 @@ END;
 $$;
 
 CREATE TRIGGER businesses_prevent_status_escalation
-  BEFORE UPDATE ON public.businesses
+  BEFORE INSERT OR UPDATE ON public.businesses
   FOR EACH ROW EXECUTE FUNCTION public.prevent_business_status_escalation();
 
 ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
@@ -130,7 +136,8 @@ CREATE TABLE public.places (
   id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
   name        text        NOT NULL,
   description text,
-  type        text        CHECK (type IN ('cascada','rio','mirador','playa','parque','otro')),
+  -- English canonical keys; Spanish labels live in src/lib/copy/businesses.ts
+  type        text        CHECK (type IN ('waterfall','river','viewpoint','beach','park','other')),
   images      text[]      NOT NULL DEFAULT '{}',
   lat         numeric(10,7),
   lng         numeric(10,7),
@@ -165,19 +172,18 @@ CREATE POLICY "places_delete_admin"
 -- 4. Table: experiences
 -- Bookable activities tied to a business.
 --
--- IMPORTANT: `price` is a server-side-only field.
--- This column must NEVER be read or written from client-side
--- code.  All price resolution, commission calculation, and
--- payment amount derivation must happen in Server Actions or
--- Route Handlers.  Using numeric(10,2) (not float) to avoid
--- floating-point rounding errors in financial calculations.
+-- NOTE on `price`: clients MAY read this column to display it on
+-- listing cards.  What is forbidden is client-side CALCULATION or
+-- MUTATION: prices must only be written via Server Actions, and all
+-- commission and payment-amount logic must run server-side.
+-- numeric(10,2) avoids floating-point rounding in financial math.
 -- ------------------------------------------------------------
 CREATE TABLE public.experiences (
   id               uuid           DEFAULT gen_random_uuid() PRIMARY KEY,
   business_id      uuid           NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
   name             text           NOT NULL,
   description      text,
-  -- MONEY FIELD: server-side only. See note above.
+  -- Display-safe for clients; write/calculate server-side only. See note above.
   price            numeric(10,2)  NOT NULL CHECK (price >= 0),
   capacity         integer        CHECK (capacity > 0),
   duration_minutes integer        CHECK (duration_minutes > 0),
@@ -194,14 +200,19 @@ CREATE TRIGGER experiences_set_updated_at
 
 ALTER TABLE public.experiences ENABLE ROW LEVEL SECURITY;
 
--- Active experiences are public; inactive ones are visible only
--- to the owning business_owner and admins.
--- The subquery joins back to businesses to resolve ownership
--- without exposing the owner_id on the experiences table itself.
+-- Active experiences of verified+active businesses are public.
+-- Inactive experiences (and those of pending/unverified businesses)
+-- are only visible to the owning business_owner and admins.
 CREATE POLICY "experiences_select"
   ON public.experiences FOR SELECT
   USING (
-    status = 'active'
+    (
+      status = 'active'
+      AND EXISTS (
+        SELECT 1 FROM public.businesses b
+        WHERE b.id = business_id AND b.status = 'active' AND b.verified = true
+      )
+    )
     OR EXISTS (
       SELECT 1 FROM public.businesses b
       WHERE b.id = business_id AND b.owner_id = auth.uid()
@@ -270,6 +281,24 @@ CREATE TRIGGER commission_config_set_updated_at
   BEFORE UPDATE ON public.commission_config
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Auto-populate updated_by with the current user on every UPDATE so the
+-- audit trail is reliable without relying on callers to set it manually.
+CREATE OR REPLACE FUNCTION public.set_commission_updated_by()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  NEW.updated_by = auth.uid();
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER commission_config_set_updated_by
+  BEFORE UPDATE ON public.commission_config
+  FOR EACH ROW EXECUTE FUNCTION public.set_commission_updated_by();
+
 ALTER TABLE public.commission_config ENABLE ROW LEVEL SECURITY;
 
 -- Only admins may SELECT directly from this table.
@@ -283,6 +312,8 @@ CREATE POLICY "commission_config_select_admin"
 -- Server Actions call this function to read a commission rate without
 -- granting clients direct table access.  SECURITY DEFINER + empty
 -- search_path makes it safe to call from any RLS context.
+-- EXECUTE is revoked from PUBLIC and granted only to service_role so
+-- this function cannot be called via the Supabase RPC endpoint by clients.
 CREATE OR REPLACE FUNCTION public.get_commission_rate(p_service_type text)
 RETURNS numeric
 LANGUAGE sql
@@ -292,6 +323,9 @@ SET search_path = ''
 AS $$
   SELECT rate FROM public.commission_config WHERE service_type = p_service_type
 $$;
+
+REVOKE EXECUTE ON FUNCTION public.get_commission_rate(text) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.get_commission_rate(text) TO service_role;
 
 CREATE POLICY "commission_config_insert_admin"
   ON public.commission_config FOR INSERT
@@ -341,12 +375,14 @@ CREATE POLICY "business_images_public_select"
   USING (bucket_id = 'business-images');
 
 -- Only authenticated business_owners and admins may upload.
--- Prevents tourists or transporters from polluting the bucket.
+-- `owner` is explicitly checked to match auth.uid() (Supabase sets this
+-- automatically, but the explicit check is a robust belt-and-suspenders guard).
 CREATE POLICY "business_images_owner_insert"
   ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'business-images'
     AND auth.uid() IS NOT NULL
+    AND (owner = auth.uid() OR public.get_my_role() = 'admin')
     AND public.get_my_role() IN ('business_owner', 'admin')
   );
 
