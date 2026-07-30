@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { adminCopy } from '@/lib/copy/admin'
+import NavLink from '@/components/layout/NavLink'
 
 export default async function AdminLayout({
   children,
@@ -23,38 +24,48 @@ export default async function AdminLayout({
 
   if (profile?.role !== 'admin') redirect('/')
 
+  const linkBase =
+    'text-sm min-h-[44px] flex items-center px-2 transition-colors rounded-lg'
+  const inactive = 'text-muted-foreground hover:text-foreground'
+  const active = 'text-foreground font-semibold'
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="sticky top-0 z-10 border-b border-border bg-card/80 backdrop-blur-sm px-4">
-        <div className="mx-auto max-w-lg flex items-center gap-1 h-12">
-          <Link
+        <div className="mx-auto max-w-lg flex items-center gap-0.5 h-12">
+          <NavLink
             href="/admin"
-            className="text-sm font-semibold text-primary mr-3"
+            exact
+            className={`text-sm font-bold text-primary mr-2 px-2 min-h-[44px] flex items-center`}
+            activeClassName="underline underline-offset-4"
           >
             {adminCopy.nav.dashboard}
-          </Link>
-          <Link
+          </NavLink>
+          <NavLink
             href="/admin/negocios"
-            className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] flex items-center px-2 transition-colors"
+            className={`${linkBase} ${inactive}`}
+            activeClassName={active}
           >
             {adminCopy.nav.negocios}
-          </Link>
-          <Link
+          </NavLink>
+          <NavLink
             href="/admin/lugares"
-            className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] flex items-center px-2 transition-colors"
+            className={`${linkBase} ${inactive}`}
+            activeClassName={active}
           >
             {adminCopy.nav.lugares}
-          </Link>
-          <Link
+          </NavLink>
+          <NavLink
             href="/admin/comisiones"
-            className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] flex items-center px-2 transition-colors"
+            className={`${linkBase} ${inactive}`}
+            activeClassName={active}
           >
             {adminCopy.nav.comisiones}
-          </Link>
+          </NavLink>
           <div className="ml-auto">
             <Link
               href="/"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2"
             >
               ← App
             </Link>

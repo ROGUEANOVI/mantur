@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { signOut } from '@/app/(auth)/actions'
 import { landingCopy } from '@/lib/copy/landing'
 import NavMobileMenu from './NavMobileMenu'
+import NavLink from './NavLink'
 
 export default async function PublicNav() {
   const supabase = await createClient()
@@ -100,13 +101,14 @@ export default async function PublicNav() {
         {/* Desktop nav links */}
         <nav className="hidden sm:flex items-center gap-0.5 flex-1">
           {navLinks.map((link) => (
-            <Link
+            <NavLink
               key={link.href}
               href={link.href}
               className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center transition-colors rounded-lg hover:bg-muted/50"
+              activeClassName="text-foreground font-semibold bg-muted/40"
             >
               {link.label}
-            </Link>
+            </NavLink>
           ))}
         </nav>
 

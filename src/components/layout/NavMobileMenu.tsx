@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { Menu, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+import { cn } from '@/lib/utils'
 
 type NavLink = { label: string; href: string }
 
@@ -49,15 +49,23 @@ export default function NavMobileMenu({
           {/* Drawer */}
           <div className="absolute left-0 right-0 top-full z-20 border-b border-border bg-background shadow-lg">
             <nav className="flex flex-col divide-y divide-border">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="px-4 py-4 text-base font-medium text-foreground hover:bg-muted/50 transition-colors"
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {links.map((link) => {
+                const isActive = pathname.startsWith(link.href)
+                return (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className={cn(
+                      'px-4 py-4 text-base font-medium transition-colors',
+                      isActive
+                        ? 'text-primary font-semibold bg-primary/5'
+                        : 'text-foreground hover:bg-muted/50',
+                    )}
+                  >
+                    {link.label}
+                  </a>
+                )
+              })}
             </nav>
             <div className="px-4 py-4 border-t border-border">{children}</div>
           </div>

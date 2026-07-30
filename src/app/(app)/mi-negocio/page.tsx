@@ -53,7 +53,9 @@ export default async function MiNegocioPage() {
     .from('businesses')
     .select('id, name, description, type, address, phone, status, verified')
     .eq('owner_id', user!.id)
-    .single()
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
   // ── No business yet: show creation form ─────────────────────────────────
   if (!business) {
