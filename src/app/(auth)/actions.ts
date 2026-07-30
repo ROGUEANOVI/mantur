@@ -25,7 +25,13 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const fullName = formData.get('full_name') as string
-  const role = formData.get('role') as 'tourist' | 'business_owner' | 'transporter'
+
+  const ALLOWED_ROLES = ['tourist', 'business_owner', 'transporter'] as const
+  type AllowedRole = (typeof ALLOWED_ROLES)[number]
+  const rawRole = formData.get('role') as string
+  const role: AllowedRole = (ALLOWED_ROLES as readonly string[]).includes(rawRole)
+    ? (rawRole as AllowedRole)
+    : 'tourist'
 
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signUp({ email, password })
@@ -42,13 +48,20 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
 
   if (data.user) {
     const admin = createAdminClient()
-    await admin
-      .from('profiles')
-      .update({
+    // upsert instead of update: handles the edge case where the
+    // handle_new_user trigger hasn't committed yet when we reach this line.
+    // service_role bypasses RLS; prevent_role_escalation allows NULL auth.uid().
+    const { error: profileError } = await admin.from('profiles').upsert(
+      {
+        id: data.user.id,
         full_name: fullName || null,
-        ...(role !== 'tourist' && { role }),
-      })
-      .eq('id', data.user.id)
+        role: role ?? 'tourist',
+      },
+      { onConflict: 'id' },
+    )
+    if (profileError) {
+      return { error: authCopy.signup.errors.generic }
+    }
   }
 
   redirect('/')
