@@ -37,9 +37,16 @@ export default async function NegocioDetailPage({
 
   // Check session without redirecting — this is a public page.
   const { data: { user } } = await supabase.auth.getUser()
-  const isTourist = user
-    ? (await supabase.from('profiles').select('role').eq('id', user.id).single()).data?.role === 'tourist'
-    : false
+  const isGuest = !user
+  let isTourist = false
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    isTourist = profile?.role === 'tourist'
+  }
 
   const { data: business, error } = await supabase
     .from('businesses')
@@ -136,7 +143,7 @@ export default async function NegocioDetailPage({
         ) : (
           <div className="space-y-3">
             {activeExperiences.map((exp) => (
-              <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} />
+              <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} isGuest={isGuest} />
             ))}
           </div>
         )}
@@ -148,9 +155,11 @@ export default async function NegocioDetailPage({
 function ExperienceCard({
   experience: exp,
   isTourist,
+  isGuest,
 }: {
   experience: ExperienceRow
   isTourist: boolean
+  isGuest: boolean
 }) {
   const copy = businessesCopy.experiences
   const imageUrl = exp.images?.[0]
@@ -210,14 +219,14 @@ function ExperienceCard({
             >
               {copy.book}
             </Link>
-          ) : (
+          ) : isGuest ? (
             <Link
               href="/login"
               className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-[44px] hover:bg-primary/10 transition-colors"
             >
               {copy.bookGuest}
             </Link>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

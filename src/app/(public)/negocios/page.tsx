@@ -13,15 +13,30 @@ type BusinessRow = {
   address: string | null
 }
 
-export default async function NegociosPage() {
+const VALID_TYPES = ['resort', 'restaurant', 'farm', 'eatery', 'other'] as const
+type BusinessType = (typeof VALID_TYPES)[number]
+
+export default async function NegociosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>
+}) {
+  const { type: rawType } = await searchParams
+  const typeFilter: BusinessType | null =
+    VALID_TYPES.includes(rawType as BusinessType) ? (rawType as BusinessType) : null
+
   const supabase = await createClient()
 
-  const { data: businesses, error } = await supabase
+  let query = supabase
     .from('businesses')
     .select('id, name, description, type, images, address')
     .eq('verified', true)
     .eq('status', 'active')
     .order('name')
+
+  if (typeFilter) query = query.eq('type', typeFilter)
+
+  const { data: businesses, error } = await query
 
   if (error) throw new Error(error.message)
 
@@ -30,13 +45,42 @@ export default async function NegociosPage() {
   return (
     <main className="min-h-screen bg-background pb-10">
       {/* Hero */}
-      <section className="px-4 py-8 bg-gradient-to-br from-primary/10 to-accent/10">
-        <h1 className="text-2xl font-bold text-foreground">{copy.pageTitle}</h1>
-        <p className="mt-1 text-base text-muted-foreground">{copy.pageSubtitle}</p>
+      <section className="px-4 py-8 bg-gradient-to-br from-emerald-600 to-teal-600">
+        <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
+        <p className="mt-1 text-base text-white/80">{copy.pageSubtitle}</p>
+      </section>
+
+      {/* Type filter pills */}
+      <section className="px-4 py-4 flex gap-2 overflow-x-auto scrollbar-none">
+        <Link
+          href="/negocios"
+          className={cn(
+            'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+            !typeFilter
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border bg-card text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Todos
+        </Link>
+        {VALID_TYPES.map((t) => (
+          <Link
+            key={t}
+            href={`/negocios?type=${t}`}
+            className={cn(
+              'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+              typeFilter === t
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {copy.types[t]}
+          </Link>
+        ))}
       </section>
 
       {/* Business grid */}
-      <section className="px-4 mt-6">
+      <section className="px-4 mt-2">
         {!businesses || businesses.length === 0 ? (
           <EmptyState message={copy.empty} />
         ) : (
@@ -92,7 +136,7 @@ function BusinessCard({ business }: { business: BusinessRow }) {
             'flex items-center justify-center w-full min-h-[44px]',
             'rounded-xl bg-primary text-primary-foreground',
             'text-sm font-medium px-4 py-2.5',
-            'hover:bg-primary/90 transition-colors'
+            'hover:bg-primary/90 transition-colors',
           )}
         >
           {copy.viewDetail}

@@ -65,6 +65,53 @@ export async function rejectBusiness(formData: FormData): Promise<void> {
   revalidatePath('/admin/negocios')
 }
 
+export async function forceDeactivateBusiness(formData: FormData): Promise<void> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const businessId = formData.get('businessId') as string
+  if (!UUID_RE.test(businessId)) redirect('/admin/negocios')
+
+  await admin
+    .from('businesses')
+    .update({ status: 'inactive' })
+    .eq('id', businessId)
+
+  revalidatePath('/admin/negocios')
+  revalidatePath('/negocios')
+}
+
+export async function forceActivateBusiness(formData: FormData): Promise<void> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const businessId = formData.get('businessId') as string
+  if (!UUID_RE.test(businessId)) redirect('/admin/negocios')
+
+  await admin
+    .from('businesses')
+    .update({ status: 'active', verified: true })
+    .eq('id', businessId)
+
+  revalidatePath('/admin/negocios')
+  revalidatePath('/negocios')
+}
+
+export async function toggleFeaturedBusiness(formData: FormData): Promise<void> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const businessId = formData.get('businessId') as string
+  if (!UUID_RE.test(businessId)) redirect('/admin/negocios')
+
+  const featured = formData.get('featured') === 'true'
+
+  await admin
+    .from('businesses')
+    .update({ is_featured: featured })
+    .eq('id', businessId)
+
+  revalidatePath('/admin/negocios')
+  revalidatePath('/')
+}
+
 const BUSINESS_TYPES = ['resort', 'restaurant', 'farm', 'eatery', 'other'] as const
 
 export async function createBusinessAsAdmin(

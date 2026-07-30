@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type ActionResult = { error: string } | void
 
@@ -99,7 +100,59 @@ export async function updateBusiness(
 
   if (error) return { error: 'No se pudo actualizar el negocio. Intenta de nuevo.' }
 
-  revalidatePath('/mi-negocio')
+  revalidatePath('/mi-negocio', 'layout')
+  redirect(`/mi-negocio/${businessId}`)
+}
+
+export async function deactivateBusiness(businessId: string, _formData: FormData): Promise<void> {
+  if (!UUID_RE.test(businessId)) return
+
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { error } = await supabase
+    .from('businesses')
+    .update({ status: 'inactive' })
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+
+  if (error) return
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath('/negocios')
+  redirect('/mi-negocio')
+}
+
+export async function reactivateBusiness(businessId: string, _formData: FormData): Promise<void> {
+  if (!UUID_RE.test(businessId)) return
+
+  // Verify ownership with the user client before escalating to admin.
+  const { supabase, userId } = await getAuthenticatedOwner()
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id, verified')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .eq('status', 'inactive')
+    .maybeSingle()
+
+  if (!owned) return
+
+  // Verified businesses restore directly to active — no re-approval needed.
+  // Unverified ones go back to pending for admin review.
+  // RLS only allows owners to set status='inactive', so we use the admin
+  // client here after verifying ownership above.
+  const targetStatus = owned.verified ? 'active' : 'pending'
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('businesses')
+    .update({ status: targetStatus })
+    .eq('id', businessId)
+
+  if (error) return
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath('/negocios')
+  redirect(`/mi-negocio/${businessId}`)
 }
 
 export async function createExperience(formData: FormData): Promise<ActionResult> {
@@ -146,8 +199,8 @@ export async function createExperience(formData: FormData): Promise<ActionResult
 
   if (error) return { error: 'No se pudo crear la experiencia. Intenta de nuevo.' }
 
-  revalidatePath('/mi-negocio/experiencias')
-  redirect('/mi-negocio/experiencias')
+  revalidatePath('/mi-negocio', 'layout')
+  redirect(`/mi-negocio/${businessId}/experiencias`)
 }
 
 export async function updateExperience(
@@ -185,7 +238,7 @@ export async function updateExperience(
     return { error: 'No se pudo actualizar la experiencia. Intenta de nuevo.' }
   }
 
-  revalidatePath('/mi-negocio/experiencias')
+  revalidatePath('/mi-negocio', 'layout')
 }
 
 export async function toggleExperienceStatus(
@@ -209,5 +262,5 @@ export async function toggleExperienceStatus(
     return { error: 'No se pudo actualizar el estado. Intenta de nuevo.' }
   }
 
-  revalidatePath('/mi-negocio/experiencias')
+  revalidatePath('/mi-negocio', 'layout')
 }

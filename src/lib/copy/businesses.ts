@@ -1,7 +1,7 @@
 export const miNegocioCopy = {
   nav: {
     overview: 'Mi negocio',
-    experiences: 'Experiencias',
+    experiences: 'Actividades',
   },
   setup: {
     title: 'Registra tu negocio',
@@ -10,7 +10,7 @@ export const miNegocioCopy = {
     submitting: 'Creando negocio...',
   },
   overview: {
-    title: 'Mi negocio',
+    title: 'Mis negocios',
     statusLabel: 'Estado',
     statusPending: 'En revisión',
     statusActive: 'Activo',
@@ -22,11 +22,11 @@ export const miNegocioCopy = {
     activeBookingsNote: 'confirmadas y pendientes de pago',
   },
   experiences: {
-    title: 'Mis experiencias',
-    addButton: 'Nueva experiencia',
-    newTitle: 'Nueva experiencia',
-    backToExperiences: 'Volver a experiencias',
-    empty: 'Aún no tienes experiencias. Agrega una para que los turistas puedan reservar.',
+    title: 'Mis actividades',
+    addButton: 'Nueva actividad',
+    newTitle: 'Nueva actividad',
+    backToExperiences: 'Volver a actividades',
+    empty: 'Aún no tienes actividades. Agrega una para que los turistas puedan reservar.',
     activate: 'Activar',
     deactivate: 'Desactivar',
     toggling: 'Actualizando...',
@@ -38,7 +38,7 @@ export const miNegocioCopy = {
     namePlaceholder: 'Ej: Tour por el río',
     businessNamePlaceholder: 'Ej: Balneario El Paraíso',
     description: 'Descripción',
-    descriptionPlaceholder: 'Describe la experiencia...',
+    descriptionPlaceholder: 'Describe la actividad...',
     businessDescriptionPlaceholder: 'Describe tu negocio...',
     type: 'Tipo de negocio',
     address: 'Dirección',
@@ -62,15 +62,15 @@ export const miNegocioCopy = {
 
 export const businessesCopy = {
   nav: {
-    businesses: 'Negocios',
+    businesses: 'Explorar',
     places: 'Lugares',
-    experiences: 'Experiencias',
+    experiences: 'Actividades',
   },
 
   businesses: {
-    pageTitle: 'Negocios turísticos',
+    pageTitle: 'Explora Manaure',
     pageSubtitle: 'Descubre los mejores balnearios, restaurantes y fincas de Manaure',
-    empty: 'Próximamente habrá negocios disponibles en Manaure.',
+    empty: 'Próximamente habrá establecimientos disponibles en Manaure.',
     fromPrice: 'Desde',
     viewDetail: 'Ver detalles',
     types: {
@@ -83,9 +83,9 @@ export const businessesCopy = {
   },
 
   places: {
-    pageTitle: 'Lugares turísticos',
-    pageSubtitle: 'Explora las atracciones naturales y culturales de Manaure Balcón del Cesar',
-    empty: 'Próximamente se publicarán los lugares de interés.',
+    pageTitle: 'Imperdibles de Manaure',
+    pageSubtitle: 'Los lugares que todo visitante debe conocer en Manaure Balcón del Cesar',
+    empty: 'Próximamente se publicarán los imperdibles de Manaure.',
     types: {
       waterfall: 'Cascada',
       river: 'Río',
@@ -97,8 +97,8 @@ export const businessesCopy = {
   },
 
   experiences: {
-    sectionTitle: 'Experiencias disponibles',
-    empty: 'Este negocio no tiene experiencias disponibles por el momento.',
+    sectionTitle: 'Actividades disponibles',
+    empty: 'Este establecimiento no tiene actividades disponibles por el momento.',
     book: 'Reservar',
     bookGuest: 'Inicia sesión para reservar',
     duration: 'Duración',

@@ -1,10 +1,9 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { Plus, Clock, Users } from 'lucide-react'
+import { notFound } from 'next/navigation'
+import { Plus, Clock, Users, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy, businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { ToggleExperienceButton } from '@/components/mi-negocio/ToggleExperienceButton'
 
 type Experience = {
@@ -17,21 +16,25 @@ type Experience = {
   status: string
 }
 
-export default async function ExperienciasPage() {
+export default async function ExperienciasPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Resolve the business that belongs to this owner
   const { data: business } = await supabase
     .from('businesses')
-    .select('id')
+    .select('id, name, status')
+    .eq('id', id)
     .eq('owner_id', user!.id)
-    .single()
+    .maybeSingle()
 
-  // Owner hasn't created a business yet
-  if (!business) redirect('/mi-negocio')
+  if (!business) notFound()
 
   const { data: experiences } = await supabase
     .from('experiences')
@@ -45,11 +48,30 @@ export default async function ExperienciasPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg">
-        {/* Section header */}
+        <Link
+          href={`/mi-negocio/${id}`}
+          className={cn(
+            'inline-flex items-center gap-1.5 mb-5',
+            'text-sm font-medium text-primary min-h-[44px] py-2',
+            'hover:underline underline-offset-4',
+          )}
+        >
+          <ChevronLeft className="size-4" aria-hidden="true" />
+          {business.name}
+        </Link>
+
+        {business.status === 'inactive' && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/10">
+            <p className="text-sm text-amber-800 leading-relaxed dark:text-amber-400">
+              Este negocio está inactivo. Las experiencias no son visibles para los turistas hasta que reactives el negocio.
+            </p>
+          </div>
+        )}
+
         <div className="mb-5 flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-foreground">{copy.title}</h1>
           <Link
-            href="/mi-negocio/experiencias/nueva"
+            href={`/mi-negocio/${id}/experiencias/nueva`}
             className="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-primary text-primary-foreground text-sm font-medium px-3 min-h-[44px] hover:bg-primary/90 transition-colors"
           >
             <Plus className="size-4" aria-hidden="true" />
@@ -57,17 +79,9 @@ export default async function ExperienciasPage() {
           </Link>
         </div>
 
-        {/* Empty state */}
         {list.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center space-y-4">
+          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
             <p className="text-sm text-muted-foreground">{copy.empty}</p>
-            <Link
-              href="/mi-negocio/experiencias/nueva"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium px-4 min-h-[44px] hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              {copy.addButton}
-            </Link>
           </div>
         ) : (
           <ul className="space-y-3" role="list">
@@ -96,7 +110,6 @@ function ExperienceCard({ experience: exp }: { experience: Experience }) {
 
   return (
     <div className="rounded-2xl border border-border bg-card shadow-sm hover:shadow-md transition-shadow p-4 space-y-3">
-      {/* Name + status badge */}
       <div className="flex items-start justify-between gap-3">
         <h2 className="font-semibold text-foreground leading-snug line-clamp-1 text-base">
           {exp.name}
@@ -111,26 +124,22 @@ function ExperienceCard({ experience: exp }: { experience: Experience }) {
         </span>
       </div>
 
-      {/* Description */}
       {exp.description && (
         <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
           {exp.description}
         </p>
       )}
 
-      {/* Price + meta */}
       <div className="flex items-center gap-3 flex-wrap">
         <p className="text-base font-semibold text-accent">
           ${Number(exp.price).toLocaleString('es-CO')} COP
         </p>
-
         {exp.duration_minutes != null && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="size-3.5" aria-hidden="true" />
             {exp.duration_minutes}&nbsp;{expCopy.minutes}
           </span>
         )}
-
         {exp.capacity != null && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Users className="size-3.5" aria-hidden="true" />
@@ -139,7 +148,6 @@ function ExperienceCard({ experience: exp }: { experience: Experience }) {
         )}
       </div>
 
-      {/* Toggle action */}
       <div className="pt-1">
         <ToggleExperienceButton
           experienceId={exp.id}

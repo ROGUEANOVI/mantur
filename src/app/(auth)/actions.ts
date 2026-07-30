@@ -18,6 +18,19 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
     return { error: authCopy.login.errors.invalidCredentials }
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    if (profile?.role === 'admin') redirect('/admin')
+  }
+
   redirect('/')
 }
 
