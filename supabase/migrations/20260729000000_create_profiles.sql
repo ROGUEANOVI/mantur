@@ -49,12 +49,14 @@ CREATE TRIGGER profiles_set_updated_at
 -- 4. Auto-create profile row when auth.users gets a new entry
 -- SECURITY DEFINER so the trigger runs as the function owner
 -- (postgres role) and bypasses RLS on profiles.
--- SET search_path = public prevents search-path injection.
+-- SET search_path = '' prevents search-path injection; all
+-- referenced names are schema-qualified (public.profiles).
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER SET search_path = public
+SECURITY DEFINER
+SET search_path = ''
 AS $$
 BEGIN
   INSERT INTO public.profiles (id, role)
@@ -75,7 +77,9 @@ CREATE TRIGGER on_auth_user_created
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE sql
-SECURITY DEFINER STABLE SET search_path = public
+STABLE
+SECURITY DEFINER
+SET search_path = ''
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles
@@ -92,10 +96,16 @@ $$;
 CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER SET search_path = public
+SECURITY DEFINER
+SET search_path = ''
 AS $$
 BEGIN
-  IF NEW.role <> OLD.role AND NOT public.is_admin() THEN
+  -- Allow service-role / dashboard operations (auth.uid() is NULL there).
+  -- RLS independently blocks unauthenticated client requests.
+  IF auth.uid() IS NULL OR public.is_admin() THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
     RAISE EXCEPTION 'insufficient privileges to change role';
   END IF;
   RETURN NEW;
