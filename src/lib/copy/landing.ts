@@ -1,14 +1,14 @@
 export const landingCopy = {
   nav: {
     brand: 'VayaTur',
-    negocios: 'Negocios',
-    lugares: 'Lugares',
+    negocios: 'Explorar',
+    lugares: 'Lugares Imperdibles',
     login: 'Iniciar sesión',
     signup: 'Registrarse',
     signout: 'Cerrar sesión',
     admin: 'Admin',
     myBookings: 'Mis reservas',
-    myBusiness: 'Mi negocio',
+    myBusiness: 'Mis negocios',
   },
 
   hero: {
@@ -16,8 +16,8 @@ export const landingCopy = {
     title: 'Descubre el paraíso escondido de Colombia',
     subtitle:
       'Balnearios, fincas, restaurantes y experiencias únicas te esperan en Manaure.',
-    ctaPrimary: 'Explorar negocios',
-    ctaSecondary: 'Ver lugares',
+    ctaPrimary: 'Explorar Manaure',
+    ctaSecondary: 'Imperdibles',
   },
 
   featured: {
@@ -36,9 +36,9 @@ export const landingCopy = {
   },
 
   placesPreview: {
-    title: 'Lugares turísticos',
-    subtitle: 'Atracciones naturales y culturales de Manaure',
-    viewAll: 'Ver todos los lugares',
+    title: 'Imperdibles de Manaure',
+    subtitle: 'Los lugares que todo visitante debe conocer',
+    viewAll: 'Ver todos los imperdibles',
   },
 
   footer: {

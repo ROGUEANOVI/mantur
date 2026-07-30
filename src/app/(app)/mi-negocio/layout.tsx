@@ -1,11 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import PublicNav from '@/components/layout/PublicNav'
 
-/*
- * Guards every route under /mi-negocio.
- * Requires an authenticated session AND the business_owner role.
- * Other roles (tourist, transporter) are redirected to the app home.
- */
 export default async function MiNegocioLayout({
   children,
 }: {
@@ -26,5 +22,10 @@ export default async function MiNegocioLayout({
 
   if (profile?.role !== 'business_owner') redirect('/')
 
-  return <>{children}</>
+  return (
+    <>
+      <PublicNav />
+      {children}
+    </>
+  )
 }

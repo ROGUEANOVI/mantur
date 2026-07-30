@@ -7,6 +7,8 @@ import {
   approveBusiness,
   rejectBusiness,
   toggleFeaturedBusiness,
+  forceDeactivateBusiness,
+  forceActivateBusiness,
 } from '@/app/(app)/admin/actions'
 import { cn } from '@/lib/utils'
 
@@ -22,7 +24,7 @@ type BusinessRow = {
   profiles: { full_name: string | null } | null
 }
 
-const VALID_STATUSES = ['pending', 'active', 'rejected'] as const
+const VALID_STATUSES = ['pending', 'active', 'inactive', 'rejected'] as const
 type StatusFilter = (typeof VALID_STATUSES)[number]
 
 function formatDate(dateStr: string): string {
@@ -195,36 +197,50 @@ export default async function AdminNegociosPage({
                     </div>
                   )}
 
-                  {/* Featured toggle — only for active businesses */}
                   {statusFilter === 'active' && (
-                    <form action={toggleFeaturedBusiness} className="pt-1">
-                      <input type="hidden" name="businessId" value={biz.id} />
-                      <input
-                        type="hidden"
-                        name="featured"
-                        value={biz.is_featured ? 'false' : 'true'}
-                      />
-                      <button
-                        type="submit"
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-xl border px-3 text-xs font-medium min-h-[36px] transition-colors',
-                          biz.is_featured
-                            ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
-                            : 'border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted',
-                        )}
-                      >
-                        <Star
+                    <div className="flex gap-2 pt-1">
+                      {/* Featured toggle */}
+                      <form action={toggleFeaturedBusiness}>
+                        <input type="hidden" name="businessId" value={biz.id} />
+                        <input type="hidden" name="featured" value={biz.is_featured ? 'false' : 'true'} />
+                        <button
+                          type="submit"
                           className={cn(
-                            'size-3.5',
-                            biz.is_featured ? 'fill-amber-500 text-amber-500' : '',
+                            'inline-flex items-center gap-1.5 rounded-xl border px-3 text-xs font-medium min-h-[36px] transition-colors',
+                            biz.is_featured
+                              ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                              : 'border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted',
                           )}
-                          aria-hidden="true"
-                        />
-                        {biz.is_featured
-                          ? adminCopy.negocios.unfeature
-                          : adminCopy.negocios.feature}
-                      </button>
-                    </form>
+                        >
+                          <Star className={cn('size-3.5', biz.is_featured ? 'fill-amber-500 text-amber-500' : '')} aria-hidden="true" />
+                          {biz.is_featured ? adminCopy.negocios.unfeature : adminCopy.negocios.feature}
+                        </button>
+                      </form>
+                      {/* Force deactivate */}
+                      <form action={forceDeactivateBusiness} className="ml-auto">
+                        <input type="hidden" name="businessId" value={biz.id} />
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center rounded-xl border border-destructive/40 text-destructive bg-destructive/5 text-xs font-medium px-3 min-h-[36px] hover:bg-destructive/10 transition-colors"
+                        >
+                          {adminCopy.negocios.forceDeactivate}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
+                  {statusFilter === 'inactive' && (
+                    <div className="pt-1">
+                      <form action={forceActivateBusiness}>
+                        <input type="hidden" name="businessId" value={biz.id} />
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-xs font-medium px-3 min-h-[36px] hover:bg-primary/90 transition-colors"
+                        >
+                          {adminCopy.negocios.forceActivate}
+                        </button>
+                      </form>
+                    </div>
                   )}
                 </div>
               )

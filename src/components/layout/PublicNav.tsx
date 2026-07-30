@@ -35,20 +35,22 @@ export default async function PublicNav() {
   const authContent = user ? (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1">
       {role === 'tourist' && (
-        <Link
+        <NavLink
           href="/mis-reservas"
           className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+          activeClassName="text-foreground font-semibold bg-muted/40"
         >
           {copy.myBookings}
-        </Link>
+        </NavLink>
       )}
       {role === 'business_owner' && (
-        <Link
+        <NavLink
           href="/mi-negocio"
           className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+          activeClassName="text-foreground font-semibold bg-muted/40"
         >
           {copy.myBusiness}
-        </Link>
+        </NavLink>
       )}
       {role === 'admin' && (
         <Link
@@ -58,9 +60,7 @@ export default async function PublicNav() {
           {copy.admin}
         </Link>
       )}
-      <span className="hidden md:block text-sm text-muted-foreground px-2 truncate max-w-[140px]">
-        {fullName ?? user.email}
-      </span>
+      <UserAvatar name={fullName ?? user.email ?? ''} />
       <form action={signOut}>
         <button
           type="submit"
@@ -124,5 +124,24 @@ export default async function PublicNav() {
         </div>
       </div>
     </header>
+  )
+}
+
+function UserAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+
+  return (
+    <div
+      className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold select-none"
+      aria-hidden="true"
+      title={name}
+    >
+      {initials || '?'}
+    </div>
   )
 }

@@ -31,9 +31,12 @@ export const adminCopy = {
     new: 'Nuevo negocio',
     approve: 'Aprobar',
     reject: 'Rechazar',
+    forceDeactivate: 'Desactivar',
+    forceActivate: 'Reactivar',
     filter: {
       pending: 'Pendientes',
       active: 'Activos',
+      inactive: 'Inactivos',
       rejected: 'Rechazados',
     },
     owner: 'Propietario',

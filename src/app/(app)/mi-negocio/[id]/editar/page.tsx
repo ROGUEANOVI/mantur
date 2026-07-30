@@ -1,35 +1,35 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
-import CreateExperienceForm from '@/components/mi-negocio/CreateExperienceForm'
+import EditBusinessForm from '@/components/mi-negocio/EditBusinessForm'
 
-export default async function NuevaExperienciaPage() {
+export default async function EditarNegocioPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Fetch the business owned by this user — required to create an experience
   const { data: business } = await supabase
     .from('businesses')
-    .select('id')
+    .select('id, name, type, description, address, phone')
+    .eq('id', id)
     .eq('owner_id', user!.id)
-    .single()
+    .maybeSingle()
 
-  // No business registered yet — send back to the creation step
-  if (!business) redirect('/mi-negocio')
-
-  const copy = miNegocioCopy.experiences
+  if (!business) notFound()
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg">
-        {/* Back navigation */}
         <Link
-          href="/mi-negocio/experiencias"
+          href={`/mi-negocio/${id}`}
           className={cn(
             'inline-flex items-center gap-1.5 mb-6',
             'text-sm font-medium text-primary min-h-[44px] py-2',
@@ -37,15 +37,21 @@ export default async function NuevaExperienciaPage() {
           )}
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
-          {copy.backToExperiences}
+          {business.name}
         </Link>
 
-        {/* Page heading */}
-        <h1 className="text-2xl font-bold text-foreground mb-6">
-          {copy.newTitle}
-        </h1>
+        <h1 className="text-2xl font-bold text-foreground mb-6">Editar negocio</h1>
 
-        <CreateExperienceForm businessId={business.id} />
+        <EditBusinessForm
+          businessId={business.id}
+          defaultValues={{
+            name: business.name,
+            type: business.type,
+            description: business.description,
+            address: business.address,
+            phone: business.phone,
+          }}
+        />
       </div>
     </main>
   )
