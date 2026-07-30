@@ -264,3 +264,101 @@ export async function toggleExperienceStatus(
 
   revalidatePath('/mi-negocio', 'layout')
 }
+
+// ── Image helpers ────────────────────────────────────────────────────────────
+
+const BUSINESS_BUCKET = 'business-images'
+const MAX_BUSINESS_IMAGES = 5
+
+function extractStoragePath(url: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const idx = url.indexOf(marker)
+  return idx === -1 ? null : url.slice(idx + marker.length)
+}
+
+function validateImageFile(file: File | null): string | null {
+  if (!file || !file.size) return 'Selecciona una imagen.'
+  const valid = ['image/jpeg', 'image/png', 'image/webp']
+  if (!valid.includes(file.type)) return 'Formato no válido. Usa JPEG, PNG o WebP.'
+  if (file.size > 5 * 1024 * 1024) return 'La imagen no puede superar 5 MB.'
+  return null
+}
+
+export async function uploadBusinessImage(
+  businessId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(businessId)) return { error: 'Negocio no encontrado.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id, images')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Negocio no encontrado.' }
+
+  const currentImages: string[] = owned.images ?? []
+  if (currentImages.length >= MAX_BUSINESS_IMAGES) {
+    return { error: `Máximo ${MAX_BUSINESS_IMAGES} fotos por negocio.` }
+  }
+
+  const file = formData.get('image') as File | null
+  const fileError = validateImageFile(file)
+  if (fileError) return { error: fileError }
+
+  const admin = createAdminClient()
+  const path = `businesses/${businessId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`
+
+  const { error: uploadError } = await admin.storage
+    .from(BUSINESS_BUCKET)
+    .upload(path, file!, { contentType: file!.type, upsert: false })
+
+  if (uploadError) return { error: 'No se pudo subir la imagen. Intenta de nuevo.' }
+
+  const { data: { publicUrl } } = admin.storage.from(BUSINESS_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('businesses')
+    .update({ images: [...currentImages, publicUrl] })
+    .eq('id', businessId)
+
+  if (updateError) {
+    await admin.storage.from(BUSINESS_BUCKET).remove([path])
+    return { error: 'No se pudo guardar la imagen.' }
+  }
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${businessId}`)
+}
+
+export async function deleteBusinessImage(
+  businessId: string,
+  imageUrl: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(businessId)) return { error: 'Negocio no encontrado.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id, images')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Negocio no encontrado.' }
+
+  const admin = createAdminClient()
+  const storagePath = extractStoragePath(imageUrl, BUSINESS_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(BUSINESS_BUCKET).remove([storagePath])
+  }
+
+  const newImages = (owned.images ?? []).filter((u: string) => u !== imageUrl)
+  await admin.from('businesses').update({ images: newImages }).eq('id', businessId)
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${businessId}`)
+}

@@ -234,6 +234,102 @@ export async function deletePlace(formData: FormData): Promise<void> {
   redirect('/admin/lugares')
 }
 
+// ── Place image actions ──────────────────────────────────────────────────────
+
+const PLACE_BUCKET = 'place-images'
+const MAX_PLACE_IMAGES = 5
+
+function extractStoragePath(url: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const idx = url.indexOf(marker)
+  return idx === -1 ? null : url.slice(idx + marker.length)
+}
+
+function validateImageFile(file: File | null): string | null {
+  if (!file || !file.size) return 'Selecciona una imagen.'
+  const valid = ['image/jpeg', 'image/png', 'image/webp']
+  if (!valid.includes(file.type)) return 'Formato no válido. Usa JPEG, PNG o WebP.'
+  if (file.size > 5 * 1024 * 1024) return 'La imagen no puede superar 5 MB.'
+  return null
+}
+
+export async function uploadPlaceImage(
+  placeId: string,
+  formData: FormData,
+): Promise<{ error: string } | void> {
+  if (!UUID_RE.test(placeId)) return { error: 'Lugar no encontrado.' }
+  const { admin } = await getAuthenticatedAdmin()
+
+  const { data: place } = await admin
+    .from('places')
+    .select('id, images')
+    .eq('id', placeId)
+    .maybeSingle()
+
+  if (!place) return { error: 'Lugar no encontrado.' }
+
+  const currentImages: string[] = place.images ?? []
+  if (currentImages.length >= MAX_PLACE_IMAGES) {
+    return { error: `Máximo ${MAX_PLACE_IMAGES} fotos por lugar.` }
+  }
+
+  const file = formData.get('image') as File | null
+  const fileError = validateImageFile(file)
+  if (fileError) return { error: fileError }
+
+  const path = `places/${placeId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`
+
+  const { error: uploadError } = await admin.storage
+    .from(PLACE_BUCKET)
+    .upload(path, file!, { contentType: file!.type, upsert: false })
+
+  if (uploadError) return { error: 'No se pudo subir la imagen. Intenta de nuevo.' }
+
+  const { data: { publicUrl } } = admin.storage.from(PLACE_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('places')
+    .update({ images: [...currentImages, publicUrl] })
+    .eq('id', placeId)
+
+  if (updateError) {
+    await admin.storage.from(PLACE_BUCKET).remove([path])
+    return { error: 'No se pudo guardar la imagen.' }
+  }
+
+  revalidatePath('/admin/lugares')
+  revalidatePath('/lugares')
+  revalidatePath('/')
+}
+
+export async function deletePlaceImage(
+  placeId: string,
+  imageUrl: string,
+): Promise<{ error: string } | void> {
+  if (!UUID_RE.test(placeId)) return { error: 'Lugar no encontrado.' }
+  const { admin } = await getAuthenticatedAdmin()
+
+  const { data: place } = await admin
+    .from('places')
+    .select('id, images')
+    .eq('id', placeId)
+    .maybeSingle()
+
+  if (!place) return { error: 'Lugar no encontrado.' }
+
+  const storagePath = extractStoragePath(imageUrl, PLACE_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(PLACE_BUCKET).remove([storagePath])
+  }
+
+  const newImages = (place.images ?? []).filter((u: string) => u !== imageUrl)
+  await admin.from('places').update({ images: newImages }).eq('id', placeId)
+
+  revalidatePath('/admin/lugares')
+  revalidatePath('/lugares')
+  revalidatePath('/')
+}
+
 export async function updateCommissionRate(
   formData: FormData,
 ): Promise<ActionResult> {
