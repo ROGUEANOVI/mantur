@@ -65,6 +65,46 @@ export async function rejectBusiness(formData: FormData): Promise<void> {
   revalidatePath('/admin/negocios')
 }
 
+const BUSINESS_TYPES = ['resort', 'restaurant', 'farm', 'eatery', 'other'] as const
+
+export async function createBusinessAsAdmin(
+  formData: FormData,
+): Promise<ActionResult> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const name = (formData.get('name') as string).trim()
+  if (!name) return { error: adminCopy.negocios.form.errors.nameRequired }
+
+  const type = formData.get('type') as string
+  if (!BUSINESS_TYPES.includes(type as (typeof BUSINESS_TYPES)[number]))
+    return { error: adminCopy.negocios.form.errors.typeRequired }
+
+  const ownerId = formData.get('ownerId') as string
+  if (!UUID_RE.test(ownerId))
+    return { error: adminCopy.negocios.form.errors.ownerRequired }
+
+  const description = (formData.get('description') as string).trim() || null
+  const address = (formData.get('address') as string).trim() || null
+  const phone = (formData.get('phone') as string).trim() || null
+
+  const { error } = await admin.from('businesses').insert({
+    name,
+    type,
+    description,
+    address,
+    phone,
+    owner_id: ownerId,
+    status: 'active',
+    verified: true,
+  })
+
+  if (error) return { error: adminCopy.negocios.form.errors.generic }
+
+  revalidatePath('/admin/negocios')
+  revalidatePath('/negocios')
+  return { success: true }
+}
+
 const PLACE_TYPES = ['waterfall', 'river', 'viewpoint', 'beach', 'park', 'other'] as const
 
 export async function createPlace(formData: FormData): Promise<ActionResult> {

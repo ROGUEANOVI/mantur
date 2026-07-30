@@ -28,6 +28,7 @@ export const adminCopy = {
 
   negocios: {
     title: 'Negocios',
+    new: 'Nuevo negocio',
     approve: 'Aprobar',
     reject: 'Rechazar',
     filter: {
@@ -38,6 +39,31 @@ export const adminCopy = {
     owner: 'Propietario',
     createdAt: 'Registrado',
     empty: 'No hay negocios en este estado.',
+    form: {
+      title: 'Crear negocio',
+      name: 'Nombre del negocio',
+      namePlaceholder: 'Ej: Balneario Las Palmeras',
+      type: 'Tipo',
+      description: 'Descripción',
+      descriptionPlaceholder: 'Describe el negocio...',
+      address: 'Dirección',
+      addressPlaceholder: 'Ej: Calle 5 #10-20, Manaure',
+      phone: 'Teléfono',
+      phonePlaceholder: 'Ej: 3001234567',
+      owner: 'Propietario',
+      ownerPlaceholder: '— Selecciona un propietario —',
+      ownerEmpty: 'No hay usuarios con rol business_owner registrados.',
+      submit: 'Crear negocio',
+      submitting: 'Creando...',
+      cancel: 'Cancelar',
+      backToList: 'Volver a negocios',
+      errors: {
+        nameRequired: 'El nombre es obligatorio.',
+        typeRequired: 'Selecciona un tipo.',
+        ownerRequired: 'Selecciona un propietario.',
+        generic: 'Error al crear el negocio. Intenta de nuevo.',
+      },
+    },
     statusColors: {
       pending:
         'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
