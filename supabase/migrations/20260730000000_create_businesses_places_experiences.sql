@@ -70,20 +70,25 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF NOT public.is_admin() THEN
-    IF TG_OP = 'INSERT' THEN
-      IF NEW.verified = true OR NEW.status != 'pending' THEN
-        RAISE EXCEPTION 'new businesses must start as pending and unverified';
-      END IF;
-    ELSIF TG_OP = 'UPDATE' THEN
-      IF NEW.verified IS DISTINCT FROM OLD.verified THEN
-        RAISE EXCEPTION 'insufficient privileges to change business verification';
-      END IF;
-      IF NEW.status IS DISTINCT FROM OLD.status AND NEW.status != 'inactive' THEN
-        RAISE EXCEPTION 'business owners may only set status to inactive';
-      END IF;
+  -- Allow service-role / dashboard operations (auth.uid() is NULL there).
+  -- RLS independently blocks unauthenticated client requests.
+  IF auth.uid() IS NULL OR public.is_admin() THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.verified = true OR NEW.status != 'pending' THEN
+      RAISE EXCEPTION 'new businesses must start as pending and unverified';
+    END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.verified IS DISTINCT FROM OLD.verified THEN
+      RAISE EXCEPTION 'insufficient privileges to change business verification';
+    END IF;
+    IF NEW.status IS DISTINCT FROM OLD.status AND NEW.status != 'inactive' THEN
+      RAISE EXCEPTION 'business owners may only set status to inactive';
     END IF;
   END IF;
+
   RETURN NEW;
 END;
 $$;

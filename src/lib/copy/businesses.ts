@@ -1,3 +1,63 @@
+export const miNegocioCopy = {
+  nav: {
+    overview: 'Mi negocio',
+    experiences: 'Experiencias',
+  },
+  setup: {
+    title: 'Registra tu negocio',
+    subtitle: 'Completa la información para que los turistas puedan encontrarte.',
+    submit: 'Crear negocio',
+    submitting: 'Creando negocio...',
+  },
+  overview: {
+    title: 'Mi negocio',
+    statusLabel: 'Estado',
+    statusPending: 'En revisión',
+    statusActive: 'Activo',
+    statusInactive: 'Inactivo',
+    pendingNote: 'Tu negocio está siendo revisado por nuestro equipo. Te notificaremos cuando esté aprobado.',
+    editButton: 'Editar información',
+    experiencesSubtitle: 'Administra tus actividades y servicios',
+  },
+  experiences: {
+    title: 'Mis experiencias',
+    addButton: 'Nueva experiencia',
+    newTitle: 'Nueva experiencia',
+    backToExperiences: 'Volver a experiencias',
+    empty: 'Aún no tienes experiencias. Agrega una para que los turistas puedan reservar.',
+    activate: 'Activar',
+    deactivate: 'Desactivar',
+    toggling: 'Actualizando...',
+    statusActive: 'Activa',
+    statusInactive: 'Inactiva',
+  },
+  form: {
+    name: 'Nombre',
+    namePlaceholder: 'Ej: Tour por el río',
+    businessNamePlaceholder: 'Ej: Balneario El Paraíso',
+    description: 'Descripción',
+    descriptionPlaceholder: 'Describe la experiencia...',
+    businessDescriptionPlaceholder: 'Describe tu negocio...',
+    type: 'Tipo de negocio',
+    address: 'Dirección',
+    addressPlaceholder: 'Ej: Calle 5 #10-20, Manaure',
+    phone: 'Teléfono de contacto',
+    phonePlaceholder: 'Ej: 3001234567',
+    price: 'Precio por persona (COP)',
+    pricePlaceholder: 'Ej: 50000',
+    capacity: 'Cupo máximo',
+    capacityPlaceholder: 'Ej: 10',
+    duration: 'Duración (minutos)',
+    durationPlaceholder: 'Ej: 90',
+    submit: 'Guardar',
+    submitting: 'Guardando...',
+    cancel: 'Cancelar',
+  },
+  errors: {
+    generic: 'Ocurrió un error. Intenta de nuevo.',
+  },
+}
+
 export const businessesCopy = {
   nav: {
     businesses: 'Negocios',
