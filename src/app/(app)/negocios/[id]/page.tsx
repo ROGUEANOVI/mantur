@@ -215,6 +215,13 @@ function ExperienceCard({ experience: exp }: { experience: ExperienceRow }) {
               </span>
             )}
           </div>
+
+          <Link
+            href={`/reservas/nueva?exp=${exp.id}`}
+            className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
+          >
+            {businessesCopy.experiences.book}
+          </Link>
         </div>
       </div>
     </div>
