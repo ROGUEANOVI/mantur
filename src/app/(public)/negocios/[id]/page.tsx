@@ -35,6 +35,12 @@ export default async function NegocioDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
+  // Check session without redirecting — this is a public page.
+  const { data: { user } } = await supabase.auth.getUser()
+  const isTourist = user
+    ? (await supabase.from('profiles').select('role').eq('id', user.id).single()).data?.role === 'tourist'
+    : false
+
   const { data: business, error } = await supabase
     .from('businesses')
     .select(
@@ -45,7 +51,6 @@ export default async function NegocioDetailPage({
     .eq('status', 'active')
     .single()
 
-  // PGRST116 = no rows found → real 404; any other code = transient error
   if (error) {
     if (error.code === 'PGRST116') notFound()
     throw new Error(error.message)
@@ -56,9 +61,7 @@ export default async function NegocioDetailPage({
   const copyExp = businessesCopy.experiences
   const imageUrl = b.images?.[0]
 
-  const activeExperiences = (b.experiences ?? []).filter(
-    (e) => e.status === 'active'
-  )
+  const activeExperiences = (b.experiences ?? []).filter((e) => e.status === 'active')
 
   return (
     <main className="min-h-screen bg-background pb-10">
@@ -88,19 +91,14 @@ export default async function NegocioDetailPage({
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-            <Store
-              className="size-16 text-primary/50"
-              aria-hidden="true"
-              strokeWidth={1.5}
-            />
+            <Store className="size-16 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute bottom-0 left-0 p-6 text-white">
           <h1 className="text-2xl md:text-3xl font-bold leading-tight">{b.name}</h1>
           <span className="text-sm text-white/80">
-            {businessesCopy.businesses.types[b.type] ??
-              businessesCopy.businesses.types.other}
+            {businessesCopy.businesses.types[b.type] ?? businessesCopy.businesses.types.other}
           </span>
         </div>
       </section>
@@ -110,24 +108,17 @@ export default async function NegocioDetailPage({
         {b.description && (
           <p className="text-base text-foreground leading-relaxed">{b.description}</p>
         )}
-
         <div className="space-y-2.5">
           {b.address && (
             <div className="flex items-start gap-2 text-muted-foreground">
-              <MapPin
-                className="size-4 mt-0.5 shrink-0 text-primary"
-                aria-hidden="true"
-              />
+              <MapPin className="size-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
               <span className="text-sm">{b.address}</span>
             </div>
           )}
           {b.phone && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
-              <a
-                href={`tel:${b.phone}`}
-                className="text-sm hover:text-primary transition-colors"
-              >
+              <a href={`tel:${b.phone}`} className="text-sm hover:text-primary transition-colors">
                 {b.phone}
               </a>
             </div>
@@ -137,10 +128,7 @@ export default async function NegocioDetailPage({
 
       {/* Experiences */}
       <section className="px-4 mt-8">
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          {copyExp.sectionTitle}
-        </h2>
-
+        <h2 className="text-lg font-semibold text-foreground mb-4">{copyExp.sectionTitle}</h2>
         {activeExperiences.length === 0 ? (
           <div className="rounded-2xl border border-border p-6 text-center">
             <p className="text-sm text-muted-foreground">{copyExp.empty}</p>
@@ -148,7 +136,7 @@ export default async function NegocioDetailPage({
         ) : (
           <div className="space-y-3">
             {activeExperiences.map((exp) => (
-              <ExperienceCard key={exp.id} experience={exp} />
+              <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} />
             ))}
           </div>
         )}
@@ -157,7 +145,13 @@ export default async function NegocioDetailPage({
   )
 }
 
-function ExperienceCard({ experience: exp }: { experience: ExperienceRow }) {
+function ExperienceCard({
+  experience: exp,
+  isTourist,
+}: {
+  experience: ExperienceRow
+  isTourist: boolean
+}) {
   const copy = businessesCopy.experiences
   const imageUrl = exp.images?.[0]
 
@@ -176,11 +170,7 @@ function ExperienceCard({ experience: exp }: { experience: ExperienceRow }) {
         >
           {!imageUrl && (
             <div className="h-full min-h-[96px] flex items-center justify-center">
-              <Store
-                className="size-6 text-primary/50"
-                aria-hidden="true"
-                strokeWidth={1.5}
-              />
+              <Store className="size-6 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
             </div>
           )}
         </div>
@@ -190,17 +180,14 @@ function ExperienceCard({ experience: exp }: { experience: ExperienceRow }) {
           <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
             {exp.name}
           </h3>
-
           {exp.description && (
             <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
               {exp.description}
             </p>
           )}
-
           <p className="text-base font-semibold text-accent">
             ${Number(exp.price).toLocaleString('es-CO')} COP
           </p>
-
           <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
             {exp.duration_minutes != null && (
               <span className="flex items-center gap-1">
@@ -215,6 +202,22 @@ function ExperienceCard({ experience: exp }: { experience: ExperienceRow }) {
               </span>
             )}
           </div>
+
+          {isTourist ? (
+            <Link
+              href={`/reservas/nueva?exp=${exp.id}`}
+              className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
+            >
+              {copy.book}
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-[44px] hover:bg-primary/10 transition-colors"
+            >
+              {copy.bookGuest}
+            </Link>
+          )}
         </div>
       </div>
     </div>

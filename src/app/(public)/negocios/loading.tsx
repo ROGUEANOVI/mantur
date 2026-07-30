@@ -12,9 +12,7 @@ export default function NegociosLoading() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-2xl overflow-hidden shadow-sm bg-card">
-              {/* Image placeholder */}
               <div className="aspect-[4/3] bg-muted animate-pulse" />
-              {/* Content placeholder */}
               <div className="p-4 space-y-2">
                 <div className="h-4 w-3/4 rounded bg-muted animate-pulse" />
                 <div className="h-4 w-full rounded bg-muted animate-pulse" />

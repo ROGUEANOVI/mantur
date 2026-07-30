@@ -98,6 +98,7 @@ export const businessesCopy = {
     sectionTitle: 'Experiencias disponibles',
     empty: 'Este negocio no tiene experiencias disponibles por el momento.',
     book: 'Reservar',
+    bookGuest: 'Inicia sesión para reservar',
     duration: 'Duración',
     capacity: 'Cupo',
     minutes: 'min',
