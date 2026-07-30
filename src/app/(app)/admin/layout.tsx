@@ -40,6 +40,12 @@ export default async function AdminLayout({
             {adminCopy.nav.negocios}
           </Link>
           <Link
+            href="/admin/lugares"
+            className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] flex items-center px-2 transition-colors"
+          >
+            {adminCopy.nav.lugares}
+          </Link>
+          <Link
             href="/admin/comisiones"
             className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] flex items-center px-2 transition-colors"
           >
