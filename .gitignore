@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment — never commit real keys
+.env
+.env.local
+.env.*.local
+
+# Supabase local dev (Docker volumes, etc.)
+supabase/.branches/
+supabase/.temp/
+
+# OS
+.DS_Store
+Thumbs.db
