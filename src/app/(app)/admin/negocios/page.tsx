@@ -1,9 +1,13 @@
 import Link from 'next/link'
-import { Building2, Phone, MapPin, User } from 'lucide-react'
+import { Building2, Phone, MapPin, User, Star } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
-import { approveBusiness, rejectBusiness } from '@/app/(app)/admin/actions'
+import {
+  approveBusiness,
+  rejectBusiness,
+  toggleFeaturedBusiness,
+} from '@/app/(app)/admin/actions'
 import { cn } from '@/lib/utils'
 
 type BusinessRow = {
@@ -13,6 +17,7 @@ type BusinessRow = {
   address: string | null
   phone: string | null
   status: string
+  is_featured: boolean
   created_at: string
   profiles: { full_name: string | null } | null
 }
@@ -43,7 +48,7 @@ export default async function AdminNegociosPage({
 
   const { data: businesses } = await admin
     .from('businesses')
-    .select('id, name, type, address, phone, status, created_at, profiles(full_name)')
+    .select('id, name, type, address, phone, status, is_featured, created_at, profiles(full_name)')
     .eq('status', statusFilter)
     .order('created_at', { ascending: true })
 
@@ -115,9 +120,17 @@ export default async function AdminNegociosPage({
                         />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
-                          {biz.name}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
+                            {biz.name}
+                          </p>
+                          {biz.is_featured && (
+                            <Star
+                              className="size-3.5 shrink-0 text-amber-500 fill-amber-500"
+                              aria-label="Destacado"
+                            />
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">{typeLabel}</p>
                       </div>
                     </div>
@@ -158,7 +171,7 @@ export default async function AdminNegociosPage({
                     </p>
                   </div>
 
-                  {/* Actions — only show for pending */}
+                  {/* Actions */}
                   {statusFilter === 'pending' && (
                     <div className="flex gap-2 pt-1">
                       <form action={approveBusiness} className="flex-1">
@@ -180,6 +193,38 @@ export default async function AdminNegociosPage({
                         </button>
                       </form>
                     </div>
+                  )}
+
+                  {/* Featured toggle — only for active businesses */}
+                  {statusFilter === 'active' && (
+                    <form action={toggleFeaturedBusiness} className="pt-1">
+                      <input type="hidden" name="businessId" value={biz.id} />
+                      <input
+                        type="hidden"
+                        name="featured"
+                        value={biz.is_featured ? 'false' : 'true'}
+                      />
+                      <button
+                        type="submit"
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-xl border px-3 text-xs font-medium min-h-[36px] transition-colors',
+                          biz.is_featured
+                            ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                            : 'border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted',
+                        )}
+                      >
+                        <Star
+                          className={cn(
+                            'size-3.5',
+                            biz.is_featured ? 'fill-amber-500 text-amber-500' : '',
+                          )}
+                          aria-hidden="true"
+                        />
+                        {biz.is_featured
+                          ? adminCopy.negocios.unfeature
+                          : adminCopy.negocios.feature}
+                      </button>
+                    </form>
                   )}
                 </div>
               )

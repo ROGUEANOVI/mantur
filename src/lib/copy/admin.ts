@@ -39,6 +39,8 @@ export const adminCopy = {
     owner: 'Propietario',
     createdAt: 'Registrado',
     empty: 'No hay negocios en este estado.',
+    feature: 'Destacar',
+    unfeature: 'Quitar destacado',
     form: {
       title: 'Crear negocio',
       name: 'Nombre del negocio',

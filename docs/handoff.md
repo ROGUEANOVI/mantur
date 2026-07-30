@@ -180,9 +180,13 @@ Phase 5 before Phase 4 because admin approval is needed for the marketplace to f
 
 - GitHub: https://github.com/ROGUEANOVI/vayatur
 - Main branch: `main`
-- PR #1: feat(auth): add login, signup and protected routes — **merged** ✅
-- PR #2: feat(db): businesses, places, experiences and commission_config schema — **merged** ✅
-- PR #3: feat(ui): add public listing pages for negocios and lugares — **merged** ✅
-- PR #4: feat(mi-negocio): add business owner self-management panel — **merged** ✅
-- PR #5: feat(bookings): add bookings and transactions schema with RLS — **merged** ✅
-- PR #6: feat(booking-flow): add tourist booking flow — **merged** ✅
+- PR #1: feat(auth): login, signup and protected routes — **merged** ✅
+- PR #2: feat(db): add businesses, places, experiences and commission_config schema — **merged** ✅
+- PR #3: feat(ui): add public listing pages for businesses and places — **merged** ✅
+- PR #4: feat(ui): add mi-negocio self-management panel for business owners — **merged** ✅
+- PR #5: feat(db): add bookings and transactions schema with RLS — **merged** ✅
+- PR #6: feat(bookings): add tourist booking flow with simulated payment — **merged** ✅
+- PR #7: feat(admin): add business approval panel and commission rate management — **merged** ✅
+- PR #8: feat(ui): make negocios and lugares pages publicly accessible — **merged** ✅
+- PR #9: feat(admin): add places management — create, edit, delete — **merged** ✅
+- PR #10: feat(public-landing): public landing page, nav, featured businesses — **in progress** 🔄
