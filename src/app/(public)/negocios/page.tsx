@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Store } from 'lucide-react'
+import { Store, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
@@ -79,12 +79,12 @@ export default async function NegociosPage({
         ))}
       </section>
 
-      {/* Business grid */}
-      <section className="px-4 mt-2">
+      {/* Business list */}
+      <section className="px-4 mt-1">
         {!businesses || businesses.length === 0 ? (
           <EmptyState message={copy.empty} />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-3">
             {(businesses as BusinessRow[]).map((business) => (
               <BusinessCard key={business.id} business={business} />
             ))}
@@ -101,8 +101,11 @@ function BusinessCard({ business }: { business: BusinessRow }) {
   const typeLabel = copy.types[business.type] ?? copy.types.other
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card">
-      <div className="relative aspect-[4/3]">
+    <Link
+      href={`/negocios/${business.id}`}
+      className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border flex items-center gap-3 p-3"
+    >
+      <div className="relative size-24 rounded-xl overflow-hidden shrink-0">
         {imageUrl ? (
           <div
             className="absolute inset-0 bg-cover bg-center"
@@ -112,37 +115,31 @@ function BusinessCard({ business }: { business: BusinessRow }) {
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-            <Store className="size-12 text-primary/60" aria-hidden="true" strokeWidth={1.5} />
+            <Store className="size-8 text-primary/60" aria-hidden="true" strokeWidth={1.5} />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-        <span className="absolute top-3 left-3 bg-accent text-accent-foreground text-xs font-medium px-2.5 py-1 rounded-full">
-          {typeLabel}
-        </span>
-        <p className="absolute bottom-3 left-3 right-3 text-white font-semibold text-base leading-tight line-clamp-1">
-          {business.name}
-        </p>
       </div>
 
-      <div className="p-4">
+      <div className="flex-1 min-w-0 py-0.5">
+        <span className="inline-block text-xs font-medium text-accent bg-accent/10 px-2 py-0.5 rounded-full mb-1">
+          {typeLabel}
+        </span>
+        <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
+          {business.name}
+        </h3>
         {business.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mt-0.5">
             {business.description}
           </p>
         )}
-        <Link
-          href={`/negocios/${business.id}`}
-          className={cn(
-            'flex items-center justify-center w-full min-h-[44px]',
-            'rounded-xl bg-primary text-primary-foreground',
-            'text-sm font-medium px-4 py-2.5',
-            'hover:bg-primary/90 transition-colors',
-          )}
-        >
-          {copy.viewDetail}
-        </Link>
+        {business.address && (
+          <div className="flex items-center gap-1 mt-1.5">
+            <MapPin className="size-3 text-muted-foreground shrink-0" aria-hidden="true" />
+            <span className="text-xs text-muted-foreground line-clamp-1">{business.address}</span>
+          </div>
+        )}
       </div>
-    </div>
+    </Link>
   )
 }
 

@@ -52,7 +52,7 @@ function PlaceCard({ place }: { place: PlaceRow }) {
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border flex items-center gap-3 p-3">
-      <div className="relative size-20 rounded-xl overflow-hidden shrink-0">
+      <div className="relative size-24 rounded-xl overflow-hidden shrink-0">
         {imageUrl ? (
           <div
             className="absolute inset-0 bg-cover bg-center"
@@ -62,7 +62,7 @@ function PlaceCard({ place }: { place: PlaceRow }) {
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-            <TreePine className="size-8 text-primary/60" aria-hidden="true" strokeWidth={1.5} />
+            <TreePine className="size-9 text-primary/60" aria-hidden="true" strokeWidth={1.5} />
           </div>
         )}
       </div>
