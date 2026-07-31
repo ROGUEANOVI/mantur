@@ -38,11 +38,14 @@
 - `src/lib/copy/businesses.ts` — `miNegocioCopy` and `businessesCopy` (type maps, UI strings)
 
 ### Phase 2 — Business owner panel (PR #4, merged ✅)
-- `src/app/(app)/mi-negocio/layout.tsx` — role guard, redirects non-`business_owner` to `/`
-- `src/app/(app)/mi-negocio/page.tsx` — business overview with status badge; shows `CreateBusinessForm` if no business yet; shows active bookings count
-- `src/app/(app)/mi-negocio/experiencias/page.tsx` — experience list with toggle
-- `src/app/(app)/mi-negocio/experiencias/nueva/page.tsx` — create experience form
-- `src/app/(app)/mi-negocio/actions.ts` — Server Actions: `createBusiness`, `updateBusiness`, `createExperience`, `updateExperience`, `toggleExperienceStatus`; all guarded by `getAuthenticatedOwner()` + UUID regex + `Number.isFinite` price validation
+- `src/app/(app)/mi-negocio/layout.tsx` — role guard + `PublicNav`; redirects non-`business_owner` to `/`
+- `src/app/(app)/mi-negocio/page.tsx` — **multi-business** list (all businesses for owner); empty state → "Registrar negocio" button
+- `src/app/(app)/mi-negocio/nuevo/page.tsx` — new business form
+- `src/app/(app)/mi-negocio/[id]/page.tsx` — single business detail: status card, bookings count, activate/deactivate toggle
+- `src/app/(app)/mi-negocio/[id]/editar/page.tsx` — edit form + `ImageManager` for business photos
+- `src/app/(app)/mi-negocio/[id]/experiencias/page.tsx` — experience list with toggle + inactive warning banner
+- `src/app/(app)/mi-negocio/[id]/experiencias/nueva/page.tsx` — create experience form
+- `src/app/(app)/mi-negocio/actions.ts` — Server Actions: `createBusiness`, `updateBusiness`, `createExperience`, `updateExperience`, `toggleExperienceStatus`, `deactivateBusiness`, `reactivateBusiness` (ownership verified with user client; status update via admin client), `uploadBusinessImage`, `deleteBusinessImage`
 
 ### Phase 3 — Bookings schema (PR #5, merged + migration applied ✅)
 - Migration: `supabase/migrations/20260730200000_create_bookings_transactions.sql`
@@ -88,13 +91,17 @@ bookings                → id, experience_id, tourist_id, business_id, people_c
 transactions            → id, booking_id (UNIQUE), wompi_reference, wompi_link_id, wompi_link_url,
                           status, amount_in_cents, currency, commission_rate,
                           commission_amount_cents, created_at, updated_at
-storage: business-images bucket
+storage: business-images bucket (public read, business_owner/admin write)
+storage: place-images bucket (public read, admin-only write) ← pending: apply migration below
 ```
 
 Migrations applied:
 - `supabase/migrations/20260729000000_create_profiles.sql`
 - `supabase/migrations/20260730000000_create_businesses_places_experiences.sql`
 - `supabase/migrations/20260730200000_create_bookings_transactions.sql`
+
+Migration **NOT YET applied** (run in Supabase SQL Editor before testing image uploads):
+- `supabase/migrations/20260730230000_add_place_images_bucket.sql` — creates `place-images` bucket with admin-only write policies
 
 ---
 
@@ -132,6 +139,10 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 - **Money logic is server-only** — `price` is display-safe on client but all write/calculation in Server Actions
 - **Bogotá timezone** for booking date validation: `new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())` — avoids UTC drift after 7 pm local
 - **Supabase nested join type workaround**: `.select('experiences(name, businesses(name))')` returns arrays in TS types but single objects at runtime — cast with `as unknown as Type`
+- **Image upload pattern**: Server Action verifies ownership/role → uploads via admin client → updates `images text[]` on the row. `ImageManager` compresses to WebP client-side before sending FormData. Storage RLS is a backup gate, not the primary one.
+- **`deactivateBusiness` / `reactivateBusiness`**: owner uses user-scoped client to verify ownership, then admin client for the status update (RLS only allows owners to set `inactive`, not `active`/`pending`)
+- **`NavLink` Client Component**: wraps `<Link>` with `usePathname()` to compare against `href` and apply `activeClassName` — needed because Server Components can't use hooks
+- **Server Component children in Client Component**: `PublicNav` is a Server Component that renders `NavMobileMenu` (Client Component) with server-rendered JSX as `children` — avoids passing async data through a Client boundary
 - **`business_id` is denormalized** in `bookings` to avoid a JOIN through `experiences` in RLS policies for business owners
 - **Commission stored at booking time** in `transactions.commission_rate` + `commission_amount_cents` — never recalculated retroactively
 - **Simulated payment for MVP** — Wompi fields (`wompi_reference`, `wompi_link_id`, `wompi_link_url`) are nullable in schema so future integration requires no migration
@@ -147,32 +158,39 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ---
 
-## Next session — Phase 5: Admin panel (minimum viable)
+## What was implemented in recent sessions (PRs #10–#11)
 
-Phase 5 before Phase 4 because admin approval is needed for the marketplace to function in production (businesses stay `pending` until approved).
+### PR #10 — feat/public-landing (in progress 🔄, branch pushed)
+- Public landing page with hero, featured businesses, places preview
+- `PublicNav` with mobile hamburger menu, active-state `NavLink`, user avatar (initials)
+- `NavMobileMenu` Client Component (server-rendered children pattern for Server Component links)
+- Terminology changes: "Explorar" (nav), "Lugares Imperdibles" (places), "Actividades" (experiences)
+- Multi-business owner panel: list all owned businesses, create/edit/deactivate/reactivate
+- Admin panel enhancements: Inactivos tab with force-deactivate/reactivate (admin client)
+- `deactivateBusiness` / `reactivateBusiness` in `mi-negocio/actions.ts`: ownership verified via user client, status update via admin client; reactivate to `active` (if `verified=true`) or `pending` (if `verified=false`)
 
-### Scope
-1. **Business approval** — admin sees all `pending` businesses, can approve (`status → active`) or reject (`status → rejected`)
-2. **Commission management** — admin can update `commission_config.rate` per `service_type`
+### PR #11 — feat/image-uploads (open 🔄)
+- `src/components/shared/ImageManager.tsx` — client component, `browser-image-compression` → WebP ≤1 MB, `useTransition` to call server action directly
+- `uploadBusinessImage` / `deleteBusinessImage` server actions — owner-scoped, storage via admin client
+- `uploadPlaceImage` / `deletePlaceImage` server actions — admin-only
+- Migration `20260730230000_add_place_images_bucket.sql` — **NOT YET APPLIED** (see above)
+- `ImageManager` wired into `/mi-negocio/[id]/editar` and `/admin/lugares/[id]/editar`
 
-### Route structure
-- `/admin` — admin layout with role guard (redirect non-admin to `/`)
-- `/admin/negocios` — list of businesses filterable by status; approve/reject actions
-- `/admin/comisiones` — read + update commission rates per service type
+## Next session
 
-### Files to read at session start
-- `docs/handoff.md` (this file)
-- `CLAUDE.md` — project rules
-- `src/app/(app)/mi-negocio/actions.ts` — `getAuthenticatedOwner` pattern to follow for `getAuthenticatedAdmin`
-- `src/app/(app)/mi-negocio/page.tsx` — stat card UI pattern
-- `supabase/migrations/20260730000000_create_businesses_places_experiences.sql` — `prevent_business_status_escalation` trigger and `commission_config` table
+### Immediate action required
+Apply `supabase/migrations/20260730230000_add_place_images_bucket.sql` in Supabase SQL Editor to enable place image uploads.
 
-### Phase 4 — Transporters (after Phase 5)
+### Phase 4 — Transporters
 - `transporters` table (driver profile, availability status)
 - `transport_requests` table (tourist requests a ride; transporter accepts/rejects)
 - Public page: `/transportistas`
 - Tourist flow: `/transporte/nueva` → request; `/mis-viajes` → history
 - Transporter flow: `/mi-perfil-transporte` → manage availability, incoming requests
+
+### Experience image uploads (deferred)
+- Add `/mi-negocio/[id]/experiencias/[expId]/editar` page with `ImageManager`
+- Reuse `uploadBusinessImage` pattern with `experiences` table + `business-images` bucket
 
 ---
 
@@ -189,4 +207,5 @@ Phase 5 before Phase 4 because admin approval is needed for the marketplace to f
 - PR #7: feat(admin): add business approval panel and commission rate management — **merged** ✅
 - PR #8: feat(ui): make negocios and lugares pages publicly accessible — **merged** ✅
 - PR #9: feat(admin): add places management — create, edit, delete — **merged** ✅
-- PR #10: feat(public-landing): public landing page, nav, featured businesses — **in progress** 🔄
+- PR #10: feat(public-landing): public landing page, nav, multi-business panel, admin enhancements — **in progress** 🔄
+- PR #11: feat(images): Supabase Storage image uploads for businesses and places — **open** 🔄

@@ -4,6 +4,7 @@ import { MapPin, Phone, Store, ChevronLeft, Clock, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
+import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
 
 type ExperienceRow = {
   id: string
@@ -35,7 +36,6 @@ export default async function NegocioDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  // Check session without redirecting — this is a public page.
   const { data: { user } } = await supabase.auth.getUser()
   const isGuest = !user
   let isTourist = false
@@ -66,88 +66,77 @@ export default async function NegocioDetailPage({
   const b = business as BusinessDetail
   const copyDetail = businessesCopy.detail
   const copyExp = businessesCopy.experiences
-  const imageUrl = b.images?.[0]
 
   const activeExperiences = (b.experiences ?? []).filter((e) => e.status === 'active')
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      {/* Back link */}
-      <div className="px-4 pt-4">
-        <Link
-          href="/negocios"
-          className={cn(
-            'inline-flex items-center gap-1.5',
-            'text-sm font-medium text-primary',
-            'min-h-[44px] py-2 hover:underline'
-          )}
-        >
-          <ChevronLeft className="size-4" aria-hidden="true" />
-          {copyDetail.back}
-        </Link>
-      </div>
+      <div className="max-w-2xl mx-auto">
+        {/* Back link */}
+        <div className="px-4 pt-4">
+          <Link
+            href="/negocios"
+            className={cn(
+              'inline-flex items-center gap-1.5',
+              'text-sm font-medium text-primary',
+              'min-h-[44px] py-2 hover:underline'
+            )}
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+            {copyDetail.back}
+          </Link>
+        </div>
 
-      {/* Hero image */}
-      <section className="relative mx-4 mt-2 h-56 md:h-72 rounded-2xl overflow-hidden">
-        {imageUrl ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${imageUrl})` }}
-            role="img"
-            aria-label={b.name}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-            <Store className="size-16 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-0 left-0 p-6 text-white">
-          <h1 className="text-2xl md:text-3xl font-bold leading-tight">{b.name}</h1>
-          <span className="text-sm text-white/80">
+        {/* Image carousel */}
+        <BusinessImageCarousel images={b.images ?? []} name={b.name} />
+
+        {/* Business name + type */}
+        <section className="px-4 mt-4">
+          <p className="text-xs font-medium text-accent uppercase tracking-wide mb-0.5">
             {businessesCopy.businesses.types[b.type] ?? businessesCopy.businesses.types.other}
-          </span>
-        </div>
-      </section>
+          </p>
+          <h1 className="text-2xl font-bold text-foreground leading-tight">{b.name}</h1>
+        </section>
 
-      {/* Business info */}
-      <section className="px-4 mt-6 space-y-4">
-        {b.description && (
-          <p className="text-base text-foreground leading-relaxed">{b.description}</p>
-        )}
-        <div className="space-y-2.5">
-          {b.address && (
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <MapPin className="size-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
-              <span className="text-sm">{b.address}</span>
+        {/* Business info */}
+        <section className="px-4 mt-4 space-y-3">
+          {b.description && (
+            <p className="text-sm text-foreground/80 leading-relaxed">{b.description}</p>
+          )}
+          <div className="space-y-2">
+            {b.address && (
+              <div className="flex items-start gap-2 text-muted-foreground">
+                <MapPin className="size-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="text-sm">{b.address}</span>
+              </div>
+            )}
+            {b.phone && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                <a href={`tel:${b.phone}`} className="text-sm hover:text-primary transition-colors">
+                  {b.phone}
+                </a>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Experiences */}
+        <section className="px-4 mt-8">
+          <h2 className="text-base font-semibold text-foreground mb-3">{copyExp.sectionTitle}</h2>
+          {activeExperiences.length === 0 ? (
+            <div className="rounded-2xl border border-border p-6 text-center">
+              <p className="text-sm text-muted-foreground">{copyExp.empty}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeExperiences.map((exp) => (
+                <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} isGuest={isGuest} />
+              ))}
             </div>
           )}
-          {b.phone && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
-              <a href={`tel:${b.phone}`} className="text-sm hover:text-primary transition-colors">
-                {b.phone}
-              </a>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Experiences */}
-      <section className="px-4 mt-8">
-        <h2 className="text-lg font-semibold text-foreground mb-4">{copyExp.sectionTitle}</h2>
-        {activeExperiences.length === 0 ? (
-          <div className="rounded-2xl border border-border p-6 text-center">
-            <p className="text-sm text-muted-foreground">{copyExp.empty}</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {activeExperiences.map((exp) => (
-              <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} isGuest={isGuest} />
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
+      </div>
     </main>
   )
 }
@@ -165,69 +154,65 @@ function ExperienceCard({
   const imageUrl = exp.images?.[0]
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border">
-      <div className="flex">
-        {/* Thumbnail */}
-        <div
-          className={cn(
-            'w-24 shrink-0 self-stretch bg-cover bg-center',
-            !imageUrl && 'bg-gradient-to-br from-primary/20 to-accent/20'
-          )}
-          style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}
-          role={imageUrl ? 'img' : undefined}
-          aria-label={imageUrl ? exp.name : undefined}
-        >
-          {!imageUrl && (
-            <div className="h-full min-h-[96px] flex items-center justify-center">
-              <Store className="size-6 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0 p-4 space-y-1.5">
-          <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
-            {exp.name}
-          </h3>
-          {exp.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-              {exp.description}
-            </p>
-          )}
-          <p className="text-base font-semibold text-accent">
-            ${Number(exp.price).toLocaleString('es-CO')} COP
-          </p>
-          <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
-            {exp.duration_minutes != null && (
-              <span className="flex items-center gap-1">
-                <Clock className="size-3" aria-hidden="true" />
-                {exp.duration_minutes}&nbsp;{copy.minutes}
-              </span>
-            )}
-            {exp.capacity != null && (
-              <span className="flex items-center gap-1">
-                <Users className="size-3" aria-hidden="true" />
-                {exp.capacity}&nbsp;{copy.people}
-              </span>
-            )}
+    <div className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border flex">
+      <div
+        className={cn(
+          'w-24 shrink-0 self-stretch bg-cover bg-center',
+          !imageUrl && 'bg-gradient-to-br from-primary/20 to-accent/20'
+        )}
+        style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}
+        role={imageUrl ? 'img' : undefined}
+        aria-label={imageUrl ? exp.name : undefined}
+      >
+        {!imageUrl && (
+          <div className="h-full min-h-[96px] flex items-center justify-center">
+            <Store className="size-6 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
           </div>
+        )}
+      </div>
 
-          {isTourist ? (
-            <Link
-              href={`/reservas/nueva?exp=${exp.id}`}
-              className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
-            >
-              {copy.book}
-            </Link>
-          ) : isGuest ? (
-            <Link
-              href="/login"
-              className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-[44px] hover:bg-primary/10 transition-colors"
-            >
-              {copy.bookGuest}
-            </Link>
-          ) : null}
+      <div className="flex-1 min-w-0 p-4 space-y-1.5">
+        <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
+          {exp.name}
+        </h3>
+        {exp.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+            {exp.description}
+          </p>
+        )}
+        <p className="text-base font-semibold text-accent">
+          ${Number(exp.price).toLocaleString('es-CO')} COP
+        </p>
+        <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+          {exp.duration_minutes != null && (
+            <span className="flex items-center gap-1">
+              <Clock className="size-3" aria-hidden="true" />
+              {exp.duration_minutes}&nbsp;{copy.minutes}
+            </span>
+          )}
+          {exp.capacity != null && (
+            <span className="flex items-center gap-1">
+              <Users className="size-3" aria-hidden="true" />
+              {exp.capacity}&nbsp;{copy.people}
+            </span>
+          )}
         </div>
+
+        {isTourist ? (
+          <Link
+            href={`/reservas/nueva?exp=${exp.id}`}
+            className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
+          >
+            {copy.book}
+          </Link>
+        ) : isGuest ? (
+          <Link
+            href="/login"
+            className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-[44px] hover:bg-primary/10 transition-colors"
+          >
+            {copy.bookGuest}
+          </Link>
+        ) : null}
       </div>
     </div>
   )
