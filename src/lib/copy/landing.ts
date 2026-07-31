@@ -42,7 +42,7 @@ export const landingCopy = {
   },
 
   footer: {
-    tagline: 'Tu guía de turismo en Manaure Balcón del Cesar, Cesar, Colombia.',
+    tagline: 'Turismo con alma local · Manaure Balcón del Cesar, Colombia.',
     rights: '© 2026 ManTur. Todos los derechos reservados.',
   },
 }

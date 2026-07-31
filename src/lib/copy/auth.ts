@@ -1,4 +1,7 @@
 export const authCopy = {
+  brand: {
+    tagline: 'Turismo con alma local',
+  },
   login: {
     title: 'Bienvenido de nuevo',
     subtitle: 'Inicia sesión para explorar Manaure',

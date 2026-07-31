@@ -1,81 +1,112 @@
-# VayaTur — Project Status Handoff
+# ManTur — Project Status Handoff
 
 > Update this file at the end of each session. At the start of the next session, read this file first.
+> GitHub: https://github.com/ROGUEANOVI/mantur (renamed from `vayatur`)
 
 ---
 
-## Completed
+## ⚠️ Immediate action required for next session
 
-### Phase 1 — Auth flow (PR #1, merged ✅)
-- Supabase: `profiles` table with `user_role` enum (`tourist|business_owner|transporter|admin`), `handle_new_user` trigger, `is_admin()` / `set_updated_at()` SECURITY DEFINER functions, `prevent_role_escalation` trigger
-- RLS on `profiles`: SELECT and UPDATE for own row or admin; trigger handles INSERT
-- Middleware: refreshes session on every request, redirects authenticated users away from /login and /signup
-- Route groups: `(auth)/` for login/signup, `(app)/` for protected routes
-- Server Actions (`src/app/(auth)/actions.ts`): `signIn`, `signUp` (admin client upsert with role allowlist validation), `signOut`
-- Admin client (`src/lib/supabase/admin.ts`): uses `SUPABASE_SERVICE_ROLE_KEY`, server-only
-- Spanish copy (`src/lib/copy/auth.ts`)
-- UI: auth layout with tropical gradient, forms with shadcn/ui, role selector with cards
+**There are uncommitted code changes on `main`** from the brand identity work done in the last session. Before any new feature work, move these to a branch and open PR #12:
 
-### Phase 1 — Auth bug fix (merged in PR #4 ✅)
-- `prevent_role_escalation` now exempts `auth.uid() IS NULL` (service_role context)
-- `signUp` switched from `update()` to `upsert()` with explicit error handling
-- Server-side allowlist validation for `role` field before admin upsert (prevents `role=admin` self-escalation)
-- `handle_new_user` and `is_admin` hardened to `SET search_path = ''`
+```bash
+git checkout -b feat/brand-identity
+git add src/components/shared/ManturLogo.tsx \
+        src/components/layout/PublicNav.tsx \
+        src/app/globals.css \
+        src/app/(auth)/layout.tsx \
+        src/app/(public)/layout.tsx \
+        src/app/(public)/page.tsx \
+        src/lib/copy/landing.ts
+git commit -m "feat(brand): add ManturLogo component and integrate into navbar
 
-### Phase 2 — Content schema (PR #2, merged + migration applied ✅)
-- Migration: `supabase/migrations/20260730000000_create_businesses_places_experiences.sql`
-- Helper functions: `get_my_role()`, `get_commission_rate()` (EXECUTE revoked from PUBLIC, service_role only), `prevent_business_status_escalation()`, `set_commission_updated_by()`
-- `businesses`: owner listings, admin approval workflow (`pending → active`), self-approval blocked at INSERT and UPDATE via trigger, `type` CHECK: `resort/restaurant/farm/eatery/other`
-- `places`: public read, admin-write, static tourist attractions, `type` CHECK: `waterfall/river/viewpoint/beach/park/other`
-- `experiences`: `price numeric(10,2)`, display-safe for clients but write/calculate server-side only
-- `commission_config`: admin-only table seeded at 10.00 for `experience/transport/business`
-- Storage bucket `business-images`: public read, upload restricted to `business_owner`/`admin`
+Pin de destino logo (green teardrop + white mountain line art + amber sun dot)
+implemented as reusable ManturLogo component (sm/md/lg sizes). Integrated into
+PublicNav and auth layout. Auth layout gradient updated to Bosque/Azul Noche.
+Landing hero gradient updated to ManTur palette."
+git commit -m "chore(brand): update design tokens to ManTur palette
 
-### Phase 2 — Public listing pages (PR #3, merged ✅)
-- `src/app/(app)/negocios/page.tsx` — grid of verified active businesses
-- `src/app/(app)/negocios/[id]/page.tsx` — detail page with experiences list; distinguishes `PGRST116` (real 404) from transient errors
-- `src/app/(app)/lugares/page.tsx` — static tourist attractions list
-- `src/lib/copy/businesses.ts` — `miNegocioCopy` and `businessesCopy` (type maps, UI strings)
-
-### Phase 2 — Business owner panel (PR #4, merged ✅)
-- `src/app/(app)/mi-negocio/layout.tsx` — role guard + `PublicNav`; redirects non-`business_owner` to `/`
-- `src/app/(app)/mi-negocio/page.tsx` — **multi-business** list (all businesses for owner); empty state → "Registrar negocio" button
-- `src/app/(app)/mi-negocio/nuevo/page.tsx` — new business form
-- `src/app/(app)/mi-negocio/[id]/page.tsx` — single business detail: status card, bookings count, activate/deactivate toggle
-- `src/app/(app)/mi-negocio/[id]/editar/page.tsx` — edit form + `ImageManager` for business photos
-- `src/app/(app)/mi-negocio/[id]/experiencias/page.tsx` — experience list with toggle + inactive warning banner
-- `src/app/(app)/mi-negocio/[id]/experiencias/nueva/page.tsx` — create experience form
-- `src/app/(app)/mi-negocio/actions.ts` — Server Actions: `createBusiness`, `updateBusiness`, `createExperience`, `updateExperience`, `toggleExperienceStatus`, `deactivateBusiness`, `reactivateBusiness` (ownership verified with user client; status update via admin client), `uploadBusinessImage`, `deleteBusinessImage`
-
-### Phase 3 — Bookings schema (PR #5, merged + migration applied ✅)
-- Migration: `supabase/migrations/20260730200000_create_bookings_transactions.sql`
-- `bookings`: experience_id, tourist_id, business_id (denormalized for RLS), people_count, booking_date, total_amount, status (`pending_payment|confirmed|cancelled|completed`); `CHECK (booking_date >= CURRENT_DATE)`
-- `transactions`: booking_id (UNIQUE), wompi_reference/link_id/link_url (nullable for future Wompi integration), status, amount_in_cents, currency, commission_rate, commission_amount_cents
-- `validate_booking_business_id()` trigger — enforces denormalized `business_id` integrity on INSERT/UPDATE
-- Indexes: `bookings_tourist_id_idx`, `bookings_business_id_idx`
-- RLS bookings: tourists own rows; business owners see bookings for their experiences; admin all
-- RLS transactions: admin/service_role only
-
-### Phase 3 — Booking flow (PR #6, merged ✅)
-- `src/app/(app)/reservas/actions.ts` — `createBooking` Server Action:
-  - Validates `role = 'tourist'` from DB before any operation
-  - Price read from DB, never from FormData — cannot be tampered
-  - `booking_date` validated in Bogotá timezone (`America/Bogota`) to avoid UTC drift for evening bookings
-  - Commission via `get_commission_rate('experience')` RPC (service_role only)
-  - Stores `commission_rate` + `commission_amount_cents` in transaction at booking time
-  - Simulated payment: booking → `confirmed`, transaction → `paid` (Wompi integration deferred)
-  - Best-effort compensating DELETE on transaction failure (post-MVP: wrap in Postgres RPC for atomicity)
-- `src/lib/copy/bookings.ts` — Spanish copy for all booking UI
-- `src/components/reservas/BookingForm.tsx` — Client Component with `useActionState`, live total preview, native date/number inputs
-- `src/app/(app)/reservas/nueva/page.tsx` — Server Component wrapper fetching experience + business name
-- `src/app/(app)/reservas/[bookingId]/confirmacion/page.tsx` — status-driven confirmation page (icon + title change by status)
-- `src/app/(app)/mis-reservas/page.tsx` — tourist's booking history, tappable cards linked to confirmation
-- Modified `negocios/[id]/page.tsx` — "Reservar" Link on each ExperienceCard
-- Modified `mi-negocio/page.tsx` — active bookings count stat card
+Map all five ManTur brand colors to OKLCH CSS custom properties in globals.css:
+--primary (Verde ManTur #0e7a54), --accent (Ámbar #e8a020), --background light
+(Niebla #f5faf7), --background dark (Azul Noche #0d1f2d), --foreground (Bosque
+#0a2b1e). Footer now uses tagline from landing copy."
+git push -u origin feat/brand-identity
+# then open PR on GitHub
+```
 
 ---
 
-## Current schema (all applied in production)
+## PRs history
+
+| # | Branch | Scope | Status |
+|---|--------|-------|--------|
+| 1 | feat/auth-flow | Login, signup, protected routes, RLS | ✅ merged |
+| 2 | feat/businesses-schema | businesses, places, experiences, commission_config | ✅ merged |
+| 3 | feat/listing-pages | Public /negocios, /lugares, /negocios/[id] | ✅ merged |
+| 4 | feat/mi-negocio | Business owner panel, auth bug fixes | ✅ merged |
+| 5 | feat/bookings-schema | bookings + transactions schema + RLS | ✅ merged |
+| 6 | feat/booking-flow | Tourist booking flow, simulated payment | ✅ merged |
+| 7 | feat/admin-panel | Business approval, commission management | ✅ merged |
+| 8 | feat/public-pages | Make listings publicly accessible | ✅ merged |
+| 9 | feat/admin-lugares | Place CRUD in admin panel | ✅ merged |
+| 10 | feat/public-landing | Landing page, nav, multi-business, admin enhancements | ✅ merged |
+| 11 | feat/image-uploads | Image uploads for businesses and places, carousel, compact cards | ✅ merged |
+| **12** | **feat/brand-identity** | **ManturLogo, color tokens, footer, hero gradient** | **🔴 uncommitted** |
+
+---
+
+## What was done in this session (session ending ~2026-07-31)
+
+### Brand rename: VayaTur → ManTur (committed to main, ddd9efb)
+- All UI copy, metadata, package.json `name`, CLAUDE.md updated
+- Domain: `mantur.co`
+- GitHub repo renamed from `vayatur` to `mantur`
+
+### Brand identity exploration (artifact, not in codebase)
+Explored 3 logo concepts. Final decision:
+- **Logo**: Pin de destino — green teardrop pin, white Serranía mountain line art inside, amber sun dot
+- **Wordmark A**: "Man" in Verde ManTur + "Tur" in Ámbar Caribe (font-black, letter-spacing -0.03em)
+- **Tagline**: "Turismo con alma local"
+- **Dark mode background**: Azul Noche `#0d1f2d` (not the forest green)
+- Brand guide artifact: https://claude.ai/code/artifact/c3b1b879-d670-4916-8bc7-259237ec7a4a
+
+### Code changes — feat/brand-identity (uncommitted, on main)
+
+**New file: `src/components/shared/ManturLogo.tsx`**
+- Reusable component, props: `size?: 'sm' | 'md' | 'lg'`
+- Renders pin SVG + "Man"/"Tur" wordmark bicolor
+- Used in `PublicNav` (md) and auth layout (lg)
+- clipPath `id="mt-pin-clip"` — safe since rendered once per page
+
+**`src/app/globals.css`** — ManTur color tokens mapped to OKLCH:
+- `--primary` → Verde ManTur `#0e7a54` → `oklch(0.50 0.135 162)`
+- `--accent` → Ámbar Caribe `#e8a020` → `oklch(0.72 0.17 70)`
+- `--background` light → Niebla `#f5faf7` → `oklch(0.984 0.006 152)`
+- `--background` dark → Azul Noche `#0d1f2d` → `oklch(0.145 0.028 225)`
+- `--foreground` → Bosque `#0a2b1e` → `oklch(0.175 0.044 158)`
+- `--border` → green-tinted `~#cce5d8` → `oklch(0.875 0.024 158)`
+
+**`src/components/layout/PublicNav.tsx`** — brand text replaced with `<ManturLogo size="md" />`
+
+**`src/app/(auth)/layout.tsx`**:
+- Logo changed from text "ManTur" to `<ManturLogo size="lg" />`
+- Gradient updated from generic `emerald/teal/cyan` to `from-[#0a2b1e] via-[#0d1f2d] to-[#091b27]`
+
+**`src/app/(public)/layout.tsx`**:
+- Footer now imports `landingCopy.footer` — two-line: tagline + rights
+- Two separate `<p>` lines instead of one
+
+**`src/app/(public)/page.tsx`**:
+- Hero gradient: `emerald/teal/cyan` → `from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]`
+- CTA primary button: `text-emerald-700` → `text-[#0e7a54]`
+- Empty card placeholder: `from-emerald-100 to-teal-100` → `from-primary/10 to-primary/20`
+
+**`src/lib/copy/landing.ts`**:
+- `footer.tagline` → "Turismo con alma local · Manaure Balcón del Cesar, Colombia."
+
+---
+
+## Current schema (all migrations applied in production ✅)
 
 ```
 auth.users              → Supabase managed
@@ -91,15 +122,17 @@ bookings                → id, experience_id, tourist_id, business_id, people_c
 transactions            → id, booking_id (UNIQUE), wompi_reference, wompi_link_id, wompi_link_url,
                           status, amount_in_cents, currency, commission_rate,
                           commission_amount_cents, created_at, updated_at
-storage: business-images bucket (public read, business_owner/admin write)
-storage: place-images bucket (public read, admin-only write)
 ```
 
-Migrations applied (all ✅):
-- `supabase/migrations/20260729000000_create_profiles.sql`
-- `supabase/migrations/20260730000000_create_businesses_places_experiences.sql`
-- `supabase/migrations/20260730200000_create_bookings_transactions.sql`
-- `supabase/migrations/20260730230000_add_place_images_bucket.sql`
+**Storage buckets**:
+- `business-images` — public read, business_owner/admin write
+- `place-images` — public read, admin-only write
+
+**Migrations applied (all ✅)**:
+- `20260729000000_create_profiles.sql`
+- `20260730000000_create_businesses_places_experiences.sql`
+- `20260730200000_create_bookings_transactions.sql`
+- `20260730230000_add_place_images_bucket.sql`
 
 ---
 
@@ -110,7 +143,7 @@ Migrations applied (all ✅):
 | Next.js | 16.2.12 (App Router) |
 | React | 19.2.8 |
 | Tailwind | v4.3.3 |
-| shadcn/ui | v4 Vega preset (Inter font, Base UI primitives — no `asChild` prop) |
+| shadcn/ui | v4 Vega preset (Base UI primitives — no `asChild` prop) |
 | @supabase/ssr | 0.12.4 |
 | @supabase/supabase-js | 2.111.0 |
 | Supabase keys | JWT legacy format (`eyJ...`) — do NOT use `sb_publishable_` format |
@@ -122,28 +155,26 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ## Key decisions (do not re-derive)
 
-- **Admin client** with `service_role` is used in `signUp` Server Action to upsert `role` + `full_name`; `prevent_role_escalation` allows `auth.uid() IS NULL` to let this through
+- **Admin client** with `service_role` is used in `signUp` to upsert `role` + `full_name`; `prevent_role_escalation` allows `auth.uid() IS NULL` to let this through
 - **`is_admin()`** is SECURITY DEFINER STABLE to avoid infinite RLS recursion
-- **`prevent_role_escalation`** is a trigger rather than RLS WITH CHECK because RLS cannot compare `NEW.role` to `OLD.role`; exempts `auth.uid() IS NULL` (service_role)
-- **`prevent_business_status_escalation`** fires on both INSERT and UPDATE — blocks non-admins from bypassing the admin approval workflow; exempts `auth.uid() IS NULL`
+- **`prevent_business_status_escalation`** fires on INSERT and UPDATE — blocks non-admins from bypassing approval; exempts `auth.uid() IS NULL`
 - **`get_commission_rate()`** EXECUTE revoked from PUBLIC, granted only to `service_role`
-- **Business/place type values** are English canonical keys; Spanish labels in `src/lib/copy/businesses.ts`
+- **Business/place type values** are English canonical keys; Spanish labels in copy files
 - **Server Components by default**; Client Components only for interactive forms
-- **`useActionState`** (React 19) for form state with Server Actions; adapter wrapper `bookingFormAction(_prevState, formData)` needed for async Server Actions
+- **`useActionState`** (React 19) for form state; adapter wrapper needed for async Server Actions
 - **`Number.isFinite()`** over `isNaN()` in `parsePrice()` — rejects `Infinity`
-- **`.select('id')`** on update/toggle Server Actions to detect silent RLS blocks (0 rows updated)
-- **`@base-ui/react` has no `asChild` prop** — use `<Link>` with Tailwind classes directly instead of `<Button asChild>`
-- **PGRST116** = real 404 (no rows); distinguish from transient errors for proper `notFound()` vs `throw`
-- **Money logic is server-only** — `price` is display-safe on client but all write/calculation in Server Actions
-- **Bogotá timezone** for booking date validation: `new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())` — avoids UTC drift after 7 pm local
-- **Supabase nested join type workaround**: `.select('experiences(name, businesses(name))')` returns arrays in TS types but single objects at runtime — cast with `as unknown as Type`
-- **Image upload pattern**: Server Action verifies ownership/role → uploads via admin client → updates `images text[]` on the row. `ImageManager` compresses to WebP client-side before sending FormData. Storage RLS is a backup gate, not the primary one.
-- **`deactivateBusiness` / `reactivateBusiness`**: owner uses user-scoped client to verify ownership, then admin client for the status update (RLS only allows owners to set `inactive`, not `active`/`pending`)
-- **`NavLink` Client Component**: wraps `<Link>` with `usePathname()` to compare against `href` and apply `activeClassName` — needed because Server Components can't use hooks
-- **Server Component children in Client Component**: `PublicNav` is a Server Component that renders `NavMobileMenu` (Client Component) with server-rendered JSX as `children` — avoids passing async data through a Client boundary
-- **`business_id` is denormalized** in `bookings` to avoid a JOIN through `experiences` in RLS policies for business owners
-- **Commission stored at booking time** in `transactions.commission_rate` + `commission_amount_cents` — never recalculated retroactively
-- **Simulated payment for MVP** — Wompi fields (`wompi_reference`, `wompi_link_id`, `wompi_link_url`) are nullable in schema so future integration requires no migration
+- **`.select('id')`** on update Server Actions to detect silent RLS blocks (0 rows)
+- **`@base-ui/react` has no `asChild` prop** — use `<Link>` with Tailwind classes directly
+- **PGRST116** = real 404; distinguish from transient errors for `notFound()` vs `throw`
+- **Money is server-only** — `price` is display-safe on client but all writes/calculations in Server Actions
+- **Bogotá timezone** for booking date: `new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())`
+- **Nested join type workaround**: `.select('experiences(businesses(name))')` returns arrays in TS types but single objects at runtime — cast with `as unknown as Type`
+- **Image upload pattern**: Server Action verifies ownership/role → uploads via admin client → updates `images text[]`; `ImageManager` compresses to WebP client-side first
+- **`deactivateBusiness` / `reactivateBusiness`**: ownership verified via user client, status update via admin client
+- **`business_id` denormalized** in `bookings` to avoid JOIN in RLS for business owners
+- **Commission stored at booking time** — never recalculated retroactively
+- **Simulated payment** — Wompi fields nullable in schema, no migration needed for real integration
+- **ManturLogo clipPath** — `id="mt-pin-clip"` is safe since the component renders once per page
 
 ---
 
@@ -151,68 +182,43 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 | Priority | Item |
 |----------|------|
-| M-1 | Wrap `bookings` + `transactions` inserts in a Postgres RPC for atomicity — current best-effort DELETE rollback can leave orphan rows if the delete itself fails |
-| L-1 | Add DB-level capacity enforcement (SELECT FOR UPDATE inside RPC) to prevent concurrent overbooking — current app-layer check is a race condition |
+| M-1 | Wrap `bookings` + `transactions` inserts in a Postgres RPC for atomicity |
+| L-1 | Add DB-level capacity enforcement (SELECT FOR UPDATE) to prevent overbooking race condition |
+| L-2 | Add PWA `manifest.json` with ManTur pin icon for home screen install |
+| L-3 | Add Open Graph meta tags per page (og:image, og:title) for WhatsApp sharing |
+| L-4 | Replace Next.js default favicon with ManTur pin SVG |
 
 ---
 
-## What was implemented in recent sessions (PRs #10–#11)
+## Next session — ordered by priority
 
-### PR #10 — feat/public-landing (in progress 🔄, branch pushed)
-- Public landing page with hero, featured businesses, places preview
-- `PublicNav` with mobile hamburger menu, active-state `NavLink`, user avatar (initials)
-- `NavMobileMenu` Client Component (server-rendered children pattern for Server Component links)
-- Terminology changes: "Explorar" (nav), "Lugares Imperdibles" (places), "Actividades" (experiences)
-- Multi-business owner panel: list all owned businesses, create/edit/deactivate/reactivate
-- Admin panel enhancements: Inactivos tab with force-deactivate/reactivate (admin client)
-- `deactivateBusiness` / `reactivateBusiness` in `mi-negocio/actions.ts`: ownership verified via user client, status update via admin client; reactivate to `active` (if `verified=true`) or `pending` (if `verified=false`)
+### 1. Create PR #12 — feat/brand-identity (FIRST THING)
+See the "Immediate action required" section at the top. Run the git commands,
+push the branch, open PR, merge.
 
-### PR #11 — feat/image-uploads (merged ✅)
-- `src/components/shared/ImageManager.tsx` — client component, `browser-image-compression` → WebP ≤1 MB, `useTransition` to call server action directly
-- `uploadBusinessImage` / `deleteBusinessImage` server actions — owner-scoped, storage via admin client
-- `uploadPlaceImage` / `deletePlaceImage` server actions — admin-only
-- `BusinessImageCarousel` — swipeable carousel with reactive dots + prev/next arrows for desktop
-- Compact horizontal cards on `/negocios` and `/lugares` (thumbnail `size-24`, whole card tappable)
-- Business detail page constrained to `max-w-2xl` for proper proportions on desktop
-- Migration `20260730230000_add_place_images_bucket.sql` — **applied ✅**
+### 2. Connect domain mantur.co to Vercel
+1. In Vercel → Project → Settings → Domains: add `mantur.co` and `www.mantur.co`
+2. Follow Vercel's DNS instructions for the domain registrar
+3. After DNS propagates: in Supabase → Auth → URL Configuration update:
+   - Site URL: `https://mantur.co`
+   - Redirect URLs: add `https://mantur.co/**` and `https://www.mantur.co/**`
 
-## Next session
+### 3. Phase 4 — Transporters (new branch: `feat/transporters`)
+This is the third actor in the business model, not yet built:
+- **DB**: `transporters` table (driver profile, vehicle info, availability status) + RLS
+- **DB**: `transport_requests` table (tourist requests, transporter accepts/rejects) + RLS
+- **Migration**: new file, reviewed before applying
+- **Public page**: `/transportistas` — list available drivers
+- **Tourist flow**: `/transporte/solicitar` → create request; `/mis-viajes` → history
+- **Transporter flow**: `/mi-perfil-transporte` → manage availability + incoming requests
+- Use `db-schema-agent` to design the schema before writing any code
 
-### Vercel deployment (ready to deploy)
-All migrations applied. Steps to complete:
-1. In Supabase Dashboard → Project Settings → API: copy the three keys
-2. In Vercel → Project → Settings → Environment Variables: add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (all environments)
-3. In Supabase Dashboard → Authentication → URL Configuration:
-   - **Site URL**: `https://<your-vercel-domain>.vercel.app`
-   - **Redirect URLs**: add `https://<your-vercel-domain>.vercel.app/**` and keep `http://localhost:3000/**`
-4. Trigger a Vercel deploy from `main`
+### 4. Experience image uploads (new branch: `feat/experience-images`)
+- Add `/mi-negocio/[id]/experiencias/[expId]/editar` page
+- Reuse `ImageManager` + `uploadBusinessImage` pattern targeting `experiences.images[]`
 
-### Phase 4 — Transporters (next feature after deploy)
-- `transporters` table (driver profile, availability status)
-- `transport_requests` table (tourist requests a ride; transporter accepts/rejects)
-- Public page: `/transportistas`
-- Tourist flow: `/transporte/solicitar` → request; `/mis-viajes` → history
-- Transporter flow: `/mi-perfil-transporte` → manage availability, incoming requests
-- Schema needs RLS: transporter sees own profile + assigned requests; tourist sees own requests
-
-### Experience image uploads (deferred)
-- Add `/mi-negocio/[id]/experiencias/[expId]/editar` page with `ImageManager`
-- Reuse `uploadBusinessImage` pattern but targeting `experiences` table
-
----
-
-## Repository
-
-- GitHub: https://github.com/ROGUEANOVI/vayatur
-- Main branch: `main`
-- PR #1: feat(auth): login, signup and protected routes — **merged** ✅
-- PR #2: feat(db): add businesses, places, experiences and commission_config schema — **merged** ✅
-- PR #3: feat(ui): add public listing pages for businesses and places — **merged** ✅
-- PR #4: feat(ui): add mi-negocio self-management panel for business owners — **merged** ✅
-- PR #5: feat(db): add bookings and transactions schema with RLS — **merged** ✅
-- PR #6: feat(bookings): add tourist booking flow with simulated payment — **merged** ✅
-- PR #7: feat(admin): add business approval panel and commission rate management — **merged** ✅
-- PR #8: feat(ui): make negocios and lugares pages publicly accessible — **merged** ✅
-- PR #9: feat(admin): add places management — create, edit, delete — **merged** ✅
-- PR #10: feat(public-landing): public landing page, nav, multi-business panel, admin enhancements — **merged** ✅
-- PR #11: feat(images): Supabase Storage image uploads for businesses and places — **merged** ✅
+### 5. Favicon + PWA + Open Graph
+Can bundle in a single `chore/pwa-meta` branch:
+- `public/favicon.svg` — ManTur pin, green background
+- `public/manifest.json` — PWA manifest with pin icons
+- `src/app/layout.tsx` — add `<meta>` og tags + link to manifest
