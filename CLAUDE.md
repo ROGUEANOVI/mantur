@@ -9,11 +9,39 @@ before starting any task.
 Colombia), connecting three actors transactionally: tourists, business
 owners, and local transporters (motocarro drivers).
 
-Domain: mantur.co
+Domain: mantur.co  
+GitHub: https://github.com/ROGUEANOVI/mantur  
+Production: deployed on Vercel
 
 Reference (informational only, not to be copied as-is): a prior directory-only
 MVP at https://github.com/everever1617-art/turma (Next.js + Firebase). We are
 rebuilding from scratch with a relational data model on Supabase.
+
+## Brand identity (finalized)
+
+**Logo**: Pin de destino — a teardrop/map-pin SVG filled green with white
+mountain line art inside (Serranía del Perijá) and an amber sun dot.
+Component: `src/components/shared/ManturLogo.tsx` — accepts `size` prop
+(`sm` | `md` | `lg`). Use this component everywhere the brand mark appears;
+never hardcode the SVG inline in page/layout files.
+
+**Color palette** — all tokens are set in `src/app/globals.css`:
+
+| Name | Hex | Token |
+|------|-----|-------|
+| Verde ManTur | `#0e7a54` | `--primary` |
+| Ámbar Caribe | `#e8a020` | `--accent` |
+| Bosque | `#0a2b1e` | `--foreground` (dark text) |
+| Azul Noche | `#0d1f2d` | `--background` (dark mode) |
+| Salvia | `#5ba88a` | secondary green |
+| Niebla | `#f5faf7` | `--background` (light mode) |
+
+Always use Tailwind tokens (`text-primary`, `bg-accent`, `bg-background`, etc.)
+in components — never hardcode hex values except in the SVG pin inside
+`ManturLogo.tsx` and `globals.css`.
+
+**Tagline**: "Turismo con alma local" — scalable to any Colombian municipality.
+Source of truth for all copy: `src/lib/copy/` files.
 
 ## Language conventions
 
@@ -41,10 +69,63 @@ rebuilding from scratch with a relational data model on Supabase.
 
 ## Stack
 
-- Next.js 16 (App Router), TypeScript, Tailwind CSS, shadcn/ui
+- Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui Vega
 - Supabase: Postgres, Auth, Storage, Realtime, RLS
 - Wompi (Colombian payment gateway) — sandbox mode for the MVP
 - Vercel for hosting
+
+## What has been built (phases complete)
+
+### Phase 1 — Auth (PRs #1, #4 — merged)
+Login, signup, protected routes, role-based access, RLS on `profiles`,
+admin client for role assignment, middleware session refresh.
+
+### Phase 2 — Content schema + listings (PRs #2, #3, #8 — merged)
+`businesses`, `places`, `experiences`, `commission_config` tables + RLS.
+Public listing pages (`/negocios`, `/lugares`, `/negocios/[id]`).
+Storage bucket `business-images`.
+
+### Phase 2 — Business owner panel (PR #4 — merged)
+`/mi-negocio` — multi-business panel, create/edit/deactivate, experience CRUD.
+Image upload via `ImageManager` + `browser-image-compression`.
+
+### Phase 3 — Bookings + payment (PRs #5, #6 — merged)
+`bookings` + `transactions` schema with RLS. Tourist booking flow with
+simulated Wompi payment. `/mis-reservas` history. Commission stored at booking
+time via `get_commission_rate()` RPC (service_role only).
+
+### Phase 3 — Admin panel (PR #7 — merged)
+`/admin` — business approval/rejection, commission rate management.
+`/admin/negocios`, `/admin/comisiones`, `/admin/lugares`.
+
+### Phase 3 — Public landing + nav (PR #10 — merged)
+Landing page, `PublicNav` with mobile menu, active-state `NavLink`,
+user avatar. Multi-business panel enhancements.
+
+### Phase 3 — Image uploads (PR #11 — merged)
+`BusinessImageCarousel`, compact horizontal listing cards, `ImageManager` for
+both businesses and places. Storage bucket `place-images`.
+
+### Phase 3 — Brand identity (PR #12 — pending, branch: `feat/brand-identity`)
+`ManturLogo` component, brand color tokens in `globals.css`, footer tagline,
+landing hero gradient, auth layout redesign with Bosque/Azul Noche gradient.
+> ⚠️ These changes are currently uncommitted on `main`. Create branch
+> `feat/brand-identity`, commit there, open PR #12.
+
+## Pending / Phase 4
+
+- **Transporters**: `transporters` table, `transport_requests`, public
+  `/transportistas` page, tourist request flow, driver availability flow.
+  This is the third actor in the CLAUDE.md spec — not yet built.
+- **Experience image uploads**: add `/mi-negocio/[id]/experiencias/[expId]/editar`
+  with `ImageManager` reusing the business image pattern.
+- **PWA manifest** (`manifest.json` + icons using the pin logo) for home screen
+  install on Android/iOS.
+- **Open Graph / meta tags**: og:image, og:title per page for WhatsApp/social
+  sharing — use the pin logo on Bosque background.
+- **Favicon**: replace default Next.js favicon with the ManTur pin (32px square,
+  green background, white pin).
+- **Connect domain `mantur.co`** to Vercel; update Supabase Auth redirect URLs.
 
 ## Data model (v1 — English names, relational)
 
@@ -53,14 +134,12 @@ rebuilding from scratch with a relational data model on Supabase.
 - `businesses` — restaurants, balnearios, fincas; owned by a `profile`
 - `places` — static touristic attractions (informational)
 - `experiences` — bookable activities tied to a `business`, has price & capacity
-- `guides` — local tour guides, has a rate
-- `transporters` — motocarro drivers; availability status
+- `transporters` — motocarro drivers; availability status (NOT YET BUILT)
 - `transport_requests` — a tourist requests a ride; a transporter accepts/rejects
-- `bookings` — a tourist books an `experience` or a `business` service; links
-  to a `transaction`
+  (NOT YET BUILT)
+- `bookings` — a tourist books an `experience`; links to a `transaction`
 - `transactions` — payment records (Wompi reference, status, amount)
-- `commission_config` — commission percentage per service type, editable by
-  admin
+- `commission_config` — commission percentage per service type, editable by admin
 
 ## Out of scope for the MVP
 
@@ -70,12 +149,16 @@ partnership integration.
 
 ## Workflow
 
-1. For any new feature, start in **Plan Mode** (`Shift+Tab`) — propose the
+1. **Never commit directly to `main`.** All work goes on a feature branch:
+   `feat/<description>`, `fix/<description>`, `chore/<description>`.
+2. For any new feature, start in **Plan Mode** (`Shift+Tab`) — propose the
    plan before touching files.
-2. Delegate to the relevant subagent in `.claude/agents/` when the task
+3. Delegate to the relevant subagent in `.claude/agents/` when the task
    matches its description (see below).
-3. After implementation, summarize what changed and why, so it can be
-   reviewed in a follow-up discussion before moving to the next feature.
+4. After implementation, summarize what changed and why for review before
+   moving to the next feature.
+5. Docs and CLAUDE.md updates can go on `main` directly only when they are
+   documentation-only changes with zero code impact.
 
 ## Git workflow: commits, branches, PRs
 
@@ -91,26 +174,26 @@ partnership integration.
 
 Allowed `type` values: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`,
 `style`, `perf`. Common `scope` values for this project: `db`, `auth`,
-`bookings`, `transport`, `payments`, `businesses`, `ui`, `config`.
+`bookings`, `transport`, `payments`, `businesses`, `ui`, `config`, `brand`.
 
 Examples:
 ```
 feat(bookings): add booking creation server action
 fix(payments): verify Wompi webhook signature before marking paid
-refactor(db): normalize transporter availability into its own table
-docs(claude): document commission_config table
+feat(brand): add ManturLogo component and integrate into navbar
+chore(brand): update design tokens to ManTur palette in globals.css
 ```
 
 Never mention "Claude" or "AI-generated" in commit messages or PR text —
 write them as any engineer would.
 
 **Branch naming**: `<type>/<short-description>`, e.g. `feat/booking-flow`,
-`fix/webhook-signature`.
+`feat/brand-identity`, `fix/webhook-signature`.
 
 **One feature/task = one branch = one PR.** Do not bundle unrelated changes.
 
 **Before opening a PR:**
-1. Run lint/build locally and fix failures.
+1. Run `npm run build` locally and fix all failures.
 2. If the change touches auth, payments, or money logic, run the
    `security-reviewer` subagent first and resolve its findings.
 3. Write the PR description using `.github/PULL_REQUEST_TEMPLATE.md`.
@@ -123,5 +206,5 @@ so they read well in the changelog/history.
 - `db-schema-agent` — designs/migrates Postgres schema + RLS policies
 - `security-reviewer` — reviews any diff touching auth, payments, or money
   logic before it's considered done
-- `ui-agent` — builds and reviews pages/components following the VayaTur
+- `ui-agent` — builds and reviews pages/components following the ManTur
   design system (mobile-first, tourism aesthetic, shadcn/ui Vega)

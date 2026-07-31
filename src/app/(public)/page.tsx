@@ -61,7 +61,7 @@ export default async function LandingPage() {
   return (
     <main>
       {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 px-4 py-16 sm:py-24">
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28] px-4 py-16 sm:py-24">
         {/* decorative circles */}
         <div className="pointer-events-none absolute -top-16 -right-16 size-72 rounded-full bg-white/5" />
         <div className="pointer-events-none absolute -bottom-10 -left-10 size-48 rounded-full bg-white/5" />
@@ -79,7 +79,7 @@ export default async function LandingPage() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/negocios"
-              className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-white px-6 text-sm font-bold text-emerald-700 shadow-lg hover:bg-white/90 transition-colors"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-white px-6 text-sm font-bold text-[#0e7a54] shadow-lg hover:bg-white/90 transition-colors"
             >
               {copy.hero.ctaPrimary}
             </Link>
@@ -187,7 +187,7 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
             aria-label={business.name}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/20 dark:from-primary/20 dark:to-primary/10 flex items-center justify-center">
             <Store className="size-10 text-primary/40" aria-hidden="true" strokeWidth={1.5} />
           </div>
         )}

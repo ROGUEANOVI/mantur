@@ -4,6 +4,7 @@ import { signOut } from '@/app/(auth)/actions'
 import { landingCopy } from '@/lib/copy/landing'
 import NavMobileMenu from './NavMobileMenu'
 import NavLink from './NavLink'
+import ManturLogo from '@/components/shared/ManturLogo'
 
 export default async function PublicNav() {
   const supabase = await createClient()
@@ -91,11 +92,8 @@ export default async function PublicNav() {
     <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="relative mx-auto max-w-5xl flex items-center gap-2 px-4 h-14">
         {/* Brand */}
-        <Link
-          href="/"
-          className="text-base font-bold text-primary shrink-0 tracking-tight mr-2"
-        >
-          {copy.brand}
+        <Link href="/" className="shrink-0 mr-2" aria-label="ManTur — inicio">
+          <ManturLogo size="md" />
         </Link>
 
         {/* Desktop nav links */}
