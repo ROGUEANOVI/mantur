@@ -182,7 +182,7 @@ export async function createPlace(formData: FormData): Promise<ActionResult> {
 
   revalidatePath('/admin/lugares')
   revalidatePath('/lugares')
-  return { success: true }
+  redirect('/admin/lugares')
 }
 
 export async function updatePlace(formData: FormData): Promise<ActionResult> {
@@ -218,7 +218,7 @@ export async function updatePlace(formData: FormData): Promise<ActionResult> {
 
   revalidatePath('/admin/lugares')
   revalidatePath('/lugares')
-  return { success: true }
+  redirect('/admin/lugares')
 }
 
 export async function deletePlace(formData: FormData): Promise<void> {
