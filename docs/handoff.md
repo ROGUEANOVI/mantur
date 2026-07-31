@@ -92,16 +92,14 @@ transactions            → id, booking_id (UNIQUE), wompi_reference, wompi_link
                           status, amount_in_cents, currency, commission_rate,
                           commission_amount_cents, created_at, updated_at
 storage: business-images bucket (public read, business_owner/admin write)
-storage: place-images bucket (public read, admin-only write) ← pending: apply migration below
+storage: place-images bucket (public read, admin-only write)
 ```
 
-Migrations applied:
+Migrations applied (all ✅):
 - `supabase/migrations/20260729000000_create_profiles.sql`
 - `supabase/migrations/20260730000000_create_businesses_places_experiences.sql`
 - `supabase/migrations/20260730200000_create_bookings_transactions.sql`
-
-Migration **NOT YET applied** (run in Supabase SQL Editor before testing image uploads):
-- `supabase/migrations/20260730230000_add_place_images_bucket.sql` — creates `place-images` bucket with admin-only write policies
+- `supabase/migrations/20260730230000_add_place_images_bucket.sql`
 
 ---
 
@@ -169,28 +167,37 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 - Admin panel enhancements: Inactivos tab with force-deactivate/reactivate (admin client)
 - `deactivateBusiness` / `reactivateBusiness` in `mi-negocio/actions.ts`: ownership verified via user client, status update via admin client; reactivate to `active` (if `verified=true`) or `pending` (if `verified=false`)
 
-### PR #11 — feat/image-uploads (open 🔄)
+### PR #11 — feat/image-uploads (merged ✅)
 - `src/components/shared/ImageManager.tsx` — client component, `browser-image-compression` → WebP ≤1 MB, `useTransition` to call server action directly
 - `uploadBusinessImage` / `deleteBusinessImage` server actions — owner-scoped, storage via admin client
 - `uploadPlaceImage` / `deletePlaceImage` server actions — admin-only
-- Migration `20260730230000_add_place_images_bucket.sql` — **NOT YET APPLIED** (see above)
-- `ImageManager` wired into `/mi-negocio/[id]/editar` and `/admin/lugares/[id]/editar`
+- `BusinessImageCarousel` — swipeable carousel with reactive dots + prev/next arrows for desktop
+- Compact horizontal cards on `/negocios` and `/lugares` (thumbnail `size-24`, whole card tappable)
+- Business detail page constrained to `max-w-2xl` for proper proportions on desktop
+- Migration `20260730230000_add_place_images_bucket.sql` — **applied ✅**
 
 ## Next session
 
-### Immediate action required
-Apply `supabase/migrations/20260730230000_add_place_images_bucket.sql` in Supabase SQL Editor to enable place image uploads.
+### Vercel deployment (ready to deploy)
+All migrations applied. Steps to complete:
+1. In Supabase Dashboard → Project Settings → API: copy the three keys
+2. In Vercel → Project → Settings → Environment Variables: add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (all environments)
+3. In Supabase Dashboard → Authentication → URL Configuration:
+   - **Site URL**: `https://<your-vercel-domain>.vercel.app`
+   - **Redirect URLs**: add `https://<your-vercel-domain>.vercel.app/**` and keep `http://localhost:3000/**`
+4. Trigger a Vercel deploy from `main`
 
-### Phase 4 — Transporters
+### Phase 4 — Transporters (next feature after deploy)
 - `transporters` table (driver profile, availability status)
 - `transport_requests` table (tourist requests a ride; transporter accepts/rejects)
 - Public page: `/transportistas`
-- Tourist flow: `/transporte/nueva` → request; `/mis-viajes` → history
+- Tourist flow: `/transporte/solicitar` → request; `/mis-viajes` → history
 - Transporter flow: `/mi-perfil-transporte` → manage availability, incoming requests
+- Schema needs RLS: transporter sees own profile + assigned requests; tourist sees own requests
 
 ### Experience image uploads (deferred)
 - Add `/mi-negocio/[id]/experiencias/[expId]/editar` page with `ImageManager`
-- Reuse `uploadBusinessImage` pattern with `experiences` table + `business-images` bucket
+- Reuse `uploadBusinessImage` pattern but targeting `experiences` table
 
 ---
 
@@ -207,5 +214,5 @@ Apply `supabase/migrations/20260730230000_add_place_images_bucket.sql` in Supaba
 - PR #7: feat(admin): add business approval panel and commission rate management — **merged** ✅
 - PR #8: feat(ui): make negocios and lugares pages publicly accessible — **merged** ✅
 - PR #9: feat(admin): add places management — create, edit, delete — **merged** ✅
-- PR #10: feat(public-landing): public landing page, nav, multi-business panel, admin enhancements — **in progress** 🔄
-- PR #11: feat(images): Supabase Storage image uploads for businesses and places — **open** 🔄
+- PR #10: feat(public-landing): public landing page, nav, multi-business panel, admin enhancements — **merged** ✅
+- PR #11: feat(images): Supabase Storage image uploads for businesses and places — **merged** ✅
