@@ -16,14 +16,14 @@ export default function BusinessImageCarousel({
 
   if (images.length === 0) {
     return (
-      <div className="relative h-56 md:h-72 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+      <div className="relative mx-4 mt-2 rounded-2xl h-56 md:h-72 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
         <Store className="size-16 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
       </div>
     )
   }
 
   return (
-    <div className="relative h-56 md:h-72 overflow-hidden">
+    <div className="relative mx-4 mt-2 rounded-2xl overflow-hidden h-56 md:h-80">
       <div
         ref={scrollRef}
         className="flex h-full overflow-x-auto snap-x snap-mandatory scrollbar-none"
