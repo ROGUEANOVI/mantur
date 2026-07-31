@@ -106,11 +106,14 @@ user avatar. Multi-business panel enhancements.
 `BusinessImageCarousel`, compact horizontal listing cards, `ImageManager` for
 both businesses and places. Storage bucket `place-images`.
 
-### Phase 3 — Brand identity (PR #12 — pending, branch: `feat/brand-identity`)
-`ManturLogo` component, brand color tokens in `globals.css`, footer tagline,
-landing hero gradient, auth layout redesign with Bosque/Azul Noche gradient.
-> ⚠️ These changes are currently uncommitted on `main`. Create branch
-> `feat/brand-identity`, commit there, open PR #12.
+### Phase 3 — Brand identity (PR #12 — merged)
+`ManturLogo` component, brand color tokens in `globals.css`, tagline «Turismo
+con alma local», landing hero gradient + decorative circles, auth layout
+redesign with Bosque/Azul Noche gradient. Listing pages (`/negocios`,
+`/lugares`): debounced search, centered pill filters, responsive 1→2→3 column
+card grid, section-specific hero silhouettes (town skyline / mountain range),
+server-side pagination via `PaginationNav`. New shared components:
+`ManturLogo`, `SearchInput`, `PaginationNav`. Favicon: `src/app/icon.svg`.
 
 ## Pending / Phase 4
 
@@ -123,8 +126,6 @@ landing hero gradient, auth layout redesign with Bosque/Azul Noche gradient.
   install on Android/iOS.
 - **Open Graph / meta tags**: og:image, og:title per page for WhatsApp/social
   sharing — use the pin logo on Bosque background.
-- **Favicon**: replace default Next.js favicon with the ManTur pin (32px square,
-  green background, white pin).
 - **Connect domain `mantur.co`** to Vercel; update Supabase Auth redirect URLs.
 
 ## Data model (v1 — English names, relational)
