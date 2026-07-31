@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Store } from 'lucide-react'
+import { Store, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function BusinessImageCarousel({
@@ -14,9 +14,15 @@ export default function BusinessImageCarousel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [current, setCurrent] = useState(0)
 
+  function scrollTo(index: number) {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ left: index * el.offsetWidth, behavior: 'smooth' })
+  }
+
   if (images.length === 0) {
     return (
-      <div className="relative mx-4 mt-2 rounded-2xl h-56 md:h-72 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+      <div className="relative mx-4 mt-2 rounded-2xl h-56 md:h-80 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
         <Store className="size-16 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
       </div>
     )
@@ -44,6 +50,36 @@ export default function BusinessImageCarousel({
       </div>
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+
+      {/* Desktop arrow buttons */}
+      {images.length > 1 && current > 0 && (
+        <button
+          onClick={() => scrollTo(current - 1)}
+          aria-label="Imagen anterior"
+          className={cn(
+            'absolute left-3 top-1/2 -translate-y-1/2',
+            'hidden md:flex items-center justify-center',
+            'size-9 rounded-full bg-black/40 text-white',
+            'hover:bg-black/65 transition-colors',
+          )}
+        >
+          <ChevronLeft className="size-5" aria-hidden="true" />
+        </button>
+      )}
+      {images.length > 1 && current < images.length - 1 && (
+        <button
+          onClick={() => scrollTo(current + 1)}
+          aria-label="Siguiente imagen"
+          className={cn(
+            'absolute right-3 top-1/2 -translate-y-1/2',
+            'hidden md:flex items-center justify-center',
+            'size-9 rounded-full bg-black/40 text-white',
+            'hover:bg-black/65 transition-colors',
+          )}
+        >
+          <ChevronRight className="size-5" aria-hidden="true" />
+        </button>
+      )}
 
       {images.length > 1 && (
         <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
