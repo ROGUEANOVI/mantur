@@ -89,7 +89,7 @@ export const adminCopy = {
 
   comisiones: {
     title: 'Tasas de comisión',
-    subtitle: 'Porcentaje que retiene VayaTur sobre el monto total de cada transacción.',
+    subtitle: 'Porcentaje que retiene ManTur sobre el monto total de cada transacción.',
     serviceType: {
       experience: 'Experiencias',
       transport: 'Transporte',

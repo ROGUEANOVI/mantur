@@ -1,6 +1,6 @@
 export const landingCopy = {
   nav: {
-    brand: 'VayaTur',
+    brand: 'ManTur',
     negocios: 'Explorar',
     lugares: 'Lugares Imperdibles',
     login: 'Iniciar sesión',
@@ -43,6 +43,6 @@ export const landingCopy = {
 
   footer: {
     tagline: 'Tu guía de turismo en Manaure Balcón del Cesar, Cesar, Colombia.',
-    rights: '© 2026 VayaTur. Todos los derechos reservados.',
+    rights: '© 2026 ManTur. Todos los derechos reservados.',
   },
 }

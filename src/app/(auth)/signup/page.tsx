@@ -2,7 +2,7 @@ import SignupForm from '@/components/auth/SignupForm'
 import { authCopy } from '@/lib/copy/auth'
 
 export const metadata = {
-  title: 'Crear cuenta — VayaTur',
+  title: 'Crear cuenta — ManTur',
 }
 
 export default function SignupPage() {

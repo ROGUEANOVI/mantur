@@ -5,9 +5,11 @@ before starting any task.
 
 ## Project
 
-**VayaTur** — a tourism marketplace for Manaure Balcón del Cesar (Cesar,
+**ManTur** — a tourism marketplace for Manaure Balcón del Cesar (Cesar,
 Colombia), connecting three actors transactionally: tourists, business
 owners, and local transporters (motocarro drivers).
+
+Domain: mantur.co
 
 Reference (informational only, not to be copied as-is): a prior directory-only
 MVP at https://github.com/everever1617-art/turma (Next.js + Firebase). We are

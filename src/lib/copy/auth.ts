@@ -14,7 +14,7 @@ export const authCopy = {
   },
   signup: {
     title: 'Crea tu cuenta',
-    subtitle: 'Únete a la comunidad de VayaTur',
+    subtitle: 'Únete a la comunidad de ManTur',
     fullName: 'Nombre completo',
     email: 'Correo electrónico',
     password: 'Contraseña',

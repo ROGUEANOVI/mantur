@@ -11,7 +11,7 @@ export default function PublicLayout({
       <div className="flex-1">{children}</div>
       <footer className="border-t border-border px-4 py-6 text-center">
         <p className="text-xs text-muted-foreground">
-          © 2026 VayaTur. Tu guía de turismo en Manaure Balcón del Cesar, Colombia.
+          © 2026 ManTur. Tu guía de turismo en Manaure Balcón del Cesar, Colombia.
         </p>
       </footer>
     </div>

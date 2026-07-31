@@ -2,7 +2,7 @@ import LoginForm from '@/components/auth/LoginForm'
 import { authCopy } from '@/lib/copy/auth'
 
 export const metadata = {
-  title: 'Iniciar sesión — VayaTur',
+  title: 'Iniciar sesión — ManTur',
 }
 
 export default function LoginPage() {
