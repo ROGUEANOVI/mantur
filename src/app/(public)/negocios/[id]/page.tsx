@@ -71,70 +71,72 @@ export default async function NegocioDetailPage({
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      {/* Back link */}
-      <div className="px-4 pt-4">
-        <Link
-          href="/negocios"
-          className={cn(
-            'inline-flex items-center gap-1.5',
-            'text-sm font-medium text-primary',
-            'min-h-[44px] py-2 hover:underline'
-          )}
-        >
-          <ChevronLeft className="size-4" aria-hidden="true" />
-          {copyDetail.back}
-        </Link>
-      </div>
-
-      {/* Image carousel */}
-      <BusinessImageCarousel images={b.images ?? []} name={b.name} />
-
-      {/* Business name + type */}
-      <section className="px-4 mt-4">
-        <p className="text-xs font-medium text-accent uppercase tracking-wide mb-0.5">
-          {businessesCopy.businesses.types[b.type] ?? businessesCopy.businesses.types.other}
-        </p>
-        <h1 className="text-2xl font-bold text-foreground leading-tight">{b.name}</h1>
-      </section>
-
-      {/* Business info */}
-      <section className="px-4 mt-4 space-y-3">
-        {b.description && (
-          <p className="text-sm text-foreground/80 leading-relaxed">{b.description}</p>
-        )}
-        <div className="space-y-2">
-          {b.address && (
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <MapPin className="size-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
-              <span className="text-sm">{b.address}</span>
-            </div>
-          )}
-          {b.phone && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
-              <a href={`tel:${b.phone}`} className="text-sm hover:text-primary transition-colors">
-                {b.phone}
-              </a>
-            </div>
-          )}
+      <div className="max-w-2xl mx-auto">
+        {/* Back link */}
+        <div className="px-4 pt-4">
+          <Link
+            href="/negocios"
+            className={cn(
+              'inline-flex items-center gap-1.5',
+              'text-sm font-medium text-primary',
+              'min-h-[44px] py-2 hover:underline'
+            )}
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+            {copyDetail.back}
+          </Link>
         </div>
-      </section>
 
-      {/* Experiences */}
-      <section className="px-4 mt-8">
-        <h2 className="text-base font-semibold text-foreground mb-3">{copyExp.sectionTitle}</h2>
-        {activeExperiences.length === 0 ? (
-          <div className="rounded-2xl border border-border p-6 text-center">
-            <p className="text-sm text-muted-foreground">{copyExp.empty}</p>
+        {/* Image carousel */}
+        <BusinessImageCarousel images={b.images ?? []} name={b.name} />
+
+        {/* Business name + type */}
+        <section className="px-4 mt-4">
+          <p className="text-xs font-medium text-accent uppercase tracking-wide mb-0.5">
+            {businessesCopy.businesses.types[b.type] ?? businessesCopy.businesses.types.other}
+          </p>
+          <h1 className="text-2xl font-bold text-foreground leading-tight">{b.name}</h1>
+        </section>
+
+        {/* Business info */}
+        <section className="px-4 mt-4 space-y-3">
+          {b.description && (
+            <p className="text-sm text-foreground/80 leading-relaxed">{b.description}</p>
+          )}
+          <div className="space-y-2">
+            {b.address && (
+              <div className="flex items-start gap-2 text-muted-foreground">
+                <MapPin className="size-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="text-sm">{b.address}</span>
+              </div>
+            )}
+            {b.phone && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                <a href={`tel:${b.phone}`} className="text-sm hover:text-primary transition-colors">
+                  {b.phone}
+                </a>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3">
-            {activeExperiences.map((exp) => (
-              <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} isGuest={isGuest} />
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
+
+        {/* Experiences */}
+        <section className="px-4 mt-8">
+          <h2 className="text-base font-semibold text-foreground mb-3">{copyExp.sectionTitle}</h2>
+          {activeExperiences.length === 0 ? (
+            <div className="rounded-2xl border border-border p-6 text-center">
+              <p className="text-sm text-muted-foreground">{copyExp.empty}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeExperiences.map((exp) => (
+                <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} isGuest={isGuest} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   )
 }
