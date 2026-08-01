@@ -36,13 +36,22 @@ export default async function PublicNav() {
   const authContent = user ? (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1">
       {role === 'tourist' && (
-        <NavLink
-          href="/mis-reservas"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
-          activeClassName="text-foreground font-semibold bg-muted/40"
-        >
-          {copy.myBookings}
-        </NavLink>
+        <>
+          <NavLink
+            href="/mis-reservas"
+            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+            activeClassName="text-foreground font-semibold bg-muted/40"
+          >
+            {copy.myBookings}
+          </NavLink>
+          <NavLink
+            href="/solicitar-rol"
+            className="text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-[44px] flex items-center rounded-lg hover:bg-accent/10 transition-colors"
+            activeClassName="text-accent font-semibold bg-accent/10"
+          >
+            {copy.joinMantur}
+          </NavLink>
+        </>
       )}
       {role === 'business_owner' && (
         <NavLink

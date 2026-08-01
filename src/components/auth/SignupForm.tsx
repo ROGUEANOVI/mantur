@@ -2,47 +2,55 @@
 
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
-import { MapPin, Store, Car } from 'lucide-react'
+import { Eye, EyeOff, Check, X } from 'lucide-react'
 
 import { signUp } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
-type Role = 'tourist' | 'business_owner' | 'transporter'
 type FormState = { error: string | null }
-
-async function signupAction(
-  _prevState: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const result = await signUp(formData)
-  // signUp either redirects (success) or returns { error }
-  return result ?? { error: null }
-}
 
 const copy = authCopy.signup
 
-// Role selector card definition — keeps JSX clean below
-const ROLE_OPTIONS: { value: Role; label: string; Icon: React.ElementType }[] = [
-  { value: 'tourist', label: copy.roles.tourist, Icon: MapPin },
-  { value: 'business_owner', label: copy.roles.business_owner, Icon: Store },
-  { value: 'transporter', label: copy.roles.transporter, Icon: Car },
+const RULES = [
+  { key: 'minLength', label: copy.passwordRules.minLength, test: (p: string) => p.length >= 8 },
+  { key: 'uppercase', label: copy.passwordRules.uppercase, test: (p: string) => /[A-Z]/.test(p) },
+  { key: 'digit',     label: copy.passwordRules.digit,     test: (p: string) => /[0-9]/.test(p) },
+  { key: 'special',   label: copy.passwordRules.special,   test: (p: string) => /[^A-Za-z0-9]/.test(p) },
 ]
 
+function isPasswordValid(p: string) {
+  return RULES.every((r) => r.test(p))
+}
+
 export default function SignupForm() {
-  const [selectedRole, setSelectedRole] = useState<Role>('tourist')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [password, setPassword]       = useState('')
+  const [confirm, setConfirm]         = useState('')
+  const [pwTouched, setPwTouched]     = useState(false)
+
+  const passwordsMatch = confirm.length > 0 && password === confirm
+  const passwordsMismatch = confirm.length > 0 && password !== confirm
 
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    signupAction,
+    async (_prev, formData) => {
+      const pw  = formData.get('password') as string
+      const cfm = formData.get('confirm_password') as string
+      if (!isPasswordValid(pw))  return { error: copy.errors.weakPassword }
+      if (pw !== cfm)            return { error: copy.errors.passwordMismatch }
+      const result = await signUp(formData)
+      return result ?? { error: null }
+    },
     { error: null },
   )
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {/* Full name */}
+      {/* Name */}
       <div className="space-y-1.5">
         <Label htmlFor="signup-name">{copy.fullName}</Label>
         <Input
@@ -71,90 +79,135 @@ export default function SignupForm() {
       {/* Password */}
       <div className="space-y-1.5">
         <Label htmlFor="signup-password">{copy.password}</Label>
-        <Input
+        <PasswordInput
           id="signup-password"
-          type="password"
           name="password"
-          required
-          minLength={6}
+          show={showPassword}
+          onToggle={() => setShowPassword((v) => !v)}
           autoComplete="new-password"
-          placeholder="Mínimo 6 caracteres"
+          placeholder="Tu contraseña"
+          value={password}
+          onChange={(v) => { setPassword(v); setPwTouched(true) }}
         />
-      </div>
 
-      {/* Role selector */}
-      <div className="space-y-2">
-        {/* Not a <label> because the role options are <button>s, not inputs */}
-        <p className="text-sm font-medium leading-none select-none">
-          {copy.roleLabel}
-        </p>
-
-        {/*
-         * Three cards stacked vertically on mobile, side-by-side on md+.
-         * The hidden input carries the selected value to the Server Action.
-         */}
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-          {ROLE_OPTIONS.map(({ value, label, Icon }) => {
-            const isSelected = selectedRole === value
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setSelectedRole(value)}
-                aria-pressed={isSelected}
-                className={cn(
-                  'flex flex-row md:flex-col items-center gap-3 md:gap-2 rounded-xl border p-3 text-left transition-colors',
-                  isSelected
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-background hover:bg-muted',
-                )}
-              >
-                <Icon
+        {/* Requirements — shown once user starts typing */}
+        {pwTouched && (
+          <div className="grid grid-cols-2 gap-1.5 pt-1">
+            {RULES.map(({ key, label, test }) => {
+              const met = test(password)
+              return (
+                <div
+                  key={key}
                   className={cn(
-                    'size-5 shrink-0',
-                    isSelected ? 'text-primary' : 'text-muted-foreground',
-                  )}
-                  aria-hidden="true"
-                />
-                <span
-                  className={cn(
-                    'text-sm font-medium leading-tight',
-                    isSelected ? 'text-primary' : 'text-foreground',
+                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
+                    met
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-muted text-muted-foreground',
                   )}
                 >
+                  {met
+                    ? <Check className="size-3 shrink-0" aria-hidden="true" />
+                    : <X     className="size-3 shrink-0" aria-hidden="true" />
+                  }
                   {label}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Passes the selected role value to the Server Action */}
-        <input type="hidden" name="role" value={selectedRole} />
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Inline error */}
+      {/* Confirm password */}
+      <div className="space-y-1.5">
+        <Label htmlFor="signup-confirm">{copy.confirmPassword}</Label>
+        <PasswordInput
+          id="signup-confirm"
+          name="confirm_password"
+          show={showConfirm}
+          onToggle={() => setShowConfirm((v) => !v)}
+          autoComplete="new-password"
+          placeholder="Repite tu contraseña"
+          value={confirm}
+          onChange={setConfirm}
+        />
+        {/* Real-time match feedback */}
+        {passwordsMatch && (
+          <p className="flex items-center gap-1 text-xs text-primary">
+            <Check className="size-3" aria-hidden="true" />
+            Las contraseñas coinciden
+          </p>
+        )}
+        {passwordsMismatch && (
+          <p className="flex items-center gap-1 text-xs text-destructive">
+            <X className="size-3" aria-hidden="true" />
+            Las contraseñas no coinciden
+          </p>
+        )}
+      </div>
+
       {state.error && (
         <p role="alert" className="text-sm text-destructive">
           {state.error}
         </p>
       )}
 
-      {/* Submit */}
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? 'Creando cuenta...' : copy.submit}
       </Button>
 
-      {/* Link to login */}
       <p className="text-center text-sm text-muted-foreground">
         {copy.hasAccount}{' '}
-        <Link
-          href="/login"
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
+        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
           {copy.loginLink}
         </Link>
       </p>
     </form>
+  )
+}
+
+function PasswordInput({
+  id,
+  name,
+  show,
+  onToggle,
+  autoComplete,
+  placeholder,
+  value,
+  onChange,
+}: {
+  id: string
+  name: string
+  show: boolean
+  onToggle: () => void
+  autoComplete?: string
+  placeholder?: string
+  value?: string
+  onChange?: (v: string) => void
+}) {
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={show ? 'text' : 'password'}
+        name={name}
+        required
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={show ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {show
+          ? <EyeOff className="size-4" aria-hidden="true" />
+          : <Eye    className="size-4" aria-hidden="true" />
+        }
+      </button>
+    </div>
   )
 }

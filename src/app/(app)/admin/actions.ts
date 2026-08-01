@@ -357,3 +357,67 @@ export async function updateCommissionRate(
   revalidatePath('/admin/comisiones')
   return { success: true }
 }
+
+// ── Role request actions ─────────────────────────────────────────────────────
+
+const VALID_ROLES = ['business_owner', 'transporter', 'tourist_guide'] as const
+
+export async function approveRoleRequest(formData: FormData): Promise<void> {
+  const { admin, adminId } = await getAuthenticatedAdmin()
+
+  const requestId = formData.get('requestId') as string
+  if (!UUID_RE.test(requestId)) redirect('/admin/solicitudes')
+
+  const { data: request } = await admin
+    .from('role_requests')
+    .select('user_id, requested_role')
+    .eq('id', requestId)
+    .single()
+
+  if (!request) redirect('/admin/solicitudes')
+  if (!(VALID_ROLES as readonly string[]).includes(request.requested_role)) redirect('/admin/solicitudes')
+
+  // Update request status
+  await admin
+    .from('role_requests')
+    .update({ status: 'approved', reviewer_id: adminId, reviewed_at: new Date().toISOString() })
+    .eq('id', requestId)
+
+  // Update user's role in profiles
+  await admin
+    .from('profiles')
+    .update({ role: request.requested_role })
+    .eq('id', request.user_id)
+
+  // Cancel any other pending requests from this user (they got a role)
+  await admin
+    .from('role_requests')
+    .update({ status: 'rejected', rejection_reason: 'Otro rol fue aprobado.', reviewer_id: adminId, reviewed_at: new Date().toISOString() })
+    .eq('user_id', request.user_id)
+    .eq('status', 'pending')
+    .neq('id', requestId)
+
+  revalidatePath('/admin/solicitudes')
+  revalidatePath('/solicitar-rol')
+}
+
+export async function rejectRoleRequest(formData: FormData): Promise<void> {
+  const { admin, adminId } = await getAuthenticatedAdmin()
+
+  const requestId = formData.get('requestId') as string
+  const reason = (formData.get('rejection_reason') as string | null)?.trim()
+  if (!UUID_RE.test(requestId) || !reason) redirect('/admin/solicitudes')
+
+  await admin
+    .from('role_requests')
+    .update({
+      status: 'rejected',
+      rejection_reason: reason,
+      reviewer_id: adminId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq('id', requestId)
+
+  revalidatePath('/admin/solicitudes')
+  revalidatePath('/solicitar-rol')
+}
