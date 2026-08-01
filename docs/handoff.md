@@ -25,6 +25,9 @@
 | 14 | feat/role-requests | Role request flow + signup redesign | ✅ merged |
 | 15 | fix/auto-create-business-on-role-approval | Auto-create business when business_owner role approved | ✅ merged |
 | 16 | feat/multi-category-businesses | Multi-category support via business_category_links join table | ✅ merged |
+| 17 | feat/transporters | Transporters phase — public listing, request flow, driver panel | ✅ merged |
+| 18 | feat/transporters | Post-merge fixes: RLS policy for profile names, request modal, admin layout | ✅ merged |
+| 19 | feat/experience-images | Experience image uploads + edit page | ✅ merged |
 
 ---
 
@@ -224,29 +227,23 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ## Next session — ordered by priority
 
-### 1. Phase 4 — Transporters (new branch: `feat/transporters`)
-This is the third actor in the business model, not yet built:
-- **DB**: `transporters` table (driver profile, vehicle info, availability status) + RLS
-- **DB**: `transport_requests` table (tourist requests, transporter accepts/rejects) + RLS
-- **Migration**: new file, reviewed before applying
-- **Public page**: `/transportistas` — list available drivers
-- **Tourist flow**: `/transporte/solicitar` → create request; `/mis-viajes` → history
-- **Transporter flow**: `/mi-perfil-transporte` → manage availability + incoming requests
-- Use `db-schema-agent` to design the schema before writing any code
+### 1. Phase 5b — Tourist guide flow (new branch: `feat/tourist-guides`)
+Model confirmed: tours with fixed price, payment inside platform, public `/guias` page.
+Scope:
+- **DB**: `tourist_guides` table (profile_id, specialties[], languages[], bio, is_available);
+  `guide_tours` table (guide_id, name, description, price, capacity, duration_minutes, images[], status);
+  alter `bookings` to add nullable `guide_tour_id` + nullable `guide_id`, make `experience_id`/`business_id` nullable
+- **`approveRoleRequest`**: add `tourist_guide` branch → auto-insert `tourist_guides` row from metadata
+- **`/guias`**: public listing of available guides (similar to `/transportistas` but with specialty pills)
+- **`/guias/[id]`**: guide profile page with tour cards + "Reservar" button
+- **`/mi-perfil-guia`**: guide panel — CRUD for tours (like mi-negocio experiences), availability toggle
+- **Booking flow**: reuse existing `/reservas/nueva` and payment flow adapting for `guide_tour_id`
+- **`PublicNav`**: add "Guías" to main nav; tourist_guide role gets "Mi panel" link
 
-### 3. Experience image uploads (new branch: `feat/experience-images`)
-- Add `/mi-negocio/[id]/experiencias/[expId]/editar` page
-- Reuse `ImageManager` + `uploadBusinessImage` pattern targeting `experiences.images[]`
+### 2. Phase 5c — README.md
+Add a project README to the repository root.
 
-### 4. Connect domain mantur.co to Vercel
-1. In Vercel → Project → Settings → Domains: add `mantur.co` and `www.mantur.co`
-2. Follow Vercel's DNS instructions for the domain registrar
-3. After DNS propagates: in Supabase → Auth → URL Configuration update:
-   - Site URL: `https://mantur.co`
-   - Redirect URLs: add `https://mantur.co/**` and `https://www.mantur.co/**`
-
-### 5. Favicon + PWA + Open Graph
+### 3. Phase 5d — PWA manifest + Open Graph
 Can bundle in a single `chore/pwa-meta` branch:
-- `public/favicon.svg` — ManTur pin, green background
 - `public/manifest.json` — PWA manifest with pin icons
 - `src/app/layout.tsx` — add `<meta>` og tags + link to manifest

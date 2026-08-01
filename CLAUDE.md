@@ -153,32 +153,45 @@ INSERT/DELETE for business owner or admin. Migration:
 `BusinessCard` shows up to 2 category pills. `businesses.type` kept as legacy
 field (`'other'` for new records) — no longer user-facing.
 
-### Phase 4 — Transporters (PR #17 — open)
+### Phase 4 — Transporters (PRs #17, #18 — merged)
 `transporters` + `transport_requests` tables + full RLS. Migration:
 `20260801100000_create_transporters.sql`. `approveRoleRequest` auto-creates
 `transporters` row from metadata on approval (license_plate, vehicle_type, phone).
-`/transportistas` — public listing of available drivers. `/transporte/solicitar`
-— tourist-only request form (origin, destination, datetime, people count, notes).
-`/mis-viajes` — tourist transport history with cancel action. `/mi-perfil-transporte`
-— transporter panel: availability toggle (`AvailabilityToggle` Client Component),
-pending request queue with atomic claim (`acceptTransportRequest` uses service_role
-to guarantee first-one-wins), accepted requests list with mark-complete.
-`/admin/transportes` — admin view with status filter tabs. `PublicNav` shows
-Transportadores in main nav; tourist gets "Mis traslados" link; transporter gets
-"Mi panel" link.
-**Pending: apply migration in Supabase, test locally, then merge.**
+`/transportistas` — public listing of available drivers (uses `createAdminClient`
+to bypass RLS for names join; `TransporterCardWithModal` opens request form in a Dialog).
+`/transporte/solicitar` — tourist-only request form (origin, destination, datetime,
+people count, notes). `/mis-viajes` — tourist transport history with cancel action.
+`/mi-perfil-transporte` — transporter panel: availability toggle (`AvailabilityToggle`
+Client Component), pending request queue with atomic claim (`acceptTransportRequest`
+uses service_role to guarantee first-one-wins), accepted requests list with mark-complete.
+`/admin/transportes` — admin view with segmented control status filter tabs. `PublicNav`
+shows Transportadores in main nav; tourist gets "Mis traslados" link; transporter gets
+"Mi panel" link. Post-merge fixes (PR #18): RLS migration
+`20260801200000_profiles_authenticated_read.sql` so PostgREST joins can read other
+users' `full_name`; admin layout fix; RejectForm button size fix.
 
-## Pending / Phase 5
+### Phase 5a — Experience image uploads (PR #19 — merged)
+`/mi-negocio/[id]/experiencias/[expId]/editar` — two-section page: **Detalles**
+(pre-populated `EditExperienceForm`, saves inline) + **Fotos** (`ImageManager`,
+up to 5 images stored under `experiences/[id]/` in `business-images` bucket).
+`uploadExperienceImage` / `deleteExperienceImage` server actions verify ownership
+via `experience → business → owner_id` chain before using admin client.
+`ExperienceCard` now shows a pencil "Editar" link.
 
-- **Experience image uploads**: add `/mi-negocio/[id]/experiencias/[expId]/editar`
-  with `ImageManager` reusing the business image pattern.
-- **README.md**: add a project README to the repository.
+## Pending / Phase 5 (continued)
+
+- **Tourist guide flow** (`feat/tourist-guides`, Phase 5b): `tourist_guides` table +
+  `guide_tours` table (price, capacity, duration, images). Alter `bookings` to
+  accept `guide_tour_id`. Public `/guias` listing, `/guias/[id]` profile + tours,
+  `/mi-perfil-guia` panel (CRUD de tours + disponibilidad), booking + Wompi flow
+  reused. Model confirmed: tours with fixed price, payment inside platform.
+- **README.md** (Phase 5c): add a project README to the repository.
 - **PWA manifest** (`manifest.json` + icons using the pin logo) for home screen
-  install on Android/iOS.
+  install on Android/iOS (Phase 5d).
 - **Open Graph / meta tags**: og:image, og:title per page for WhatsApp/social
-  sharing — use the pin logo on Bosque background.
-- **Domain `mantur.co`** already connected to Vercel via Cloudflare; update
-  Supabase Auth redirect URLs to include `https://mantur.co/**`.
+  sharing — use the pin logo on Bosque background (Phase 5d).
+- **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
+  Auth redirect URLs already updated to include `https://mantur.co/**` ✅.
 
 ## Data model (v1 — English names, relational)
 
@@ -187,9 +200,8 @@ Transportadores in main nav; tourist gets "Mis traslados" link; transporter gets
 - `businesses` — restaurants, balnearios, fincas; owned by a `profile`
 - `places` — static touristic attractions (informational)
 - `experiences` — bookable activities tied to a `business`, has price & capacity
-- `transporters` — motocarro drivers; availability status (NOT YET BUILT)
+- `transporters` — motocarro drivers; vehicle info, availability status
 - `transport_requests` — a tourist requests a ride; a transporter accepts/rejects
-  (NOT YET BUILT)
 - `bookings` — a tourist books an `experience`; links to a `transaction`
 - `transactions` — payment records (Wompi reference, status, amount)
 - `commission_config` — commission percentage per service type, editable by admin
