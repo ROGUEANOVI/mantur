@@ -430,6 +430,18 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     }
   }
 
+  // Auto-create transporter profile so the driver doesn't need to re-enter their vehicle info
+  if (request.requested_role === 'transporter') {
+    const meta = (request.metadata ?? {}) as Record<string, unknown>
+    await admin.from('transporters').insert({
+      profile_id: request.user_id,
+      vehicle_type: (meta.vehicle_type as string | undefined) ?? 'otro',
+      license_plate: ((meta.license_plate as string | undefined) ?? '').toUpperCase().trim(),
+      phone: (meta.phone as string | undefined) ?? '',
+      is_available: false,
+    })
+  }
+
   // Cancel any other pending requests from this user (they got a role)
   await admin
     .from('role_requests')

@@ -13,7 +13,7 @@ export default function RejectForm({ requestId }: { requestId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex-1 inline-flex items-center justify-center rounded-xl border border-border bg-background text-foreground text-xs font-semibold min-h-[34px] hover:bg-muted transition-colors"
+        className="w-full inline-flex items-center justify-center rounded-xl border border-border bg-background text-foreground text-xs font-semibold min-h-8.5 hover:bg-muted transition-colors"
       >
         {copy.reject}
       </button>
@@ -35,13 +35,13 @@ export default function RejectForm({ requestId }: { requestId: string }) {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="flex-1 inline-flex items-center justify-center rounded-xl border border-border text-muted-foreground text-xs font-medium min-h-[32px] hover:bg-muted transition-colors"
+          className="flex-1 inline-flex items-center justify-center rounded-xl border border-border text-muted-foreground text-xs font-medium min-h-8 hover:bg-muted transition-colors"
         >
           Cancelar
         </button>
         <button
           type="submit"
-          className="flex-1 inline-flex items-center justify-center rounded-xl bg-destructive text-destructive-foreground text-xs font-semibold min-h-[32px] hover:bg-destructive/90 transition-colors"
+          className="flex-1 inline-flex items-center justify-center rounded-xl bg-destructive text-destructive-foreground text-xs font-semibold min-h-8 hover:bg-destructive/90 transition-colors"
         >
           Confirmar rechazo
         </button>

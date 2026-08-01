@@ -30,6 +30,7 @@ export default async function PublicNav() {
   const navLinks = [
     { label: copy.negocios, href: '/negocios' },
     { label: copy.lugares, href: '/lugares' },
+    { label: copy.transportistas, href: '/transportistas' },
   ]
 
   // Auth section — same markup reused in both desktop + mobile drawer
@@ -45,6 +46,13 @@ export default async function PublicNav() {
             {copy.myBookings}
           </NavLink>
           <NavLink
+            href="/mis-viajes"
+            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+            activeClassName="text-foreground font-semibold bg-muted/40"
+          >
+            {copy.myTrips}
+          </NavLink>
+          <NavLink
             href="/solicitar-rol"
             className="text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-[44px] flex items-center rounded-lg hover:bg-accent/10 transition-colors"
             activeClassName="text-accent font-semibold bg-accent/10"
@@ -52,6 +60,15 @@ export default async function PublicNav() {
             {copy.joinMantur}
           </NavLink>
         </>
+      )}
+      {role === 'transporter' && (
+        <NavLink
+          href="/mi-perfil-transporte"
+          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+          activeClassName="text-foreground font-semibold bg-muted/40"
+        >
+          {copy.myTransport}
+        </NavLink>
       )}
       {role === 'business_owner' && (
         <NavLink

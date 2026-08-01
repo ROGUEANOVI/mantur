@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutDashboard, Building2, TreePine, Percent, Tag, Users } from 'lucide-react'
+import { LayoutDashboard, Building2, TreePine, Percent, Tag, Users, Car } from 'lucide-react'
 import NavLink from './NavLink'
 import { cn } from '@/lib/utils'
 
@@ -16,7 +16,8 @@ const NAV_GROUPS = [
     { href: '/admin/categorias', label: 'Categorías', exact: false, Icon: Tag },
   ],
   [
-    { href: '/admin/lugares',    label: 'Lugares',    exact: false, Icon: TreePine },
+    { href: '/admin/lugares',     label: 'Lugares',      exact: false, Icon: TreePine },
+    { href: '/admin/transportes', label: 'Transportes',  exact: false, Icon: Car },
   ],
   [
     { href: '/admin/comisiones', label: 'Comisiones', exact: false, Icon: Percent },

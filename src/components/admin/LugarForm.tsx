@@ -61,7 +61,7 @@ export default function LugarForm({ action, place }: Props) {
           defaultValue={place?.name ?? ''}
           placeholder={copy.namePlaceholder}
           required
-          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[44px]"
+          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
         />
       </div>
 
@@ -75,7 +75,7 @@ export default function LugarForm({ action, place }: Props) {
           name="type"
           defaultValue={place?.type ?? ''}
           required
-          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[44px]"
+          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
         >
           <option value="" disabled>
             — Selecciona un tipo —
@@ -116,7 +116,7 @@ export default function LugarForm({ action, place }: Props) {
             step="any"
             defaultValue={place?.lat ?? ''}
             placeholder={copy.latPlaceholder}
-            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[44px]"
+            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
           />
         </div>
         <div className="space-y-1.5">
@@ -130,7 +130,7 @@ export default function LugarForm({ action, place }: Props) {
             step="any"
             defaultValue={place?.lng ?? ''}
             placeholder={copy.lngPlaceholder}
-            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[44px]"
+            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
           />
         </div>
       </div>
@@ -147,13 +147,13 @@ export default function LugarForm({ action, place }: Props) {
         <button
           type="submit"
           disabled={isPending}
-          className="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {isPending ? copy.submitting : copy.submit}
         </button>
         <Link
           href="/admin/lugares"
-          className="inline-flex items-center justify-center rounded-xl border border-border text-sm text-foreground font-semibold min-h-[44px] px-4 hover:bg-muted transition-colors"
+          className="inline-flex items-center justify-center rounded-xl border border-border text-sm text-foreground font-semibold min-h-11 px-4 hover:bg-muted transition-colors"
         >
           {copy.cancel}
         </Link>

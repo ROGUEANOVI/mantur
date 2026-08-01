@@ -125,7 +125,7 @@ redesigned: `PublicNav` on top, collapsible `AdminSidebar` (hover-to-expand,
 and user count), quick approve/reject queue for pending businesses, recent
 bookings list. Place type `beach` replaced by `plaza`.
 
-### Phase 3 — Role request flow (PR #14 — merged)
+### Phase 3 — Role request flow + business auto-create fix (PRs #14, #15 — merged)
 Removed role selection from signup — all new accounts start as `tourist`.
 New `role_requests` table + RLS. New `tourist_guide` user_role enum value.
 `/solicitar-rol` — marketing "Únete a ManTur" page with brand hero and
@@ -141,18 +141,44 @@ Signup form redesigned with confirm-password field, visibility toggles,
 real-time strength indicator (8 chars, uppercase, digit, special char).
 Migration: `20260731200000_add_tourist_guide_role_and_role_requests.sql`.
 
-## Pending / Phase 4
+### Phase 3 — Multi-category businesses (PR #16 — merged)
+`business_category_links` join table (composite PK, `ON DELETE CASCADE` on
+`business_id`, `ON DELETE RESTRICT` on `category_id`). RLS: public SELECT;
+INSERT/DELETE for business owner or admin. Migration:
+`20260801000000_create_business_category_links.sql`.
+`/mi-negocio` create/edit forms: multi-checkbox category selector driven from
+`business_categories` DB (replaces the 5-button type selector).
+`/solicitar-rol` business_owner step: multi-checkbox instead of single select.
+`/negocios` filter: uses join table instead of `eq('type', slug)`;
+`BusinessCard` shows up to 2 category pills. `businesses.type` kept as legacy
+field (`'other'` for new records) — no longer user-facing.
 
-- **Transporters**: `transporters` table, `transport_requests`, public
-  `/transportistas` page, tourist request flow, driver availability flow.
-  This is the third actor in the CLAUDE.md spec — not yet built.
+### Phase 4 — Transporters (PR #17 — open)
+`transporters` + `transport_requests` tables + full RLS. Migration:
+`20260801100000_create_transporters.sql`. `approveRoleRequest` auto-creates
+`transporters` row from metadata on approval (license_plate, vehicle_type, phone).
+`/transportistas` — public listing of available drivers. `/transporte/solicitar`
+— tourist-only request form (origin, destination, datetime, people count, notes).
+`/mis-viajes` — tourist transport history with cancel action. `/mi-perfil-transporte`
+— transporter panel: availability toggle (`AvailabilityToggle` Client Component),
+pending request queue with atomic claim (`acceptTransportRequest` uses service_role
+to guarantee first-one-wins), accepted requests list with mark-complete.
+`/admin/transportes` — admin view with status filter tabs. `PublicNav` shows
+Transportadores in main nav; tourist gets "Mis traslados" link; transporter gets
+"Mi panel" link.
+**Pending: apply migration in Supabase, test locally, then merge.**
+
+## Pending / Phase 5
+
 - **Experience image uploads**: add `/mi-negocio/[id]/experiencias/[expId]/editar`
   with `ImageManager` reusing the business image pattern.
+- **README.md**: add a project README to the repository.
 - **PWA manifest** (`manifest.json` + icons using the pin logo) for home screen
   install on Android/iOS.
 - **Open Graph / meta tags**: og:image, og:title per page for WhatsApp/social
   sharing — use the pin logo on Bosque background.
-- **Connect domain `mantur.co`** to Vercel; update Supabase Auth redirect URLs.
+- **Domain `mantur.co`** already connected to Vercel via Cloudflare; update
+  Supabase Auth redirect URLs to include `https://mantur.co/**`.
 
 ## Data model (v1 — English names, relational)
 

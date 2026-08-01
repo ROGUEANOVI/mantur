@@ -23,7 +23,8 @@
 | 12 | feat/brand-identity | ManturLogo, color tokens, footer, hero gradient | ✅ merged |
 | 13 | feat/admin-ux-and-categories | Admin UX redesign + business categories | ✅ merged |
 | 14 | feat/role-requests | Role request flow + signup redesign | ✅ merged |
-| 15 | fix/auto-create-business-on-role-approval | Auto-create business when business_owner role approved | 🔄 open |
+| 15 | fix/auto-create-business-on-role-approval | Auto-create business when business_owner role approved | ✅ merged |
+| 16 | feat/multi-category-businesses | Multi-category support via business_category_links join table | ✅ merged |
 
 ---
 
@@ -223,24 +224,7 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ## Next session — ordered by priority
 
-### 1. Merge PR #15 — fix/auto-create-business-on-role-approval
-
-**Bug**: `approveRoleRequest` solo cambiaba el rol en `profiles` pero nunca creaba el negocio, causando dos problemas:
-- La información del negocio (nombre, teléfono) escrita en la solicitud se perdía
-- El dueño tenía que crear el negocio desde `/mi-negocio`, y ese negocio quedaba `status='pending'` requiriendo *otra* aprobación del admin
-
-**Fix** (`src/app/(app)/admin/actions.ts`):
-- `approveRoleRequest` ahora lee el `metadata` de la solicitud
-- Si `requested_role === 'business_owner'` y hay `business_name` en metadata, crea el negocio automáticamente con `status='active'` y `verified=true`
-- Agrega `revalidatePath('/negocios')` y `revalidatePath('/')` para que aparezca de inmediato en el catálogo
-
-Test:
-1. Crear cuenta → `/solicitar-rol` → seleccionar "Dueño de negocio" → llenar formulario → enviar
-2. Admin aprueba en `/admin/solicitudes`
-3. El negocio debe aparecer en `/admin/negocios` como activo y en `/negocios` en el catálogo
-4. El dueño puede entrar a `/mi-negocio` y ver el negocio ya creado (sin tener que re-ingresar datos)
-
-### 2. Phase 4 — Transporters (new branch: `feat/transporters`)
+### 1. Phase 4 — Transporters (new branch: `feat/transporters`)
 This is the third actor in the business model, not yet built:
 - **DB**: `transporters` table (driver profile, vehicle info, availability status) + RLS
 - **DB**: `transport_requests` table (tourist requests, transporter accepts/rejects) + RLS
