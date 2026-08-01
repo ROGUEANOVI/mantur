@@ -9,6 +9,7 @@ export const landingCopy = {
     admin: 'Admin',
     myBookings: 'Mis reservas',
     myBusiness: 'Mis negocios',
+    joinMantur: 'Únete',
   },
 
   hero: {

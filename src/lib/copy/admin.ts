@@ -5,6 +5,41 @@ export const adminCopy = {
     lugares: 'Lugares',
     comisiones: 'Comisiones',
     categorias: 'Categorías',
+    solicitudes: 'Solicitudes',
+  },
+
+  solicitudes: {
+    title: 'Solicitudes de rol',
+    subtitle: 'Revisa y gestiona las solicitudes de cambio de rol de los usuarios.',
+    empty: 'No hay solicitudes en este estado.',
+    filter: {
+      pending: 'Pendientes',
+      approved: 'Aprobadas',
+      rejected: 'Rechazadas',
+    },
+    roles: {
+      business_owner: 'Dueño de negocio',
+      transporter: 'Transportador',
+      tourist_guide: 'Guía turístico',
+    },
+    approve: 'Aprobar',
+    reject: 'Rechazar',
+    rejectionReasonLabel: 'Motivo del rechazo',
+    rejectionReasonPlaceholder: 'Explica al usuario por qué se rechaza la solicitud...',
+    submittedAt: 'Solicitado',
+    reviewedAt: 'Revisado',
+    rejectedBecause: 'Motivo:',
+    metaLabels: {
+      business_name: 'Negocio',
+      category: 'Categoría',
+      phone: 'Teléfono',
+      license_plate: 'Placa',
+      vehicle_type: 'Vehículo',
+      specialties: 'Especialidades',
+      languages: 'Idiomas',
+      experience_years: 'Años de experiencia',
+      bio: 'Presentación',
+    },
   },
 
   dashboard: {

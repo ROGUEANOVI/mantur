@@ -21,7 +21,7 @@ export const authCopy = {
     fullName: 'Nombre completo',
     email: 'Correo electrónico',
     password: 'Contraseña',
-    roleLabel: 'Soy...',
+    confirmPassword: 'Confirmar contraseña',
     roles: {
       tourist: 'Turista',
       business_owner: 'Dueño de negocio',
@@ -30,9 +30,16 @@ export const authCopy = {
     submit: 'Crear cuenta',
     hasAccount: '¿Ya tienes cuenta?',
     loginLink: 'Inicia sesión',
+    passwordRules: {
+      minLength: 'Mínimo 8 caracteres',
+      uppercase: 'Una letra mayúscula',
+      digit: 'Un número',
+      special: 'Un carácter especial',
+    },
     errors: {
       emailInUse: 'Este correo ya está registrado',
-      weakPassword: 'La contraseña debe tener al menos 6 caracteres',
+      weakPassword: 'La contraseña no cumple los requisitos de seguridad',
+      passwordMismatch: 'Las contraseñas no coinciden',
       generic: 'Ocurrió un error. Intenta de nuevo.',
     },
   },
