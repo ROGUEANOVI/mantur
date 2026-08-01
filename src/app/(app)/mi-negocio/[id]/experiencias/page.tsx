@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Plus, Clock, Users, ChevronLeft } from 'lucide-react'
+import { Plus, Clock, Users, ChevronLeft, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy, businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
@@ -87,7 +87,7 @@ export default async function ExperienciasPage({
           <ul className="space-y-3" role="list">
             {list.map((exp) => (
               <li key={exp.id}>
-                <ExperienceCard experience={exp} />
+                <ExperienceCard experience={exp} businessId={id} />
               </li>
             ))}
           </ul>
@@ -97,7 +97,7 @@ export default async function ExperienciasPage({
   )
 }
 
-function ExperienceCard({ experience: exp }: { experience: Experience }) {
+function ExperienceCard({ experience: exp, businessId }: { experience: Experience; businessId: string }) {
   const copy = miNegocioCopy.experiences
   const expCopy = businessesCopy.experiences
   const isActive = exp.status === 'active'
@@ -148,11 +148,18 @@ function ExperienceCard({ experience: exp }: { experience: Experience }) {
         )}
       </div>
 
-      <div className="pt-1">
+      <div className="pt-1 flex items-center justify-between gap-3">
         <ToggleExperienceButton
           experienceId={exp.id}
           currentStatus={exp.status as 'active' | 'inactive'}
         />
+        <Link
+          href={`/mi-negocio/${businessId}/experiencias/${exp.id}/editar`}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-11 py-2"
+        >
+          <Pencil className="size-3.5" aria-hidden="true" />
+          {miNegocioCopy.experiences.editButton}
+        </Link>
       </div>
     </div>
   )
