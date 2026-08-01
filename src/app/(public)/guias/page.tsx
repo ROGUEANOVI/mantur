@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Compass } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
+import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 
 type GuideRow = {
   id: string
@@ -91,7 +92,7 @@ export default async function GuiasPage() {
                           key={s}
                           className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
                         >
-                          {s}
+                          {roleRequestsCopy.form.touristGuide.specialtyOptions[s as keyof typeof roleRequestsCopy.form.touristGuide.specialtyOptions] ?? s}
                         </span>
                       ))}
                     </div>

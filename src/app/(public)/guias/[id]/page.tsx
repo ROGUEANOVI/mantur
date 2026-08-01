@@ -3,6 +3,7 @@ import { Clock, Users, Phone } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
+import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import TourBookingForm from '@/components/guias/TourBookingForm'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -60,14 +61,14 @@ export default async function GuideProfilePage({
 
   const tours = (toursData ?? []) as unknown as Tour[]
 
-  let isTourist = false
+  let bookingAccess: 'tourist' | 'guest' | 'other_role' = 'guest'
   if (userResult.data.user) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', userResult.data.user.id)
       .single()
-    isTourist = profile?.role === 'tourist'
+    bookingAccess = profile?.role === 'tourist' ? 'tourist' : 'other_role'
   }
 
   const copy = guidesCopy.profilePage
@@ -114,7 +115,7 @@ export default async function GuideProfilePage({
                     key={s}
                     className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
                   >
-                    {s}
+                    {roleRequestsCopy.form.touristGuide.specialtyOptions[s as keyof typeof roleRequestsCopy.form.touristGuide.specialtyOptions] ?? s}
                   </span>
                 ))}
               </div>
@@ -130,7 +131,7 @@ export default async function GuideProfilePage({
                     key={l}
                     className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground"
                   >
-                    {l}
+                    {roleRequestsCopy.form.touristGuide.languageOptions[l as keyof typeof roleRequestsCopy.form.touristGuide.languageOptions] ?? l}
                   </span>
                 ))}
               </div>
@@ -163,7 +164,7 @@ export default async function GuideProfilePage({
                     <img
                       src={tour.images[0]}
                       alt={tour.name}
-                      className="w-full h-40 object-cover"
+                      className="w-full h-36 object-cover"
                     />
                   )}
 
@@ -171,7 +172,7 @@ export default async function GuideProfilePage({
                     <h3 className="font-semibold text-foreground text-base">{tour.name}</h3>
 
                     {tour.description && (
-                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                      <p className="text-sm text-muted-foreground leading-relaxed">
                         {tour.description}
                       </p>
                     )}
@@ -195,7 +196,7 @@ export default async function GuideProfilePage({
                     <TourBookingForm
                       guideTourId={tour.id}
                       price={Number(tour.price)}
-                      isTourist={isTourist}
+                      access={bookingAccess}
                     />
                   </div>
                 </div>

@@ -10,10 +10,12 @@ import { Label } from '@/components/ui/label'
 
 type FormState = { error: string | null }
 
+type BookingAccess = 'tourist' | 'guest' | 'other_role'
+
 type Props = {
   guideTourId: string
   price: number
-  isTourist: boolean
+  access: BookingAccess
 }
 
 const copy = guidesCopy.bookingForm
@@ -22,7 +24,7 @@ function today(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
 }
 
-export default function TourBookingForm({ guideTourId, price, isTourist }: Props) {
+export default function TourBookingForm({ guideTourId, price, access }: Props) {
   const router = useRouter()
 
   async function action(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -33,7 +35,9 @@ export default function TourBookingForm({ guideTourId, price, isTourist }: Props
 
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
 
-  if (!isTourist) {
+  if (access === 'other_role') return null
+
+  if (access === 'guest') {
     return (
       <button
         type="button"
@@ -85,6 +89,20 @@ export default function TourBookingForm({ guideTourId, price, isTourist }: Props
         <span className="font-semibold text-accent">
           ${price.toLocaleString('es-CO')} COP
         </span>
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor={`notes-${guideTourId}`} className="text-sm font-medium text-foreground flex items-center gap-1.5">
+          {copy.notesLabel}
+          <span className="text-xs text-muted-foreground font-normal">{copy.notesOptional}</span>
+        </label>
+        <textarea
+          id={`notes-${guideTourId}`}
+          name="notes"
+          rows={2}
+          placeholder={copy.notesPlaceholder}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
+        />
       </div>
 
       {state.error && (

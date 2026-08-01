@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, XCircle, MessageCircle } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/server'
 import { bookingsCopy } from '@/lib/copy/bookings'
@@ -16,13 +16,14 @@ type BookingDetail = {
   total_amount: number
   status: string
   created_at: string
+  notes: string | null
   experiences: {
     name: string
     businesses: { name: string } | null
   } | null
   guide_tours: {
     name: string
-    tourist_guides: { profiles: { full_name: string | null } | null } | null
+    tourist_guides: { phone: string; profiles: { full_name: string | null } | null } | null
   } | null
 }
 
@@ -79,7 +80,7 @@ export default async function ConfirmacionPage({
   const { data: booking, error } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, people_count, total_amount, status, created_at, experiences(name, businesses(name)), guide_tours(name, tourist_guides(profiles(full_name)))',
+      'id, booking_date, people_count, total_amount, status, created_at, notes, experiences(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles(full_name)))',
     )
     .eq('id', bookingId)
     .single()
@@ -202,6 +203,34 @@ export default async function ConfirmacionPage({
             </div>
           </dl>
         </div>
+
+        {/* Guide WhatsApp contact — only for guide tour bookings */}
+        {isGuideTour && b.guide_tours?.tourist_guides?.phone && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="size-5 text-primary shrink-0" strokeWidth={1.5} aria-hidden="true" />
+              <p className="font-semibold text-foreground text-sm">{bookingsCopy.confirmation.guideContact}</p>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {bookingsCopy.confirmation.guideContactHint}
+            </p>
+            {b.notes && (
+              <div className="rounded-xl bg-background border border-border px-3 py-2 space-y-0.5">
+                <p className="text-xs font-medium text-muted-foreground">{bookingsCopy.confirmation.notesLabel}</p>
+                <p className="text-sm text-foreground">{b.notes}</p>
+              </div>
+            )}
+            <a
+              href={`https://wa.me/57${b.guide_tours.tourist_guides.phone.replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white text-sm font-semibold min-h-[44px] hover:bg-[#1ebe59] transition-colors"
+            >
+              <MessageCircle className="size-4" aria-hidden="true" />
+              {bookingsCopy.confirmation.whatsappButton}
+            </a>
+          </div>
+        )}
 
         {/* CTAs */}
         <div className="space-y-3 pt-1">

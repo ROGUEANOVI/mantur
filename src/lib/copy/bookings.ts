@@ -28,6 +28,10 @@ export const bookingsCopy = {
     total: 'Total pagado',
     myBookings: 'Ver mis reservas',
     explore: 'Explorar más negocios',
+    guideContact: 'Coordina con tu guía',
+    guideContactHint: 'Escríbele por WhatsApp para confirmar el horario y punto de encuentro.',
+    whatsappButton: 'Escribir por WhatsApp',
+    notesLabel: 'Tus notas',
   },
 
   list: {

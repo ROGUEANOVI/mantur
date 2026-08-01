@@ -39,6 +39,33 @@ async function getAuthenticatedGuide() {
   return { supabase, userId: user.id, guideId: guide.id }
 }
 
+const VALID_SPECIALTIES = new Set([
+  'ecotourism','history_culture','local_gastronomy','adventure','photography',
+  'birdwatching','cultural','religious','rural',
+])
+const VALID_LANGUAGES = new Set(['spanish','english','french','portuguese','indigenous'])
+
+export async function updateGuideProfile(formData: FormData): Promise<ActionResult> {
+  const { supabase, userId } = await getAuthenticatedGuide()
+
+  const phone = (formData.get('phone') as string).trim()
+  const bio = (formData.get('bio') as string | null)?.trim() || null
+  const specialties = (formData.getAll('specialties') as string[]).filter((s) => VALID_SPECIALTIES.has(s))
+  const languages = (formData.getAll('languages') as string[]).filter((l) => VALID_LANGUAGES.has(l))
+
+  if (!phone) return { error: guidesCopy.editProfile.phone + ' es obligatorio.' }
+
+  const { error } = await supabase
+    .from('tourist_guides')
+    .update({ phone, bio, specialties, languages })
+    .eq('profile_id', userId)
+
+  if (error) return { error: guidesCopy.errors.generic }
+
+  revalidatePath('/mi-perfil-guia')
+  redirect('/mi-perfil-guia')
+}
+
 export async function toggleGuideAvailability(): Promise<ActionResult> {
   const { supabase, guideId } = await getAuthenticatedGuide()
 

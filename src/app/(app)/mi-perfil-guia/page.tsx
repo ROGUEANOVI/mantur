@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone } from 'lucide-react'
+import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
+import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { cn } from '@/lib/utils'
 import GuideAvailabilityToggle from '@/components/guias/GuideAvailabilityToggle'
 import { toggleTourStatus } from './actions'
@@ -32,6 +33,7 @@ type BookingRow = {
   people_count: number
   total_amount: number
   status: string
+  notes: string | null
   guide_tours: { name: string } | null
   profiles: { full_name: string | null } | null
 }
@@ -68,7 +70,7 @@ export default async function MiPerfilGuiaPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('bookings')
-      .select('id, booking_date, people_count, total_amount, status, guide_tours(name), profiles!tourist_id(full_name)')
+      .select('id, booking_date, people_count, total_amount, status, notes, guide_tours(name), profiles!tourist_id(full_name)')
       .eq('guide_id', guide.id)
       .order('created_at', { ascending: false })
       .limit(10),
@@ -84,7 +86,16 @@ export default async function MiPerfilGuiaPage() {
 
         {/* Profile card */}
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
-          <h1 className="text-xl font-bold text-foreground mb-4">{copy.pageTitle}</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-bold text-foreground">{copy.pageTitle}</h1>
+            <Link
+              href="/mi-perfil-guia/editar"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Settings className="size-4" aria-hidden="true" />
+              Editar
+            </Link>
+          </div>
 
           <div className="space-y-3">
             {/* Availability toggle */}
@@ -119,7 +130,7 @@ export default async function MiPerfilGuiaPage() {
                       key={s}
                       className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
                     >
-                      {s}
+                      {roleRequestsCopy.form.touristGuide.specialtyOptions[s as keyof typeof roleRequestsCopy.form.touristGuide.specialtyOptions] ?? s}
                     </span>
                   ))}
                 </div>
@@ -135,7 +146,7 @@ export default async function MiPerfilGuiaPage() {
                       key={l}
                       className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground"
                     >
-                      {l}
+                      {roleRequestsCopy.form.touristGuide.languageOptions[l as keyof typeof roleRequestsCopy.form.touristGuide.languageOptions] ?? l}
                     </span>
                   ))}
                 </div>
@@ -263,6 +274,12 @@ export default async function MiPerfilGuiaPage() {
                       ${Number(b.total_amount).toLocaleString('es-CO')} COP
                     </span>
                   </div>
+                  {b.notes && (
+                    <div className="rounded-lg bg-muted px-2.5 py-1.5 space-y-0.5">
+                      <p className="text-xs font-medium text-muted-foreground">{copy.notesLabel}</p>
+                      <p className="text-xs text-foreground leading-relaxed">{b.notes}</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

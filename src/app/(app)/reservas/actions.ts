@@ -156,6 +156,8 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
 
   const commissionAmountCents = Math.round((amountInCents * Number(commissionRate)) / 100)
 
+  const rawNotes = (formData.get('notes') as string | null)?.trim() || null
+
   const { data: booking, error: bookingError } = await admin
     .from('bookings')
     .insert({
@@ -166,6 +168,7 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
       booking_date: bookingDate,
       total_amount: totalAmount,
       status: 'confirmed',
+      notes: rawNotes,
     })
     .select('id')
     .single()

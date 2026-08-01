@@ -29,6 +29,9 @@ export const guidesCopy = {
     bookingDate: 'Fecha del tour',
     pricePerPerson: 'Precio por persona',
     totalLabel: 'Total estimado',
+    notesLabel: 'Notas para el guía',
+    notesPlaceholder: 'Ej: Prefiero ir en la mañana, ¿puedes pasar por la plaza?',
+    notesOptional: '(opcional)',
     submit: 'Confirmar reserva',
     submitting: 'Procesando...',
   },
@@ -55,6 +58,21 @@ export const guidesCopy = {
     bookingDate: 'Fecha',
     people: 'personas',
     total: 'Total',
+    notesLabel: 'Notas del turista',
+  },
+
+  editProfile: {
+    pageTitle: 'Editar perfil',
+    phone: 'Teléfono de contacto (WhatsApp)',
+    phonePlaceholder: 'Ej: 300 123 4567',
+    bio: 'Bio',
+    bioPlaceholder: 'Cuéntale a los turistas sobre tu experiencia y estilo de guía...',
+    specialties: 'Especialidades',
+    languages: 'Idiomas',
+    save: 'Guardar cambios',
+    saving: 'Guardando...',
+    saved: '¡Perfil actualizado!',
+    back: 'Volver a mi panel',
   },
 
   tourForm: {
