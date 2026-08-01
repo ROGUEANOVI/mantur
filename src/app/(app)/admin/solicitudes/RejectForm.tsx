@@ -13,7 +13,7 @@ export default function RejectForm({ requestId }: { requestId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full inline-flex items-center justify-center rounded-xl border border-border bg-background text-foreground text-xs font-semibold min-h-[34px] hover:bg-muted transition-colors"
+        className="w-full inline-flex items-center justify-center rounded-xl border border-border bg-background text-foreground text-xs font-semibold min-h-8.5 hover:bg-muted transition-colors"
       >
         {copy.reject}
       </button>
