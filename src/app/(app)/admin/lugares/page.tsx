@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { TreePine, Pencil, Plus } from 'lucide-react'
+import { TreePine, Pencil } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
@@ -37,9 +37,8 @@ export default async function AdminLugaresPage() {
           </div>
           <Link
             href="/admin/lugares/nuevo"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] px-4 hover:bg-primary/90 transition-colors shrink-0"
+            className="inline-flex items-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] px-4 hover:bg-primary/90 transition-colors shrink-0"
           >
-            <Plus className="size-4" aria-hidden="true" />
             {copy.new}
           </Link>
         </div>

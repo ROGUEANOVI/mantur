@@ -59,13 +59,16 @@ export default async function AdminNegociosPage({
   return (
     <main className="px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg space-y-5">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">
-            {adminCopy.negocios.title}
-          </h1>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              {adminCopy.negocios.title}
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">{adminCopy.negocios.subtitle}</p>
+          </div>
           <Link
             href="/admin/negocios/nuevo"
-            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors min-h-[44px] flex items-center"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors min-h-[44px] flex items-center shrink-0"
           >
             {adminCopy.negocios.new}
           </Link>
@@ -208,11 +211,11 @@ export default async function AdminNegociosPage({
                           className={cn(
                             'inline-flex items-center gap-1.5 rounded-xl border px-3 text-xs font-medium min-h-[36px] transition-colors',
                             biz.is_featured
-                              ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                              ? 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/20'
                               : 'border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted',
                           )}
                         >
-                          <Star className={cn('size-3.5', biz.is_featured ? 'fill-amber-500 text-amber-500' : '')} aria-hidden="true" />
+                          <Star className={cn('size-3.5', biz.is_featured ? 'fill-accent text-accent' : '')} aria-hidden="true" />
                           {biz.is_featured ? adminCopy.negocios.unfeature : adminCopy.negocios.feature}
                         </button>
                       </form>

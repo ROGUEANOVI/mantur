@@ -115,6 +115,16 @@ card grid, section-specific hero silhouettes (town skyline / mountain range),
 server-side pagination via `PaginationNav`. New shared components:
 `ManturLogo`, `SearchInput`, `PaginationNav`. Favicon: `src/app/icon.svg`.
 
+### Phase 3 — Admin UX + categories (PR #13 — open)
+`business_categories` table + RLS + seed data (7 categories). `/admin/categorias`
+CRUD page (create with auto-slug, activate/deactivate). Filter pills on
+`/negocios` driven from DB instead of hardcoded constants. Admin layout
+redesigned: `PublicNav` on top, collapsible `AdminSidebar` (hover-to-expand,
+`fixed` positioned, groups with dividers), mobile horizontal tab bar.
+`/admin` dashboard enriched with 6 stat cards (including confirmed revenue
+and user count), quick approve/reject queue for pending businesses, recent
+bookings list. Place type `beach` replaced by `plaza`.
+
 ## Pending / Phase 4
 
 - **Transporters**: `transporters` table, `transport_requests`, public
@@ -141,6 +151,7 @@ server-side pagination via `PaginationNav`. New shared components:
 - `bookings` — a tourist books an `experience`; links to a `transaction`
 - `transactions` — payment records (Wompi reference, status, amount)
 - `commission_config` — commission percentage per service type, editable by admin
+- `business_categories` — business category types (name, slug, sort_order, is_active); drives filter pills on `/negocios`
 
 ## Out of scope for the MVP
 

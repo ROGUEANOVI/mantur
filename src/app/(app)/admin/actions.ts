@@ -152,7 +152,7 @@ export async function createBusinessAsAdmin(
   return { success: true }
 }
 
-const PLACE_TYPES = ['waterfall', 'river', 'viewpoint', 'beach', 'park', 'other'] as const
+const PLACE_TYPES = ['waterfall', 'river', 'viewpoint', 'plaza', 'park', 'other'] as const
 
 export async function createPlace(formData: FormData): Promise<ActionResult> {
   const { admin } = await getAuthenticatedAdmin()

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
-import { TreePine, Droplets, Eye, Waves, Trees, MapPin } from 'lucide-react'
+import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
@@ -17,14 +17,14 @@ type PlaceRow = {
   images: string[] | null
 }
 
-const VALID_TYPES = ['waterfall', 'river', 'viewpoint', 'beach', 'park', 'other'] as const
+const VALID_TYPES = ['waterfall', 'river', 'viewpoint', 'plaza', 'park', 'other'] as const
 type PlaceType = (typeof VALID_TYPES)[number]
 
 const TYPE_ICONS: Record<PlaceType, React.ElementType> = {
   waterfall: Droplets,
   river: Waves,
   viewpoint: Eye,
-  beach: Waves,
+  plaza: Landmark,
   park: Trees,
   other: TreePine,
 }
