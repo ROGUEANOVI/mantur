@@ -116,7 +116,9 @@ export default async function AdminSolicitudesPage({
                     {req.requested_role === 'business_owner' && (
                       <>
                         {meta.business_name && <MetaRow label={copy.metaLabels.business_name} value={String(meta.business_name)} />}
-                        {meta.category_slug && <MetaRow label={copy.metaLabels.category} value={String(meta.category_slug)} />}
+                        {Array.isArray(meta.category_slugs) && (meta.category_slugs as string[]).length > 0 && (
+                          <MetaRow label={copy.metaLabels.categories} value={(meta.category_slugs as string[]).join(', ')} />
+                        )}
                         {meta.phone && <MetaRow label={copy.metaLabels.phone} value={String(meta.phone)} />}
                       </>
                     )}

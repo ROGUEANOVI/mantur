@@ -39,8 +39,8 @@ export const roleRequestsCopy = {
     businessOwner: {
       businessName: 'Nombre del negocio',
       businessNamePlaceholder: 'Ej: Balneario El Edén',
-      category: 'Categoría principal',
-      categoryPlaceholder: 'Selecciona una categoría',
+      categories: 'Categorías del negocio',
+      categoriesHint: 'Selecciona todas las que aplican.',
       phone: 'Teléfono de contacto',
       phonePlaceholder: 'Ej: 300 123 4567',
     },

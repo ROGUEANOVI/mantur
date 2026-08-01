@@ -1,42 +1,35 @@
 'use client'
 
-import { useActionState, useState } from 'react'
-import { Waves, Utensils, TreePine, Coffee, Store } from 'lucide-react'
+import { useActionState } from 'react'
 
 import { updateBusiness } from '@/app/(app)/mi-negocio/actions'
-import { miNegocioCopy, businessesCopy } from '@/lib/copy/businesses'
+import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-type BusinessType = 'resort' | 'restaurant' | 'farm' | 'eatery' | 'other'
 type FormState = { error: string | null }
-
-const TYPE_OPTIONS: { value: BusinessType; Icon: React.ElementType }[] = [
-  { value: 'resort', Icon: Waves },
-  { value: 'restaurant', Icon: Utensils },
-  { value: 'farm', Icon: TreePine },
-  { value: 'eatery', Icon: Coffee },
-  { value: 'other', Icon: Store },
-]
+type Category = { id: string; name: string }
 
 type Props = {
   businessId: string
   defaultValues: {
     name: string
-    type: string
     description: string | null
     address: string | null
     phone: string | null
   }
+  categories: Category[]
+  selectedCategoryIds: string[]
 }
 
-export default function EditBusinessForm({ businessId, defaultValues }: Props) {
-  const [selectedType, setSelectedType] = useState<BusinessType>(
-    (defaultValues.type as BusinessType) ?? 'resort',
-  )
-
+export default function EditBusinessForm({
+  businessId,
+  defaultValues,
+  categories,
+  selectedCategoryIds,
+}: Props) {
   const boundAction = updateBusiness.bind(null, businessId)
 
   async function editAction(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -67,42 +60,31 @@ export default function EditBusinessForm({ businessId, defaultValues }: Props) {
         />
       </div>
 
-      {/* Business type */}
+      {/* Categories — multi-select checkboxes */}
       <div className="space-y-2">
-        <p className="text-sm font-medium leading-none select-none">{copy.form.type}</p>
-        <div className="grid grid-cols-3 gap-2">
-          {TYPE_OPTIONS.map(({ value, Icon }) => {
-            const isSelected = selectedType === value
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setSelectedType(value)}
-                aria-pressed={isSelected}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-colors min-h-[72px]',
-                  isSelected
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-background hover:bg-muted',
-                )}
-              >
-                <Icon
-                  className={cn('size-5 shrink-0', isSelected ? 'text-primary' : 'text-muted-foreground')}
-                  aria-hidden="true"
-                />
-                <span
-                  className={cn(
-                    'text-xs font-medium leading-tight',
-                    isSelected ? 'text-primary' : 'text-foreground',
-                  )}
-                >
-                  {businessesCopy.businesses.types[value]}
-                </span>
-              </button>
-            )
-          })}
+        <p className="text-sm font-medium leading-none select-none">{copy.form.categories}</p>
+        <p className="text-xs text-muted-foreground">{copy.form.categoriesHint}</p>
+        <div className="grid grid-cols-2 gap-2">
+          {categories.map((cat) => (
+            <label
+              key={cat.id}
+              className={cn(
+                'flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5',
+                'cursor-pointer text-sm text-foreground transition-colors',
+                'has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary',
+              )}
+            >
+              <input
+                type="checkbox"
+                name="category_ids"
+                value={cat.id}
+                defaultChecked={selectedCategoryIds.includes(cat.id)}
+                className="accent-primary"
+              />
+              {cat.name}
+            </label>
+          ))}
         </div>
-        <input type="hidden" name="type" value={selectedType} />
       </div>
 
       {/* Description */}
@@ -161,8 +143,12 @@ export default function EditBusinessForm({ businessId, defaultValues }: Props) {
         </p>
       )}
 
-      <Button type="submit" className="w-full rounded-xl min-h-[44px]" disabled={pending}>
-        {pending ? 'Guardando…' : 'Guardar cambios'}
+      <Button
+        type="submit"
+        className="w-full rounded-xl min-h-[44px]"
+        disabled={pending}
+      >
+        {pending ? copy.form.saving : copy.form.save}
       </Button>
     </form>
   )

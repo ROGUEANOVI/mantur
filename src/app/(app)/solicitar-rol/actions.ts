@@ -52,10 +52,10 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
 
   if (requestedRole === 'business_owner') {
     const businessName = (formData.get('business_name') as string | null)?.trim()
-    const categorySlug = (formData.get('category_slug') as string | null)?.trim()
+    const categorySlugs = formData.getAll('category_slugs') as string[]
     const phone = (formData.get('phone') as string | null)?.trim()
-    if (!businessName || !categorySlug || !phone) return { error: copy.missingFields }
-    metadata = { business_name: businessName, category_slug: categorySlug, phone }
+    if (!businessName || !categorySlugs.length || !phone) return { error: copy.missingFields }
+    metadata = { business_name: businessName, category_slugs: categorySlugs, phone }
   }
 
   if (requestedRole === 'transporter') {

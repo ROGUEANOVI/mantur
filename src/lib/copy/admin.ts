@@ -31,7 +31,7 @@ export const adminCopy = {
     rejectedBecause: 'Motivo:',
     metaLabels: {
       business_name: 'Negocio',
-      category: 'Categoría',
+      categories: 'Categorías',
       phone: 'Teléfono',
       license_plate: 'Placa',
       vehicle_type: 'Vehículo',

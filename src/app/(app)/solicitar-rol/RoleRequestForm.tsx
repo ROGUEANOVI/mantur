@@ -99,18 +99,20 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
       {selected === 'business_owner' && (
         <fieldset className="space-y-3">
           <Field label={copy.form.businessOwner.businessName} name="business_name" placeholder={copy.form.businessOwner.businessNamePlaceholder} />
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">{copy.form.businessOwner.category}</label>
-            <select
-              name="category_slug"
-              required
-              className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
-            >
-              <option value="">{copy.form.businessOwner.categoryPlaceholder}</option>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">{copy.form.businessOwner.categories}</p>
+            <p className="text-xs text-muted-foreground">{copy.form.businessOwner.categoriesHint}</p>
+            <div className="grid grid-cols-2 gap-2">
               {categories.map((c) => (
-                <option key={c.slug} value={c.slug}>{c.name}</option>
+                <label
+                  key={c.slug}
+                  className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 cursor-pointer text-sm text-foreground transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary"
+                >
+                  <input type="checkbox" name="category_slugs" value={c.slug} className="accent-primary" />
+                  {c.name}
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <Field label={copy.form.businessOwner.phone} name="phone" placeholder={copy.form.businessOwner.phonePlaceholder} type="tel" />
         </fieldset>
