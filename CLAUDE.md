@@ -153,18 +153,32 @@ INSERT/DELETE for business owner or admin. Migration:
 `BusinessCard` shows up to 2 category pills. `businesses.type` kept as legacy
 field (`'other'` for new records) — no longer user-facing.
 
-## Pending / Phase 4
+### Phase 4 — Transporters (PR #17 — open)
+`transporters` + `transport_requests` tables + full RLS. Migration:
+`20260801100000_create_transporters.sql`. `approveRoleRequest` auto-creates
+`transporters` row from metadata on approval (license_plate, vehicle_type, phone).
+`/transportistas` — public listing of available drivers. `/transporte/solicitar`
+— tourist-only request form (origin, destination, datetime, people count, notes).
+`/mis-viajes` — tourist transport history with cancel action. `/mi-perfil-transporte`
+— transporter panel: availability toggle (`AvailabilityToggle` Client Component),
+pending request queue with atomic claim (`acceptTransportRequest` uses service_role
+to guarantee first-one-wins), accepted requests list with mark-complete.
+`/admin/transportes` — admin view with status filter tabs. `PublicNav` shows
+Transportadores in main nav; tourist gets "Mis traslados" link; transporter gets
+"Mi panel" link.
+**Pending: apply migration in Supabase, test locally, then merge.**
 
-- **Transporters**: `transporters` table, `transport_requests`, public
-  `/transportistas` page, tourist request flow, driver availability flow.
-  This is the third actor in the CLAUDE.md spec — not yet built.
+## Pending / Phase 5
+
 - **Experience image uploads**: add `/mi-negocio/[id]/experiencias/[expId]/editar`
   with `ImageManager` reusing the business image pattern.
+- **README.md**: add a project README to the repository.
 - **PWA manifest** (`manifest.json` + icons using the pin logo) for home screen
   install on Android/iOS.
 - **Open Graph / meta tags**: og:image, og:title per page for WhatsApp/social
   sharing — use the pin logo on Bosque background.
-- **Connect domain `mantur.co`** to Vercel; update Supabase Auth redirect URLs.
+- **Domain `mantur.co`** already connected to Vercel via Cloudflare; update
+  Supabase Auth redirect URLs to include `https://mantur.co/**`.
 
 ## Data model (v1 — English names, relational)
 
