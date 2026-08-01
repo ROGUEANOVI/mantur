@@ -115,7 +115,7 @@ card grid, section-specific hero silhouettes (town skyline / mountain range),
 server-side pagination via `PaginationNav`. New shared components:
 `ManturLogo`, `SearchInput`, `PaginationNav`. Favicon: `src/app/icon.svg`.
 
-### Phase 3 — Admin UX + categories (PR #13 — open)
+### Phase 3 — Admin UX + categories (PR #13 — merged)
 `business_categories` table + RLS + seed data (7 categories). `/admin/categorias`
 CRUD page (create with auto-slug, activate/deactivate). Filter pills on
 `/negocios` driven from DB instead of hardcoded constants. Admin layout
