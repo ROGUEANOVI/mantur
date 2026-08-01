@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Store, Car, Compass, User } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
+import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { approveRoleRequest } from '@/app/(app)/admin/actions'
 import { cn } from '@/lib/utils'
 import RejectForm from './RejectForm'
@@ -131,8 +132,23 @@ export default async function AdminSolicitudesPage({
                     )}
                     {req.requested_role === 'tourist_guide' && (
                       <>
-                        {Array.isArray(meta.specialties) && <MetaRow label={copy.metaLabels.specialties} value={(meta.specialties as string[]).join(', ')} />}
-                        {Array.isArray(meta.languages) && <MetaRow label={copy.metaLabels.languages} value={(meta.languages as string[]).join(', ')} />}
+                        {Array.isArray(meta.specialties) && (
+                          <MetaRow
+                            label={copy.metaLabels.specialties}
+                            value={(meta.specialties as string[])
+                              .map((s) => roleRequestsCopy.form.touristGuide.specialtyOptions[s as keyof typeof roleRequestsCopy.form.touristGuide.specialtyOptions] ?? s)
+                              .join(', ')}
+                          />
+                        )}
+                        {Array.isArray(meta.languages) && (
+                          <MetaRow
+                            label={copy.metaLabels.languages}
+                            value={(meta.languages as string[])
+                              .map((l) => roleRequestsCopy.form.touristGuide.languageOptions[l as keyof typeof roleRequestsCopy.form.touristGuide.languageOptions] ?? l)
+                              .join(', ')}
+                          />
+                        )}
+                        {meta.phone && <MetaRow label={copy.metaLabels.phone} value={String(meta.phone)} />}
                         {meta.experience_years != null && <MetaRow label={copy.metaLabels.experience_years} value={`${meta.experience_years} años`} />}
                         {meta.bio && <MetaRow label={copy.metaLabels.bio} value={String(meta.bio)} />}
                       </>
