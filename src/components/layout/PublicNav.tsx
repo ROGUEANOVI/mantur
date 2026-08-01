@@ -31,6 +31,7 @@ export default async function PublicNav() {
     { label: copy.negocios, href: '/negocios' },
     { label: copy.lugares, href: '/lugares' },
     { label: copy.transportistas, href: '/transportistas' },
+    { label: copy.guias, href: '/guias' },
   ]
 
   // Auth section — same markup reused in both desktop + mobile drawer
@@ -68,6 +69,15 @@ export default async function PublicNav() {
           activeClassName="text-foreground font-semibold bg-muted/40"
         >
           {copy.myTransport}
+        </NavLink>
+      )}
+      {role === 'tourist_guide' && (
+        <NavLink
+          href="/mi-perfil-guia"
+          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+          activeClassName="text-foreground font-semibold bg-muted/40"
+        >
+          {copy.myGuidePanel}
         </NavLink>
       )}
       {role === 'business_owner' && (

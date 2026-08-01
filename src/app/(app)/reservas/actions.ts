@@ -113,3 +113,79 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   revalidatePath('/mis-reservas')
   redirect(`/reservas/${booking.id}/confirmacion`)
 }
+
+export async function createGuideTourBooking(formData: FormData): Promise<BookingResult> {
+  const { supabase, userId } = await getAuthenticatedTourist()
+
+  const guideTourId = formData.get('guide_tour_id') as string
+  if (!UUID_RE.test(guideTourId)) return { error: bookingsCopy.errors.notFound }
+
+  const { data: tour } = await supabase
+    .from('guide_tours')
+    .select('id, price, capacity, status, guide_id')
+    .eq('id', guideTourId)
+    .eq('status', 'active')
+    .single()
+
+  if (!tour) return { error: bookingsCopy.errors.experienceUnavailable }
+
+  const rawPeople = formData.get('people_count') as string
+  const peopleCount = parseInt(rawPeople, 10)
+  if (!Number.isInteger(peopleCount) || peopleCount < 1) {
+    return { error: bookingsCopy.errors.invalidPeople }
+  }
+  if (tour.capacity !== null && peopleCount > tour.capacity) {
+    return { error: bookingsCopy.errors.capacityExceeded }
+  }
+
+  const bookingDate = formData.get('booking_date') as string
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate) || bookingDate < today) {
+    return { error: bookingsCopy.errors.invalidDate }
+  }
+
+  const totalAmount = Number(tour.price) * peopleCount
+  const amountInCents = Math.round(totalAmount * 100)
+
+  const admin = createAdminClient()
+
+  const { data: commissionRate, error: rateError } = await admin.rpc('get_commission_rate', {
+    p_service_type: 'guide_tour',
+  })
+  if (rateError || commissionRate === null) return { error: bookingsCopy.errors.generic }
+
+  const commissionAmountCents = Math.round((amountInCents * Number(commissionRate)) / 100)
+
+  const { data: booking, error: bookingError } = await admin
+    .from('bookings')
+    .insert({
+      guide_tour_id: guideTourId,
+      guide_id: tour.guide_id,
+      tourist_id: userId,
+      people_count: peopleCount,
+      booking_date: bookingDate,
+      total_amount: totalAmount,
+      status: 'confirmed',
+    })
+    .select('id')
+    .single()
+
+  if (bookingError || !booking) return { error: bookingsCopy.errors.generic }
+
+  const { error: txError } = await admin.from('transactions').insert({
+    booking_id: booking.id,
+    status: 'paid',
+    amount_in_cents: amountInCents,
+    currency: 'COP',
+    commission_rate: commissionRate,
+    commission_amount_cents: commissionAmountCents,
+  })
+
+  if (txError) {
+    await admin.from('bookings').delete().eq('id', booking.id)
+    return { error: bookingsCopy.errors.generic }
+  }
+
+  revalidatePath('/mis-reservas')
+  redirect(`/reservas/${booking.id}/confirmacion`)
+}

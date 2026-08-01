@@ -20,6 +20,10 @@ type BookingDetail = {
     name: string
     businesses: { name: string } | null
   } | null
+  guide_tours: {
+    name: string
+    tourist_guides: { profiles: { full_name: string | null } | null } | null
+  } | null
 }
 
 function formatDate(dateStr: string): string {
@@ -75,7 +79,7 @@ export default async function ConfirmacionPage({
   const { data: booking, error } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, people_count, total_amount, status, created_at, experiences(name, businesses(name))',
+      'id, booking_date, people_count, total_amount, status, created_at, experiences(name, businesses(name)), guide_tours(name, tourist_guides(profiles(full_name)))',
     )
     .eq('id', bookingId)
     .single()
@@ -91,8 +95,14 @@ export default async function ConfirmacionPage({
     bookingsCopy.list.status.pending_payment
   const StatusIcon = STATUS_ICON[b.status] ?? Clock
   const iconClass = STATUS_ICON_CLASS[b.status] ?? STATUS_ICON_CLASS.pending_payment
-  const experienceName = b.experiences?.name ?? '—'
-  const businessName = b.experiences?.businesses?.name ?? '—'
+
+  const isGuideTour = b.guide_tours != null
+  const experienceName = isGuideTour
+    ? (b.guide_tours?.name ?? '—')
+    : (b.experiences?.name ?? '—')
+  const businessName = isGuideTour
+    ? (b.guide_tours?.tourist_guides?.profiles?.full_name ?? '—')
+    : (b.experiences?.businesses?.name ?? '—')
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -148,7 +158,7 @@ export default async function ConfirmacionPage({
 
             <div className="flex items-start justify-between gap-3">
               <dt className="text-sm text-muted-foreground shrink-0">
-                {bookingsCopy.confirmation.experienceLabel}
+                {isGuideTour ? 'Tour' : bookingsCopy.confirmation.experienceLabel}
               </dt>
               <dd className="text-sm font-medium text-foreground text-right">
                 {experienceName}
@@ -157,7 +167,7 @@ export default async function ConfirmacionPage({
 
             <div className="flex items-start justify-between gap-3">
               <dt className="text-sm text-muted-foreground shrink-0">
-                {bookingsCopy.confirmation.businessLabel}
+                {isGuideTour ? 'Guía' : bookingsCopy.confirmation.businessLabel}
               </dt>
               <dd className="text-sm font-medium text-foreground text-right">
                 {businessName}
