@@ -21,7 +21,7 @@
 | 10 | feat/public-landing | Landing page, nav, multi-business, admin enhancements | ✅ merged |
 | 11 | feat/image-uploads | Image uploads for businesses and places, carousel, compact cards | ✅ merged |
 | 12 | feat/brand-identity | ManturLogo, color tokens, footer, hero gradient | ✅ merged |
-| **13** | **feat/admin-ux-and-categories** | **Admin UX redesign + business categories** | **🟡 open** |
+| 13 | feat/admin-ux-and-categories | Admin UX redesign + business categories | ✅ merged |
 
 ---
 

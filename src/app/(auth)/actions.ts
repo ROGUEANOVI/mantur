@@ -34,17 +34,16 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
   redirect('/')
 }
 
+const PASSWORD_RE = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/
+
 export async function signUp(formData: FormData): Promise<AuthResult> {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const fullName = formData.get('full_name') as string
 
-  const ALLOWED_ROLES = ['tourist', 'business_owner', 'transporter'] as const
-  type AllowedRole = (typeof ALLOWED_ROLES)[number]
-  const rawRole = formData.get('role') as string
-  const role: AllowedRole = (ALLOWED_ROLES as readonly string[]).includes(rawRole)
-    ? (rawRole as AllowedRole)
-    : 'tourist'
+  if (!PASSWORD_RE.test(password)) {
+    return { error: authCopy.signup.errors.weakPassword }
+  }
 
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signUp({ email, password })
@@ -68,7 +67,7 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
       {
         id: data.user.id,
         full_name: fullName || null,
-        role: role ?? 'tourist',
+        role: 'tourist',
       },
       { onConflict: 'id' },
     )

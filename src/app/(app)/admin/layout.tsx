@@ -6,11 +6,12 @@ import PublicNav from '@/components/layout/PublicNav'
 import AdminSidebar from '@/components/layout/AdminSidebar'
 
 const NAV_ITEMS = [
-  { href: '/admin',            label: adminCopy.nav.dashboard,   exact: true  },
-  { href: '/admin/negocios',   label: adminCopy.nav.negocios,    exact: false },
-  { href: '/admin/lugares',    label: adminCopy.nav.lugares,     exact: false },
-  { href: '/admin/comisiones', label: adminCopy.nav.comisiones,  exact: false },
-  { href: '/admin/categorias', label: adminCopy.nav.categorias,  exact: false },
+  { href: '/admin',               label: adminCopy.nav.dashboard,   exact: true  },
+  { href: '/admin/solicitudes',   label: adminCopy.nav.solicitudes, exact: false },
+  { href: '/admin/negocios',      label: adminCopy.nav.negocios,    exact: false },
+  { href: '/admin/lugares',       label: adminCopy.nav.lugares,     exact: false },
+  { href: '/admin/comisiones',    label: adminCopy.nav.comisiones,  exact: false },
+  { href: '/admin/categorias',    label: adminCopy.nav.categorias,  exact: false },
 ]
 
 export default async function AdminLayout({
