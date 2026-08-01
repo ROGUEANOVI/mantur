@@ -25,6 +25,8 @@
 | 14 | feat/role-requests | Role request flow + signup redesign | ✅ merged |
 | 15 | fix/auto-create-business-on-role-approval | Auto-create business when business_owner role approved | ✅ merged |
 | 16 | feat/multi-category-businesses | Multi-category support via business_category_links join table | ✅ merged |
+| 17 | feat/transporters | Transporters phase — public listing, request flow, driver panel | ✅ merged |
+| 18 | feat/transporters | Post-merge fixes: RLS policy for profile names, request modal, admin layout | ✅ merged |
 
 ---
 
@@ -127,6 +129,53 @@ slug-validated before use; `BusinessCard` receives `categoryNames: Record<string
 
 ---
 
+---
+
+## What was done in this session (session ending ~2026-08-01)
+
+### PRs #17 + #18 — Phase 4 Transporters (complete)
+
+**DB migrations applied in production:**
+- `20260801100000_create_transporters.sql` — `transporters` + `transport_requests` tables, full RLS
+- `20260801200000_profiles_authenticated_read.sql` — adds `profiles_select_authenticated` policy
+  (`TO authenticated USING true`) so PostgREST relational joins return other users' `full_name`
+  (the existing `profiles_select_own` policy only allowed reading your own row, causing all
+  joined profile names to appear as null for other users)
+
+**New pages and components:**
+- `/transportistas` (public) — uses `createAdminClient` so names resolve regardless of auth state;
+  "Solicitar traslado" opens a `Dialog` (shadcn/base-ui) with driver info + form inline
+- `/transporte/solicitar` — standalone fallback form page (tourist-only, role guard layout)
+- `/mis-viajes` — tourist transport history; shows transporter contact when status=accepted;
+  transporters are redirected to `/mi-perfil-transporte` from the layout
+- `/mi-perfil-transporte` — availability toggle, pending queue (atomic first-accept-wins via
+  service_role UPDATE with `.eq('status','pending')` guard), accepted requests with mark-complete
+- `/admin/transportes` — status filter tabs (segmented control matching solicitudes/negocios),
+  shows tourist + transporter names, formatted datetime, `max-w-lg` layout aligned with other admin pages
+- `AvailabilityToggle.tsx` — Client Component using `useActionState`
+- `TransportRequestForm.tsx` — Client Component using `useActionState`
+- `TransporterCardWithModal.tsx` — Client Component: card + Dialog trigger; redirects non-tourists to login
+- `src/components/ui/dialog.tsx` — shadcn Dialog added (uses `@base-ui/react` already installed)
+
+**`approveRoleRequest` (admin/actions.ts):** added transporter branch — reads `license_plate`,
+`vehicle_type`, `phone` from `role_requests.metadata` and auto-inserts `transporters` row via
+service_role (same pattern as business_owner in PR #15)
+
+**PublicNav:** "Transportadores" in main nav; tourist gets "Mis traslados"; transporter gets "Mi panel"
+**AdminSidebar:** "Transportes" item added (Car icon)
+
+**Key decisions for transporters:**
+- `transport_requests.transporter_id` is nullable — set only when a transporter accepts (first-wins)
+- Transporter acceptance uses `createAdminClient()` — RLS UPDATE policy only covers own-row availability
+  toggle, not cross-user claim; service_role bypasses this safely
+- `profiles_select_own` is not replaced — the new authenticated policy is additive (OR semantics)
+- `/transportistas` uses admin client (Server Component) — safe because it only exposes the
+  `is_available = true` filtered subset with `.eq('is_available', true)` still explicit in the query
+- Transport requests are general (any transporter can accept), not targeted at a specific driver;
+  modal shows driver context but a note clarifies any active driver may respond
+
+---
+
 ## Current schema (all migrations applied in production ✅ except new PR #13 ones)
 
 ```
@@ -147,6 +196,11 @@ transactions            → id, booking_id (UNIQUE), wompi_reference, wompi_link
 business_categories     → id, name, slug (UNIQUE), is_active, sort_order, created_at
 role_requests           → id, user_id (FK profiles), requested_role, status (pending|approved|rejected),
                           notes, metadata (JSONB), rejection_reason, reviewer_id, reviewed_at, created_at
+transporters            → id, profile_id (UNIQUE FK profiles), vehicle_type, license_plate, phone,
+                          is_available, bio, created_at, updated_at
+transport_requests      → id, tourist_id (FK profiles), transporter_id (nullable FK transporters),
+                          origin, destination, requested_datetime, people_count, notes,
+                          status (pending|accepted|completed|cancelled), created_at, updated_at
 ```
 
 **Storage buckets**:
@@ -163,6 +217,9 @@ role_requests           → id, user_id (FK profiles), requested_role, status (p
 - `20260731000000_create_business_categories.sql` ✅ (applied this session)
 - `20260731100000_replace_beach_with_plaza_place_type.sql` ✅ (applied this session)
 - `20260731200000_add_tourist_guide_role_and_role_requests.sql` ✅ (applied — PR #14 merged)
+- `20260801000000_create_business_category_links.sql` ✅ (applied — PR #16 merged)
+- `20260801100000_create_transporters.sql` ✅ (applied — PR #17 merged)
+- `20260801200000_profiles_authenticated_read.sql` ✅ (applied — PR #18 merged)
 
 ---
 
@@ -224,26 +281,15 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ## Next session — ordered by priority
 
-### 1. Phase 4 — Transporters (new branch: `feat/transporters`)
-This is the third actor in the business model, not yet built:
-- **DB**: `transporters` table (driver profile, vehicle info, availability status) + RLS
-- **DB**: `transport_requests` table (tourist requests, transporter accepts/rejects) + RLS
-- **Migration**: new file, reviewed before applying
-- **Public page**: `/transportistas` — list available drivers
-- **Tourist flow**: `/transporte/solicitar` → create request; `/mis-viajes` → history
-- **Transporter flow**: `/mi-perfil-transporte` → manage availability + incoming requests
-- Use `db-schema-agent` to design the schema before writing any code
-
-### 3. Experience image uploads (new branch: `feat/experience-images`)
+### 1. Experience image uploads (new branch: `feat/experience-images`)
 - Add `/mi-negocio/[id]/experiencias/[expId]/editar` page
 - Reuse `ImageManager` + `uploadBusinessImage` pattern targeting `experiences.images[]`
 
-### 4. Connect domain mantur.co to Vercel
-1. In Vercel → Project → Settings → Domains: add `mantur.co` and `www.mantur.co`
-2. Follow Vercel's DNS instructions for the domain registrar
-3. After DNS propagates: in Supabase → Auth → URL Configuration update:
-   - Site URL: `https://mantur.co`
-   - Redirect URLs: add `https://mantur.co/**` and `https://www.mantur.co/**`
+### 2. Update Supabase Auth redirect URLs for mantur.co
+Domain `mantur.co` is already connected to Vercel via Cloudflare. Pending:
+- Supabase → Auth → URL Configuration:
+  - Site URL: `https://mantur.co`
+  - Redirect URLs: add `https://mantur.co/**` and `https://www.mantur.co/**`
 
 ### 5. Favicon + PWA + Open Graph
 Can bundle in a single `chore/pwa-meta` branch:

@@ -153,20 +153,23 @@ INSERT/DELETE for business owner or admin. Migration:
 `BusinessCard` shows up to 2 category pills. `businesses.type` kept as legacy
 field (`'other'` for new records) — no longer user-facing.
 
-### Phase 4 — Transporters (PR #17 — open)
-`transporters` + `transport_requests` tables + full RLS. Migration:
-`20260801100000_create_transporters.sql`. `approveRoleRequest` auto-creates
-`transporters` row from metadata on approval (license_plate, vehicle_type, phone).
-`/transportistas` — public listing of available drivers. `/transporte/solicitar`
-— tourist-only request form (origin, destination, datetime, people count, notes).
-`/mis-viajes` — tourist transport history with cancel action. `/mi-perfil-transporte`
-— transporter panel: availability toggle (`AvailabilityToggle` Client Component),
-pending request queue with atomic claim (`acceptTransportRequest` uses service_role
-to guarantee first-one-wins), accepted requests list with mark-complete.
-`/admin/transportes` — admin view with status filter tabs. `PublicNav` shows
-Transportadores in main nav; tourist gets "Mis traslados" link; transporter gets
-"Mi panel" link.
-**Pending: apply migration in Supabase, test locally, then merge.**
+### Phase 4 — Transporters (PRs #17, #18 — merged)
+`transporters` + `transport_requests` tables + full RLS. Migrations:
+`20260801100000_create_transporters.sql` (tables + RLS),
+`20260801200000_profiles_authenticated_read.sql` (adds `profiles_select_authenticated`
+policy so PostgREST joins return other users' `full_name` for authenticated callers).
+`approveRoleRequest` auto-creates `transporters` row from metadata on approval
+(license_plate, vehicle_type, phone). `/transportistas` — public listing using
+`createAdminClient` so names resolve for unauthenticated visitors; "Solicitar traslado"
+opens a `Dialog` (shadcn/base-ui) showing driver info + form inline, no page navigation.
+`/transporte/solicitar` — fallback page with the same form. `/mis-viajes` — tourist
+transport history with cancel action; shows transporter contact info when accepted.
+`/mi-perfil-transporte` — transporter panel: availability toggle (`AvailabilityToggle`
+Client Component), pending request queue with atomic claim (`acceptTransportRequest`
+uses service_role to guarantee first-one-wins), accepted requests with mark-complete.
+`/admin/transportes` — admin view with segmented status filter tabs (pending /
+accepted / completed / cancelled). `PublicNav` shows Transportadores in main nav;
+tourist gets "Mis traslados" link; transporter gets "Mi panel" link.
 
 ## Pending / Phase 5
 
