@@ -22,6 +22,7 @@
 | 11 | feat/image-uploads | Image uploads for businesses and places, carousel, compact cards | ✅ merged |
 | 12 | feat/brand-identity | ManturLogo, color tokens, footer, hero gradient | ✅ merged |
 | 13 | feat/admin-ux-and-categories | Admin UX redesign + business categories | ✅ merged |
+| 14 | feat/role-requests | Role request flow + signup redesign | 🔄 open — pending test + merge |
 
 ---
 
@@ -72,6 +73,58 @@ slug-validated before use; `BusinessCard` receives `categoryNames: Record<string
 
 ---
 
+---
+
+## What was done in this session (session ending ~2026-07-31, continued)
+
+### PR #14 — feat/role-requests (open, not yet merged)
+
+**Goal**: Remove role selection from signup. Roles are self-requested after account creation and approved by admin.
+
+**DB migration**: `20260731200000_add_tourist_guide_role_and_role_requests.sql`
+- Adds `tourist_guide` to `user_role` enum
+- Creates `role_requests` table: `id, user_id, requested_role, status (pending|approved|rejected), notes, metadata (JSONB), rejection_reason, reviewer_id, reviewed_at, created_at`
+- RLS: users see own requests; INSERT only with `status = 'pending'`; admins can UPDATE; no DELETE
+- **NOT YET APPLIED** — must be run in Supabase SQL Editor before merge
+
+**Signup form redesign** (`src/components/auth/SignupForm.tsx`):
+- Removed role selector cards entirely
+- Added confirm-password field with Eye/EyeOff toggle
+- Real-time strength indicator: 4 pills (min 8 chars, uppercase, digit, special char), appear after first keystroke
+- Real-time match feedback: green "✓ Las contraseñas coinciden" / red "✗ no coinciden"
+- Server-side regex validation: `PASSWORD_RE = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/`
+- All new signups default to `role: 'tourist'`
+
+**`/solicitar-rol`** (new route, requires auth):
+- `src/app/(app)/solicitar-rol/layout.tsx` — adds `PublicNav` (same pattern as `mis-reservas`)
+- `src/app/(app)/solicitar-rol/page.tsx` — hero with Bosque→Verde gradient, ManturLogo, personalized greeting; shows pending/rejected status banners or the form; shows "Ya eres parte" if non-tourist role already assigned
+- `src/app/(app)/solicitar-rol/RoleRequestForm.tsx` — two-step UX:
+  - Step 1: 3 value-prop cards (business_owner, transporter, tourist_guide) with hook/value/CTA
+  - Step 2: role-specific fields
+    - Business owner: business_name, category_slug (from DB), phone
+    - Transporter: license_plate, vehicle_type, phone
+    - Tourist guide: specialties (multi-checkbox), languages (multi-checkbox), experience_years, bio
+- `src/app/(app)/solicitar-rol/actions.ts` — `submitRoleRequest`: auth check, validates role, checks no existing pending, builds metadata JSONB, inserts
+
+**`/admin/solicitudes`** (new admin route):
+- `src/app/(app)/admin/solicitudes/page.tsx` — filter tabs (pending/approved/rejected), role icon (Store/Car/Compass), user name, role label, date, role-specific metadata from JSONB. Pending: Approve form + RejectForm. Rejected: shows rejection_reason.
+- `src/app/(app)/admin/solicitudes/RejectForm.tsx` — Client Component; expands inline to require written rejection reason before confirming
+
+**Admin actions** (added to `src/app/(app)/admin/actions.ts`):
+- `approveRoleRequest`: marks request approved, sets `profiles.role`, cancels other pending requests from same user
+- `rejectRoleRequest`: marks request rejected with `rejection_reason`
+
+**`PublicNav`** — tourist role section shows "Únete" amber link (`text-accent`) to `/solicitar-rol`
+
+**`AdminSidebar`** — "Solicitudes" nav item added (uses `Users` icon from Lucide)
+
+**Copy files touched**:
+- `src/lib/copy/auth.ts` — added `confirmPassword`, `passwordRules`, `passwordMismatch`, updated `weakPassword`; removed `roleLabel`/`roles` section
+- `src/lib/copy/landing.ts` — added `joinMantur: 'Únete'`
+- `src/lib/copy/roleRequests.ts` (new) — roleCards with hook/value/cta, form field labels, vehicle types, specialties, languages, status messages
+
+---
+
 ## Current schema (all migrations applied in production ✅ except new PR #13 ones)
 
 ```
@@ -90,6 +143,9 @@ transactions            → id, booking_id (UNIQUE), wompi_reference, wompi_link
                           status, amount_in_cents, currency, commission_rate,
                           commission_amount_cents, created_at, updated_at
 business_categories     → id, name, slug (UNIQUE), is_active, sort_order, created_at
+role_requests           → id, user_id (FK profiles), requested_role, status (pending|approved|rejected),
+                          notes, metadata (JSONB), rejection_reason, reviewer_id, reviewed_at, created_at
+                          ⚠️ migration NOT YET APPLIED — `20260731200000_add_tourist_guide_role_and_role_requests.sql`
 ```
 
 **Storage buckets**:
@@ -105,6 +161,7 @@ business_categories     → id, name, slug (UNIQUE), is_active, sort_order, crea
 - `20260730230000_add_place_images_bucket.sql` ✅
 - `20260731000000_create_business_categories.sql` ✅ (applied this session)
 - `20260731100000_replace_beach_with_plaza_place_type.sql` ✅ (applied this session)
+- `20260731200000_add_tourist_guide_role_and_role_requests.sql` ⚠️ NOT YET APPLIED
 
 ---
 
@@ -166,7 +223,15 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ## Next session — ordered by priority
 
-### 1. Merge PR #13
+### 1. Merge PR #14
+
+1. Apply migration `20260731200000_add_tourist_guide_role_and_role_requests.sql` in Supabase SQL Editor
+2. Test locally:
+   - Sign up → no role selector → lands as tourist
+   - `/solicitar-rol` → three cards → form → submit → appears in `/admin/solicitudes`
+   - Admin: approve → `profiles.role` updated; reject with reason → user sees reason on `/solicitar-rol`
+3. Merge PR #14
+4. Update this file + CLAUDE.md to mark PR #14 merged
 
 ### 2. Phase 4 — Transporters (new branch: `feat/transporters`)
 This is the third actor in the business model, not yet built:

@@ -125,6 +125,23 @@ redesigned: `PublicNav` on top, collapsible `AdminSidebar` (hover-to-expand,
 and user count), quick approve/reject queue for pending businesses, recent
 bookings list. Place type `beach` replaced by `plaza`.
 
+### Phase 3 — Role request flow (PR #14 — open, pending merge)
+Removed role selection from signup — all new accounts start as `tourist`.
+New `role_requests` table + RLS. New `tourist_guide` user_role enum value.
+`/solicitar-rol` — marketing "Únete a ManTur" page with brand hero and
+three value-proposition cards (business owner, transporter, tourist guide),
+two-step UX (card selection → role-specific form). Role-specific metadata
+captured: business_name + category + phone (business owner); license plate +
+vehicle type + phone (transporter); specialties + languages + bio (tourist
+guide). `PublicNav` shows "Únete" amber link for tourist role.
+`/admin/solicitudes` — admin panel to review/approve/reject role requests
+with `RejectForm` that requires a written reason. `approveRoleRequest` action
+promotes user role in `profiles` and cancels other pending requests from same user.
+Signup form redesigned with confirm-password field, visibility toggles,
+real-time strength indicator (8 chars, uppercase, digit, special char).
+Migration: `20260731200000_add_tourist_guide_role_and_role_requests.sql`.
+**Pending: apply migration in Supabase, test locally, then merge.**
+
 ## Pending / Phase 4
 
 - **Transporters**: `transporters` table, `transport_requests`, public
