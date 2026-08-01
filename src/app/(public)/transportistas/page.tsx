@@ -1,7 +1,8 @@
-import Link from 'next/link'
 import { Car } from 'lucide-react'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
+import TransporterCardWithModal from '@/components/transporte/TransporterCardWithModal'
 
 type TransporterRow = {
   id: string
@@ -13,14 +14,31 @@ type TransporterRow = {
 }
 
 export default async function TransportistasPage() {
+  // Admin client bypasses RLS so profiles(full_name) resolves for all transporters
+  // regardless of the visitor's authentication state.
+  const admin = createAdminClient()
   const supabase = await createClient()
 
-  // RLS SELECT policy (is_available = true OR ...) gates this for unauthenticated callers.
-  const { data } = await supabase
-    .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, bio, profiles(full_name)')
-    .eq('is_available', true)
-    .order('created_at', { ascending: true })
+  const [{ data }, { data: { user } }] = await Promise.all([
+    admin
+      .from('transporters')
+      .select('id, vehicle_type, license_plate, phone, bio, profiles(full_name)')
+      .eq('is_available', true)
+      .order('created_at', { ascending: true }),
+    supabase.auth.getUser(),
+  ])
+
+  // Determine if the visitor is a tourist so the modal can open; otherwise the
+  // button redirects to login.
+  let isTourist = false
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    isTourist = profile?.role === 'tourist'
+  }
 
   const transporters = (data ?? []) as unknown as TransporterRow[]
   const copy = transportCopy.publicPage
@@ -60,40 +78,17 @@ export default async function TransportistasPage() {
         ) : (
           <div className="space-y-3">
             {transporters.map((t) => (
-              <div
+              <TransporterCardWithModal
                 key={t.id}
-                className="rounded-2xl border border-border bg-card shadow-sm p-4"
-              >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <Car className="size-5 text-primary" strokeWidth={1.5} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground text-sm">
-                        {t.profiles?.full_name ?? 'Transportador'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {copy.vehicleTypes[t.vehicle_type] ?? t.vehicle_type} · {t.license_plate}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-2.5 py-0.5 text-xs font-semibold shrink-0">
-                    {copy.available}
-                  </span>
-                </div>
-
-                {t.bio && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{t.bio}</p>
-                )}
-
-                <Link
-                  href="/transporte/solicitar"
-                  className="inline-flex items-center justify-center w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 transition-colors"
-                >
-                  {copy.requestRide}
-                </Link>
-              </div>
+                transporter={{
+                  vehicle_type: t.vehicle_type,
+                  license_plate: t.license_plate,
+                  phone: t.phone,
+                  bio: t.bio,
+                  full_name: t.profiles?.full_name ?? null,
+                }}
+                isTourist={isTourist}
+              />
             ))}
           </div>
         )}

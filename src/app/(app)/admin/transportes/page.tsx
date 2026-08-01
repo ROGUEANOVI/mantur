@@ -54,24 +54,24 @@ export default async function AdminTransportesPage({
   const requests = (data ?? []) as unknown as RequestRow[]
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 pb-10 lg:ml-14">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-6">
+    <main className="px-4 py-6 pb-10">
+      <div className="mx-auto max-w-lg space-y-5">
+        <div>
           <h1 className="text-2xl font-bold text-foreground">{copy.pageTitle}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{copy.pageSubtitle}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{copy.pageSubtitle}</p>
         </div>
 
         {/* Status filter tabs */}
-        <div className="flex gap-1.5 mb-5 flex-wrap">
+        <div className="flex gap-1 p-1 rounded-xl bg-muted">
           {VALID_STATUSES.map((s) => (
             <Link
               key={s}
               href={`/admin/transportes?status=${s}`}
               className={cn(
-                'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                'flex-1 text-center text-sm font-medium py-1.5 rounded-lg transition-colors',
                 statusFilter === s
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:text-foreground',
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               {copy.status[s]}
@@ -80,9 +80,11 @@ export default async function AdminTransportesPage({
         </div>
 
         {requests.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">
-            Sin solicitudes {copy.status[statusFilter].toLowerCase()}.
-          </p>
+          <div className="rounded-2xl border border-border bg-card shadow-sm p-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Sin solicitudes {copy.status[statusFilter].toLowerCase()}.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {requests.map((req) => {

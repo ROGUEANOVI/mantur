@@ -5,6 +5,9 @@ export const transportCopy = {
     empty: 'No hay transportadores disponibles en este momento.',
     available: 'Disponible',
     requestRide: 'Solicitar traslado',
+    modalTitle: 'Solicitar traslado',
+    modalDriverLabel: 'Conductor',
+    modalNote: 'Tu solicitud estará disponible para todos los conductores activos.',
     vehicleTypes: {
       motocarro: 'Motocarro',
       moto:      'Moto',
