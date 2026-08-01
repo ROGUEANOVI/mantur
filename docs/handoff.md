@@ -285,12 +285,6 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 - Add `/mi-negocio/[id]/experiencias/[expId]/editar` page
 - Reuse `ImageManager` + `uploadBusinessImage` pattern targeting `experiences.images[]`
 
-### 2. Update Supabase Auth redirect URLs for mantur.co
-Domain `mantur.co` is already connected to Vercel via Cloudflare. Pending:
-- Supabase → Auth → URL Configuration:
-  - Site URL: `https://mantur.co`
-  - Redirect URLs: add `https://mantur.co/**` and `https://www.mantur.co/**`
-
 ### 5. Favicon + PWA + Open Graph
 Can bundle in a single `chore/pwa-meta` branch:
 - `public/favicon.svg` — ManTur pin, green background

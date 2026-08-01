@@ -180,8 +180,8 @@ tourist gets "Mis traslados" link; transporter gets "Mi panel" link.
   install on Android/iOS.
 - **Open Graph / meta tags**: og:image, og:title per page for WhatsApp/social
   sharing — use the pin logo on Bosque background.
-- **Domain `mantur.co`** already connected to Vercel via Cloudflare; update
-  Supabase Auth redirect URLs to include `https://mantur.co/**`.
+- **Domain `mantur.co`** connected to Vercel via Cloudflare ✅; Supabase Auth
+  redirect URLs updated to include `https://mantur.co/**` ✅.
 
 ## Data model (v1 — English names, relational)
 
