@@ -32,6 +32,10 @@ CREATE TABLE public.tourist_guides (
   specialties  text[]      NOT NULL DEFAULT '{}',
   languages    text[]      NOT NULL DEFAULT '{}',
   bio          text,
+  -- Contact phone captured from role_requests.metadata at approval time.
+  -- Used by ManTur admins to verify guide credentials and by tourists who need
+  -- to coordinate after booking.
+  phone        text        NOT NULL DEFAULT '',
   -- Toggled by the guide from their panel (/mi-perfil-guia).
   -- The public listing (/guias) only shows available guides.
   is_available boolean     NOT NULL DEFAULT false,

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { Clock, Users } from 'lucide-react'
+import { Clock, Users, Phone } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
@@ -11,6 +11,7 @@ type Guide = {
   id: string
   is_available: boolean
   bio: string | null
+  phone: string
   specialties: string[]
   languages: string[]
   profiles: { full_name: string | null } | null
@@ -40,7 +41,7 @@ export default async function GuideProfilePage({
   const [guideResult, userResult] = await Promise.all([
     admin
       .from('tourist_guides')
-      .select('id, is_available, bio, specialties, languages, profiles(full_name)')
+      .select('id, is_available, bio, phone, specialties, languages, profiles(full_name)')
       .eq('id', id)
       .single(),
     supabase.auth.getUser(),
@@ -133,6 +134,13 @@ export default async function GuideProfilePage({
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {guide.phone && (
+            <div className="flex items-center gap-2 text-sm border-t border-border pt-3">
+              <Phone className="size-4 text-muted-foreground shrink-0" strokeWidth={1.5} aria-hidden="true" />
+              <span className="text-foreground font-medium">{guide.phone}</span>
             </div>
           )}
         </div>

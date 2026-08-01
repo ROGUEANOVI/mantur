@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plus, Clock, Users, Pencil, CalendarDays, Banknote } from 'lucide-react'
+import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ type Guide = {
   id: string
   is_available: boolean
   bio: string | null
+  phone: string
   specialties: string[]
   languages: string[]
   profiles: { full_name: string | null } | null
@@ -52,7 +53,7 @@ export default async function MiPerfilGuiaPage() {
 
   const { data: guideData } = await supabase
     .from('tourist_guides')
-    .select('id, is_available, bio, specialties, languages, profiles(full_name)')
+    .select('id, is_available, bio, phone, specialties, languages, profiles(full_name)')
     .eq('profile_id', user!.id)
     .single()
 
@@ -101,6 +102,13 @@ export default async function MiPerfilGuiaPage() {
                 <GuideAvailabilityToggle isAvailable={guide.is_available} />
               </div>
             </div>
+
+            {guide.phone && (
+              <div className="flex items-center gap-2 text-sm">
+                <Phone className="size-4 text-muted-foreground shrink-0" strokeWidth={1.5} aria-hidden="true" />
+                <span className="text-foreground font-medium">{guide.phone}</span>
+              </div>
+            )}
 
             {guide.specialties.length > 0 && (
               <div>

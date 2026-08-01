@@ -450,6 +450,7 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
       specialties: Array.isArray(meta.specialties) ? meta.specialties : [],
       languages: Array.isArray(meta.languages) ? meta.languages : [],
       bio: (meta.bio as string | undefined)?.trim() || null,
+      phone: (meta.phone as string | undefined)?.trim() || '',
       is_available: false,
     })
   }
