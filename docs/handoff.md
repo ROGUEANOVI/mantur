@@ -22,7 +22,8 @@
 | 11 | feat/image-uploads | Image uploads for businesses and places, carousel, compact cards | ✅ merged |
 | 12 | feat/brand-identity | ManturLogo, color tokens, footer, hero gradient | ✅ merged |
 | 13 | feat/admin-ux-and-categories | Admin UX redesign + business categories | ✅ merged |
-| 14 | feat/role-requests | Role request flow + signup redesign | 🔄 open — pending test + merge |
+| 14 | feat/role-requests | Role request flow + signup redesign | ✅ merged |
+| 15 | fix/auto-create-business-on-role-approval | Auto-create business when business_owner role approved | 🔄 open |
 
 ---
 
@@ -145,7 +146,6 @@ transactions            → id, booking_id (UNIQUE), wompi_reference, wompi_link
 business_categories     → id, name, slug (UNIQUE), is_active, sort_order, created_at
 role_requests           → id, user_id (FK profiles), requested_role, status (pending|approved|rejected),
                           notes, metadata (JSONB), rejection_reason, reviewer_id, reviewed_at, created_at
-                          ⚠️ migration NOT YET APPLIED — `20260731200000_add_tourist_guide_role_and_role_requests.sql`
 ```
 
 **Storage buckets**:
@@ -161,7 +161,7 @@ role_requests           → id, user_id (FK profiles), requested_role, status (p
 - `20260730230000_add_place_images_bucket.sql` ✅
 - `20260731000000_create_business_categories.sql` ✅ (applied this session)
 - `20260731100000_replace_beach_with_plaza_place_type.sql` ✅ (applied this session)
-- `20260731200000_add_tourist_guide_role_and_role_requests.sql` ⚠️ NOT YET APPLIED
+- `20260731200000_add_tourist_guide_role_and_role_requests.sql` ✅ (applied — PR #14 merged)
 
 ---
 
@@ -223,15 +223,22 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ## Next session — ordered by priority
 
-### 1. Merge PR #14
+### 1. Merge PR #15 — fix/auto-create-business-on-role-approval
 
-1. Apply migration `20260731200000_add_tourist_guide_role_and_role_requests.sql` in Supabase SQL Editor
-2. Test locally:
-   - Sign up → no role selector → lands as tourist
-   - `/solicitar-rol` → three cards → form → submit → appears in `/admin/solicitudes`
-   - Admin: approve → `profiles.role` updated; reject with reason → user sees reason on `/solicitar-rol`
-3. Merge PR #14
-4. Update this file + CLAUDE.md to mark PR #14 merged
+**Bug**: `approveRoleRequest` solo cambiaba el rol en `profiles` pero nunca creaba el negocio, causando dos problemas:
+- La información del negocio (nombre, teléfono) escrita en la solicitud se perdía
+- El dueño tenía que crear el negocio desde `/mi-negocio`, y ese negocio quedaba `status='pending'` requiriendo *otra* aprobación del admin
+
+**Fix** (`src/app/(app)/admin/actions.ts`):
+- `approveRoleRequest` ahora lee el `metadata` de la solicitud
+- Si `requested_role === 'business_owner'` y hay `business_name` en metadata, crea el negocio automáticamente con `status='active'` y `verified=true`
+- Agrega `revalidatePath('/negocios')` y `revalidatePath('/')` para que aparezca de inmediato en el catálogo
+
+Test:
+1. Crear cuenta → `/solicitar-rol` → seleccionar "Dueño de negocio" → llenar formulario → enviar
+2. Admin aprueba en `/admin/solicitudes`
+3. El negocio debe aparecer en `/admin/negocios` como activo y en `/negocios` en el catálogo
+4. El dueño puede entrar a `/mi-negocio` y ver el negocio ya creado (sin tener que re-ingresar datos)
 
 ### 2. Phase 4 — Transporters (new branch: `feat/transporters`)
 This is the third actor in the business model, not yet built:

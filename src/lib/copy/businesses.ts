@@ -40,7 +40,8 @@ export const miNegocioCopy = {
     description: 'Descripción',
     descriptionPlaceholder: 'Describe la actividad...',
     businessDescriptionPlaceholder: 'Describe tu negocio...',
-    type: 'Tipo de negocio',
+    categories: 'Categorías',
+    categoriesHint: 'Selecciona todas las que aplican.',
     address: 'Dirección',
     addressPlaceholder: 'Ej: Calle 5 #10-20, Manaure',
     phone: 'Teléfono de contacto',
@@ -53,6 +54,8 @@ export const miNegocioCopy = {
     durationPlaceholder: 'Ej: 90',
     submit: 'Guardar',
     submitting: 'Guardando...',
+    save: 'Guardar cambios',
+    saving: 'Guardando...',
     cancel: 'Cancelar',
   },
   errors: {

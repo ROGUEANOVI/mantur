@@ -9,16 +9,20 @@ import PaginationNav from '@/components/shared/PaginationNav'
 
 const PAGE_SIZE = 12
 
+type CategoryLink = {
+  business_categories: { name: string; slug: string } | null
+}
+
 type BusinessRow = {
   id: string
   name: string
   description: string | null
-  type: string
   images: string[] | null
   address: string | null
+  business_category_links: CategoryLink[]
 }
 
-type CategoryRow = { slug: string; name: string }
+type CategoryRow = { id: string; slug: string; name: string }
 
 export default async function NegociosPage({
   searchParams,
@@ -34,25 +38,30 @@ export default async function NegociosPage({
 
   const supabase = await createClient()
 
-  // Fetch active categories from DB — drives both the filter pills and type validation
+  // Fetch active categories — drives filter pills and slug→id lookup
   const { data: categoriesData } = await supabase
     .from('business_categories')
-    .select('slug, name')
+    .select('id, slug, name')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
 
   const categories = (categoriesData ?? []) as CategoryRow[]
-  const validSlugs = new Set(categories.map((c) => c.slug))
+  const categoryBySlug = new Map(categories.map((c) => [c.slug, c]))
 
-  const typeFilter = rawType && validSlugs.has(rawType) ? rawType : null
+  const activeCategory = rawType ? (categoryBySlug.get(rawType) ?? null) : null
+
+  // Use !inner join when filtering by category so only matching businesses are returned
+  const selectClause = activeCategory
+    ? 'id, name, description, images, address, business_category_links!inner(business_categories(name, slug))'
+    : 'id, name, description, images, address, business_category_links(business_categories(name, slug))'
 
   let query = supabase
     .from('businesses')
-    .select('id, name, description, type, images, address', { count: 'exact' })
+    .select(selectClause, { count: 'exact' })
     .eq('verified', true)
     .eq('status', 'active')
 
-  if (typeFilter) query = query.eq('type', typeFilter)
+  if (activeCategory) query = query.eq('business_category_links.category_id', activeCategory.id)
   if (search) query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
 
   const { data: businesses, count, error } = await query
@@ -68,7 +77,7 @@ export default async function NegociosPage({
 
   // Build base params for pagination (exclude page)
   const baseParams: Record<string, string> = {}
-  if (typeFilter) baseParams.type = typeFilter
+  if (activeCategory) baseParams.type = activeCategory.slug
   if (search) baseParams.q = search
 
   return (
@@ -111,7 +120,7 @@ export default async function NegociosPage({
               href={search ? `/negocios?q=${encodeURIComponent(search)}` : '/negocios'}
               className={cn(
                 'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
-                !typeFilter
+                !activeCategory
                   ? 'border-white bg-white text-primary'
                   : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
               )}
@@ -128,7 +137,7 @@ export default async function NegociosPage({
                   href={href}
                   className={cn(
                     'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
-                    typeFilter === cat.slug
+                    activeCategory?.slug === cat.slug
                       ? 'border-white bg-white text-primary'
                       : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
                   )}
@@ -150,8 +159,8 @@ export default async function NegociosPage({
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(businesses as BusinessRow[]).map((business) => (
-                  <BusinessCard key={business.id} business={business} categoryNames={Object.fromEntries(categories.map((c) => [c.slug, c.name]))} />
+                {(businesses as unknown as BusinessRow[]).map((business) => (
+                  <BusinessCard key={business.id} business={business} />
                 ))}
               </div>
               <PaginationNav
@@ -170,10 +179,12 @@ export default async function NegociosPage({
   )
 }
 
-function BusinessCard({ business, categoryNames }: { business: BusinessRow; categoryNames: Record<string, string> }) {
-  const copy = businessesCopy.businesses
+function BusinessCard({ business }: { business: BusinessRow }) {
   const imageUrl = business.images?.[0]
-  const typeLabel = categoryNames[business.type] ?? copy.types.other
+  const categoryNames = business.business_category_links
+    .map((l) => l.business_categories?.name)
+    .filter((n): n is string => Boolean(n))
+    .slice(0, 2)
 
   return (
     <Link
@@ -199,9 +210,15 @@ function BusinessCard({ business, categoryNames }: { business: BusinessRow; cate
 
       {/* Content */}
       <div className="flex-1 min-w-0 py-0.5 sm:p-4 sm:flex sm:flex-col sm:gap-1.5">
-        <span className="inline-block text-xs font-medium text-accent bg-accent/10 px-2 py-0.5 rounded-full mb-1 sm:mb-0 sm:self-start">
-          {typeLabel}
-        </span>
+        {categoryNames.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1 sm:mb-0">
+            {categoryNames.map((name) => (
+              <span key={name} className="text-xs font-medium text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
         <h3 className="font-semibold text-foreground text-sm sm:text-base leading-snug line-clamp-1">
           {business.name}
         </h3>

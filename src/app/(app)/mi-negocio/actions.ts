@@ -47,27 +47,29 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
-  const type = formData.get('type') as string
   const address = (formData.get('address') as string | null)?.trim() || null
   const phone = (formData.get('phone') as string | null)?.trim() || null
+  const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
-  const validTypes = ['resort', 'restaurant', 'farm', 'eatery', 'other']
-  if (!name || !validTypes.includes(type)) {
-    return { error: 'Datos inválidos. Verifica el nombre y el tipo de negocio.' }
+  if (!name) return { error: 'El nombre del negocio es obligatorio.' }
+  if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
+
+  const { data: newBusiness, error } = await supabase
+    .from('businesses')
+    .insert({ owner_id: userId, name, description, type: 'other', address, phone, verified: false, status: 'pending' })
+    .select('id')
+    .single()
+
+  if (error || !newBusiness) return { error: 'No se pudo crear el negocio. Intenta de nuevo.' }
+
+  const { error: linksError } = await supabase
+    .from('business_category_links')
+    .insert(categoryIds.map((id) => ({ business_id: newBusiness.id, category_id: id })))
+
+  if (linksError) {
+    await supabase.from('businesses').delete().eq('id', newBusiness.id)
+    return { error: 'No se pudo guardar las categorías. Intenta de nuevo.' }
   }
-
-  const { error } = await supabase.from('businesses').insert({
-    owner_id: userId,
-    name,
-    description,
-    type,
-    address,
-    phone,
-    verified: false,
-    status: 'pending',
-  })
-
-  if (error) return { error: 'No se pudo crear el negocio. Intenta de nuevo.' }
 
   revalidatePath('/mi-negocio')
   redirect('/mi-negocio')
@@ -83,22 +85,26 @@ export async function updateBusiness(
 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
-  const type = formData.get('type') as string
   const address = (formData.get('address') as string | null)?.trim() || null
   const phone = (formData.get('phone') as string | null)?.trim() || null
+  const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
-  const validTypes = ['resort', 'restaurant', 'farm', 'eatery', 'other']
-  if (!name || !validTypes.includes(type)) {
-    return { error: 'Datos inválidos. Verifica el nombre y el tipo de negocio.' }
-  }
+  if (!name) return { error: 'El nombre del negocio es obligatorio.' }
+  if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
 
   const { error } = await supabase
     .from('businesses')
-    .update({ name, description, type, address, phone })
+    .update({ name, description, address, phone })
     .eq('id', businessId)
     .eq('owner_id', userId)
 
   if (error) return { error: 'No se pudo actualizar el negocio. Intenta de nuevo.' }
+
+  // Replace category links: delete existing, insert new selection
+  await supabase.from('business_category_links').delete().eq('business_id', businessId)
+  await supabase
+    .from('business_category_links')
+    .insert(categoryIds.map((id) => ({ business_id: businessId, category_id: id })))
 
   revalidatePath('/mi-negocio', 'layout')
   redirect(`/mi-negocio/${businessId}`)

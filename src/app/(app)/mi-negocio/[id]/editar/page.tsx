@@ -21,14 +21,28 @@ export default async function EditarNegocioPage({
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { data: business } = await supabase
-    .from('businesses')
-    .select('id, name, type, description, address, phone, images')
-    .eq('id', id)
-    .eq('owner_id', user!.id)
-    .maybeSingle()
+  const [{ data: business }, { data: categoriesData }, { data: linksData }] = await Promise.all([
+    supabase
+      .from('businesses')
+      .select('id, name, description, address, phone, images')
+      .eq('id', id)
+      .eq('owner_id', user!.id)
+      .maybeSingle(),
+    supabase
+      .from('business_categories')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('business_category_links')
+      .select('category_id')
+      .eq('business_id', id),
+  ])
 
   if (!business) notFound()
+
+  const categories = (categoriesData ?? []) as { id: string; name: string }[]
+  const selectedCategoryIds = (linksData ?? []).map((l) => l.category_id)
 
   const boundUpload = uploadBusinessImage.bind(null, business.id)
   const boundDelete = deleteBusinessImage.bind(null, business.id)
@@ -55,11 +69,12 @@ export default async function EditarNegocioPage({
             businessId={business.id}
             defaultValues={{
               name: business.name,
-              type: business.type,
               description: business.description,
               address: business.address,
               phone: business.phone,
             }}
+            categories={categories}
+            selectedCategoryIds={selectedCategoryIds}
           />
         </div>
 

@@ -1,10 +1,20 @@
 import Link from 'next/link'
 import { ChevronLeft, Store } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
 import CreateBusinessForm from '@/components/mi-negocio/CreateBusinessForm'
 
-export default function NuevoNegocioPage() {
+export default async function NuevoNegocioPage() {
+  const supabase = await createClient()
+  const { data: categoriesData } = await supabase
+    .from('business_categories')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  const categories = (categoriesData ?? []) as { id: string; name: string }[]
+
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg">
@@ -28,7 +38,7 @@ export default function NuevoNegocioPage() {
           <p className="mt-1.5 text-sm text-muted-foreground">{miNegocioCopy.setup.subtitle}</p>
         </div>
 
-        <CreateBusinessForm />
+        <CreateBusinessForm categories={categories} />
       </div>
     </main>
   )
