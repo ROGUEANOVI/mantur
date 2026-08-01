@@ -370,7 +370,7 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
 
   const { data: request } = await admin
     .from('role_requests')
-    .select('user_id, requested_role')
+    .select('user_id, requested_role, metadata')
     .eq('id', requestId)
     .single()
 
@@ -389,6 +389,47 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     .update({ role: request.requested_role })
     .eq('id', request.user_id)
 
+  // Auto-create business so the owner doesn't re-enter info and avoids a second approval step
+  if (request.requested_role === 'business_owner') {
+    const meta = (request.metadata ?? {}) as Record<string, unknown>
+    const businessName = (meta.business_name as string | undefined)?.trim()
+    if (businessName) {
+      const { data: newBusiness } = await admin
+        .from('businesses')
+        .insert({
+          name: businessName,
+          owner_id: request.user_id,
+          phone: (meta.phone as string | undefined)?.trim() || null,
+          type: 'other',
+          status: 'active',
+          verified: true,
+        })
+        .select('id')
+        .single()
+
+      // Link the categories the applicant specified
+      if (newBusiness) {
+        const categorySlugs = Array.isArray(meta.category_slugs)
+          ? (meta.category_slugs as string[])
+          : []
+
+        if (categorySlugs.length > 0) {
+          const { data: cats } = await admin
+            .from('business_categories')
+            .select('id')
+            .in('slug', categorySlugs)
+            .eq('is_active', true)
+
+          if (cats?.length) {
+            await admin
+              .from('business_category_links')
+              .insert(cats.map((c) => ({ business_id: newBusiness.id, category_id: c.id })))
+          }
+        }
+      }
+    }
+  }
+
   // Cancel any other pending requests from this user (they got a role)
   await admin
     .from('role_requests')
@@ -399,6 +440,8 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
 
   revalidatePath('/admin/solicitudes')
   revalidatePath('/solicitar-rol')
+  revalidatePath('/negocios')
+  revalidatePath('/')
 }
 
 export async function rejectRoleRequest(formData: FormData): Promise<void> {
