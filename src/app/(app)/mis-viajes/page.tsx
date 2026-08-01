@@ -42,7 +42,7 @@ export default async function MisViajesPage() {
   const { data } = await supabase
     .from('transport_requests')
     .select(
-      'id, origin, destination, requested_datetime, people_count, status, created_at, transporters(license_plate, vehicle_type, phone, profiles!profile_id(full_name))',
+      'id, origin, destination, requested_datetime, people_count, status, created_at, transporters(license_plate, vehicle_type, phone, profiles(full_name))',
     )
     .eq('tourist_id', user!.id)
     .order('created_at', { ascending: false })
@@ -66,7 +66,7 @@ export default async function MisViajesPage() {
             <p className="text-sm text-muted-foreground max-w-xs">{copy.empty}</p>
             <Link
               href="/transportistas"
-              className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] px-6 hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-6 hover:bg-primary/90 transition-colors"
             >
               {copy.explore}
             </Link>

@@ -18,7 +18,7 @@ export default async function TransportistasPage() {
   // RLS SELECT policy (is_available = true OR ...) gates this for unauthenticated callers.
   const { data } = await supabase
     .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, bio, profiles!profile_id(full_name)')
+    .select('id, vehicle_type, license_plate, phone, bio, profiles(full_name)')
     .eq('is_available', true)
     .order('created_at', { ascending: true })
 
@@ -27,7 +27,7 @@ export default async function TransportistasPage() {
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
+      <section className="relative overflow-hidden bg-linear-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
         {/* Mountain silhouette */}
         <svg
           className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.13]"
@@ -89,7 +89,7 @@ export default async function TransportistasPage() {
 
                 <Link
                   href="/transporte/solicitar"
-                  className="inline-flex items-center justify-center w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] px-4 hover:bg-primary/90 transition-colors"
+                  className="inline-flex items-center justify-center w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 transition-colors"
                 >
                   {copy.requestRide}
                 </Link>

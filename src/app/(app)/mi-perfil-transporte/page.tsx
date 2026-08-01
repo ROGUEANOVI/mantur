@@ -46,7 +46,7 @@ export default async function MiPerfilTransportePage() {
   // Step 1: get the transporter profile (need its id for subsequent queries)
   const { data: transporterData } = await supabase
     .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, bio, is_available, profiles!profile_id(full_name)')
+    .select('id, vehicle_type, license_plate, phone, bio, is_available, profiles(full_name)')
     .eq('profile_id', user!.id)
     .single()
 
@@ -199,7 +199,7 @@ export default async function MiPerfilTransportePage() {
                     <input type="hidden" name="requestId" value={req.id} />
                     <button
                       type="submit"
-                      className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[40px] px-4 hover:bg-primary/90 transition-colors"
+                      className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-10 px-4 hover:bg-primary/90 transition-colors"
                     >
                       {copy.pendingRequests.accept}
                     </button>
