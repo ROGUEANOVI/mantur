@@ -90,7 +90,7 @@ export const businessesCopy = {
       waterfall: 'Cascada',
       river: 'Río',
       viewpoint: 'Mirador',
-      beach: 'Playa',
+      plaza: 'Plaza',
       park: 'Parque',
       other: 'Lugar de interés',
     } as Record<string, string>,

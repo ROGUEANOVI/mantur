@@ -4,6 +4,7 @@ export const adminCopy = {
     negocios: 'Negocios',
     lugares: 'Lugares',
     comisiones: 'Comisiones',
+    categorias: 'Categorías',
   },
 
   dashboard: {
@@ -28,6 +29,7 @@ export const adminCopy = {
 
   negocios: {
     title: 'Negocios',
+    subtitle: 'Aprueba, rechaza y gestiona los negocios registrados en la plataforma.',
     new: 'Nuevo negocio',
     approve: 'Aprobar',
     reject: 'Rechazar',
@@ -70,14 +72,10 @@ export const adminCopy = {
       },
     },
     statusColors: {
-      pending:
-        'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-      active:
-        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      rejected:
-        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-      inactive:
-        'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+      pending:  'bg-accent/15 text-accent',
+      active:   'bg-primary/15 text-primary',
+      rejected: 'bg-destructive/15 text-destructive',
+      inactive: 'bg-muted text-muted-foreground',
     } as Record<string, string>,
     statusLabels: {
       pending: 'Pendiente',
@@ -135,6 +133,35 @@ export const adminCopy = {
       generic: 'Error al guardar. Intenta de nuevo.',
       notFound: 'Lugar no encontrado.',
       deleteError: 'Error al eliminar.',
+    },
+  },
+
+  categorias: {
+    title: 'Categorías de negocios',
+    subtitle: 'Gestiona los tipos de negocio disponibles para registro.',
+    new: 'Nueva categoría',
+    namePlaceholder: 'Ej: Cabaña',
+    slugPlaceholder: 'Ej: cabana',
+    add: 'Agregar',
+    adding: 'Agregando...',
+    empty: 'No hay categorías registradas.',
+    activate: 'Activar',
+    deactivate: 'Desactivar',
+    delete: 'Eliminar',
+    errors: {
+      nameRequired: 'El nombre es obligatorio.',
+      slugRequired: 'El slug es obligatorio.',
+      slugFormat: 'El slug solo puede contener letras, números y guiones bajos.',
+      slugTaken: 'Ya existe una categoría con ese slug.',
+      generic: 'Error al guardar. Intenta de nuevo.',
+      notFound: 'Categoría no encontrada.',
+      deleteError: 'No se puede eliminar. Intenta desactivarla en su lugar.',
+    },
+    dashboard: {
+      sections: {
+        categories: 'Categorías de negocios',
+        categoriesDesc: 'Agregar o desactivar tipos de negocio disponibles',
+      },
     },
   },
 

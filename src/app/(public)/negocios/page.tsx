@@ -18,8 +18,7 @@ type BusinessRow = {
   address: string | null
 }
 
-const VALID_TYPES = ['resort', 'restaurant', 'farm', 'eatery', 'other'] as const
-type BusinessType = (typeof VALID_TYPES)[number]
+type CategoryRow = { slug: string; name: string }
 
 export default async function NegociosPage({
   searchParams,
@@ -28,15 +27,24 @@ export default async function NegociosPage({
 }) {
   const { type: rawType, q: rawQ, page: rawPage } = await searchParams
 
-  const typeFilter: BusinessType | null =
-    VALID_TYPES.includes(rawType as BusinessType) ? (rawType as BusinessType) : null
-
   const search = rawQ?.trim().slice(0, 100) ?? ''
   const page = Math.max(1, parseInt(rawPage ?? '1', 10) || 1)
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
   const supabase = await createClient()
+
+  // Fetch active categories from DB — drives both the filter pills and type validation
+  const { data: categoriesData } = await supabase
+    .from('business_categories')
+    .select('slug, name')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  const categories = (categoriesData ?? []) as CategoryRow[]
+  const validSlugs = new Set(categories.map((c) => c.slug))
+
+  const typeFilter = rawType && validSlugs.has(rawType) ? rawType : null
 
   let query = supabase
     .from('businesses')
@@ -96,7 +104,7 @@ export default async function NegociosPage({
           </Suspense>
         </div>
 
-        {/* Pills de tipo sobre el mismo fondo oscuro */}
+        {/* Pills de tipo — driven by business_categories table */}
         <div className="border-t border-white/10 py-3">
           <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
             <Link
@@ -110,22 +118,22 @@ export default async function NegociosPage({
             >
               Todos
             </Link>
-            {VALID_TYPES.map((t) => {
+            {categories.map((cat) => {
               const href = search
-                ? `/negocios?type=${t}&q=${encodeURIComponent(search)}`
-                : `/negocios?type=${t}`
+                ? `/negocios?type=${cat.slug}&q=${encodeURIComponent(search)}`
+                : `/negocios?type=${cat.slug}`
               return (
                 <Link
-                  key={t}
+                  key={cat.slug}
                   href={href}
                   className={cn(
                     'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
-                    typeFilter === t
+                    typeFilter === cat.slug
                       ? 'border-white bg-white text-primary'
                       : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
                   )}
                 >
-                  {copy.types[t]}
+                  {cat.name}
                 </Link>
               )
             })}
@@ -143,7 +151,7 @@ export default async function NegociosPage({
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {(businesses as BusinessRow[]).map((business) => (
-                  <BusinessCard key={business.id} business={business} />
+                  <BusinessCard key={business.id} business={business} categoryNames={Object.fromEntries(categories.map((c) => [c.slug, c.name]))} />
                 ))}
               </div>
               <PaginationNav
@@ -162,10 +170,10 @@ export default async function NegociosPage({
   )
 }
 
-function BusinessCard({ business }: { business: BusinessRow }) {
+function BusinessCard({ business, categoryNames }: { business: BusinessRow; categoryNames: Record<string, string> }) {
   const copy = businessesCopy.businesses
   const imageUrl = business.images?.[0]
-  const typeLabel = copy.types[business.type] ?? copy.types.other
+  const typeLabel = categoryNames[business.type] ?? copy.types.other
 
   return (
     <Link
