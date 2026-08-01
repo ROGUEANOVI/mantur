@@ -340,6 +340,104 @@ export async function uploadBusinessImage(
   revalidatePath(`/negocios/${businessId}`)
 }
 
+const EXPERIENCE_MAX_IMAGES = 5
+
+export async function uploadExperienceImage(
+  experienceId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  // Verify the experience belongs to a business owned by this user.
+  const { data: exp } = await supabase
+    .from('experiences')
+    .select('id, images, business_id')
+    .eq('id', experienceId)
+    .maybeSingle()
+
+  if (!exp) return { error: 'Experiencia no encontrada.' }
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', exp.business_id)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Experiencia no encontrada.' }
+
+  const currentImages: string[] = exp.images ?? []
+  if (currentImages.length >= EXPERIENCE_MAX_IMAGES) {
+    return { error: `Máximo ${EXPERIENCE_MAX_IMAGES} fotos por actividad.` }
+  }
+
+  const file = formData.get('image') as File | null
+  const fileError = validateImageFile(file)
+  if (fileError) return { error: fileError }
+
+  const admin = createAdminClient()
+  const path = `experiences/${experienceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`
+
+  const { error: uploadError } = await admin.storage
+    .from(BUSINESS_BUCKET)
+    .upload(path, file!, { contentType: file!.type, upsert: false })
+
+  if (uploadError) return { error: 'No se pudo subir la imagen. Intenta de nuevo.' }
+
+  const { data: { publicUrl } } = admin.storage.from(BUSINESS_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('experiences')
+    .update({ images: [...currentImages, publicUrl] })
+    .eq('id', experienceId)
+
+  if (updateError) {
+    await admin.storage.from(BUSINESS_BUCKET).remove([path])
+    return { error: 'No se pudo guardar la imagen.' }
+  }
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${exp.business_id}`)
+}
+
+export async function deleteExperienceImage(
+  experienceId: string,
+  imageUrl: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: exp } = await supabase
+    .from('experiences')
+    .select('id, images, business_id')
+    .eq('id', experienceId)
+    .maybeSingle()
+
+  if (!exp) return { error: 'Experiencia no encontrada.' }
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', exp.business_id)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Experiencia no encontrada.' }
+
+  const admin = createAdminClient()
+  const storagePath = extractStoragePath(imageUrl, BUSINESS_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(BUSINESS_BUCKET).remove([storagePath])
+  }
+
+  const newImages = (exp.images ?? []).filter((u: string) => u !== imageUrl)
+  await admin.from('experiences').update({ images: newImages }).eq('id', experienceId)
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${exp.business_id}`)
+}
+
 export async function deleteBusinessImage(
   businessId: string,
   imageUrl: string,
