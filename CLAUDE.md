@@ -125,7 +125,7 @@ redesigned: `PublicNav` on top, collapsible `AdminSidebar` (hover-to-expand,
 and user count), quick approve/reject queue for pending businesses, recent
 bookings list. Place type `beach` replaced by `plaza`.
 
-### Phase 3 — Role request flow (PR #14 — merged)
+### Phase 3 — Role request flow + business auto-create fix (PRs #14, #15 — merged)
 Removed role selection from signup — all new accounts start as `tourist`.
 New `role_requests` table + RLS. New `tourist_guide` user_role enum value.
 `/solicitar-rol` — marketing "Únete a ManTur" page with brand hero and
@@ -140,6 +140,18 @@ promotes user role in `profiles` and cancels other pending requests from same us
 Signup form redesigned with confirm-password field, visibility toggles,
 real-time strength indicator (8 chars, uppercase, digit, special char).
 Migration: `20260731200000_add_tourist_guide_role_and_role_requests.sql`.
+
+### Phase 3 — Multi-category businesses (PR #16 — merged)
+`business_category_links` join table (composite PK, `ON DELETE CASCADE` on
+`business_id`, `ON DELETE RESTRICT` on `category_id`). RLS: public SELECT;
+INSERT/DELETE for business owner or admin. Migration:
+`20260801000000_create_business_category_links.sql`.
+`/mi-negocio` create/edit forms: multi-checkbox category selector driven from
+`business_categories` DB (replaces the 5-button type selector).
+`/solicitar-rol` business_owner step: multi-checkbox instead of single select.
+`/negocios` filter: uses join table instead of `eq('type', slug)`;
+`BusinessCard` shows up to 2 category pills. `businesses.type` kept as legacy
+field (`'other'` for new records) — no longer user-facing.
 
 ## Pending / Phase 4
 
