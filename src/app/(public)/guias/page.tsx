@@ -1,8 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Compass } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
+
+export const metadata: Metadata = {
+  title: 'Guías Turísticos',
+  description: 'Conoce Manaure Balcón del Cesar de la mano de guías locales expertos. Reserva tours de ecoturismo, historia y gastronomía local.',
+  openGraph: {
+    title: 'Guías turísticos locales en Manaure | ManTur',
+    description: 'Conoce Manaure con guías locales expertos. Tours de ecoturismo, historia y gastronomía.',
+    url: 'https://mantur.co/guias',
+  },
+}
 
 type GuideRow = {
   id: string
