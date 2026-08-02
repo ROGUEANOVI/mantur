@@ -178,18 +178,29 @@ up to 5 images stored under `experiences/[id]/` in `business-images` bucket).
 via `experience → business → owner_id` chain before using admin client.
 `ExperienceCard` now shows a pencil "Editar" link.
 
+### Phase 5b — Tourist guide flow (PRs #20 — merged)
+`tourist_guides` + `guide_tours` tables + full RLS. Migrations:
+`20260802000000_create_tourist_guides.sql`, `20260802100000_add_phone_to_tourist_guides.sql`,
+`20260802200000_add_notes_to_bookings.sql`. `approveRoleRequest` auto-creates
+`tourist_guides` row from metadata on approval (specialties, languages, bio, phone).
+Public `/guias` listing + `/guias/[id]` profile with full tour descriptions and booking form.
+Three-state booking access: `tourist` (form) / `guest` (→ login) / `other_role` (hidden).
+`/mi-perfil-guia` panel: availability toggle, tour CRUD (`/tours/nueva`, `/tours/[id]/editar`
+with `ImageManager`), recent bookings with tourist notes.
+`/mi-perfil-guia/editar`: guide updates phone, bio, specialties, languages post-approval.
+Booking notes field: tourist leaves coordination hints (hora, punto de encuentro).
+Confirmation page: shows guide WhatsApp link (`wa.me/57...`) + tourist notes when booking a tour.
+`/solicitar-rol`: tourist_guide step captures phone. Slug translation for specialties/languages
+across all pages. `bookings.notes` column added. Commission rate 10% for `guide_tour`.
+
 ## Pending / Phase 5 (continued)
 
-- **Tourist guide flow** (`feat/tourist-guides`, Phase 5b): `tourist_guides` table +
-  `guide_tours` table (price, capacity, duration, images). Alter `bookings` to
-  accept `guide_tour_id`. Public `/guias` listing, `/guias/[id]` profile + tours,
-  `/mi-perfil-guia` panel (CRUD de tours + disponibilidad), booking + Wompi flow
-  reused. Model confirmed: tours with fixed price, payment inside platform.
+- **Open Graph / meta tags** (`feat/open-graph`, Phase 5d — PR #21 open): default
+  OG image (pin logo on Bosque background), per-page metadata for all public routes,
+  `generateMetadata` with real business/guide data for entity pages.
 - **README.md** (Phase 5c): add a project README to the repository.
 - **PWA manifest** (`manifest.json` + icons using the pin logo) for home screen
   install on Android/iOS (Phase 5d).
-- **Open Graph / meta tags**: og:image, og:title per page for WhatsApp/social
-  sharing — use the pin logo on Bosque background (Phase 5d).
 - **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
   Auth redirect URLs already updated to include `https://mantur.co/**` ✅.
 
