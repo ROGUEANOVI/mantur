@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     shortcut: '/icon.svg',
     apple: '/icon.svg',
   },
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#0e7a54' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a2b1e' },
+  ],
   openGraph: {
     siteName: 'ManTur',
     locale: 'es_CO',
