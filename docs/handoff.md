@@ -28,6 +28,10 @@
 | 17 | feat/transporters | Transporters phase — public listing, request flow, driver panel | ✅ merged |
 | 18 | feat/transporters | Post-merge fixes: RLS policy for profile names, request modal, admin layout | ✅ merged |
 | 19 | feat/experience-images | Experience image uploads + edit page | ✅ merged |
+| 20 | feat/tourist-guides | Tourist guide flow — public listing, tour booking, guide panel, WhatsApp coordination | ✅ merged |
+| 21 | feat/open-graph | Open Graph default image + per-page metadata + title template | ✅ merged |
+| 22 | feat/pwa | PWA manifest + apple-icon edge-rendered PNG | ✅ merged |
+| 23 | docs/readme-and-handoff | README.md + CLAUDE.md + handoff.md update | ✅ merged |
 
 ---
 
@@ -225,25 +229,171 @@ Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored)
 
 ---
 
-## Next session — ordered by priority
+## Session ending ~2026-08-01 — Phases 5b, 5c, 5d
 
-### 1. Phase 5b — Tourist guide flow (new branch: `feat/tourist-guides`)
-Model confirmed: tours with fixed price, payment inside platform, public `/guias` page.
-Scope:
-- **DB**: `tourist_guides` table (profile_id, specialties[], languages[], bio, is_available);
-  `guide_tours` table (guide_id, name, description, price, capacity, duration_minutes, images[], status);
-  alter `bookings` to add nullable `guide_tour_id` + nullable `guide_id`, make `experience_id`/`business_id` nullable
-- **`approveRoleRequest`**: add `tourist_guide` branch → auto-insert `tourist_guides` row from metadata
-- **`/guias`**: public listing of available guides (similar to `/transportistas` but with specialty pills)
-- **`/guias/[id]`**: guide profile page with tour cards + "Reservar" button
-- **`/mi-perfil-guia`**: guide panel — CRUD for tours (like mi-negocio experiences), availability toggle
-- **Booking flow**: reuse existing `/reservas/nueva` and payment flow adapting for `guide_tour_id`
-- **`PublicNav`**: add "Guías" to main nav; tourist_guide role gets "Mi panel" link
+### PR #20 — feat/tourist-guides (merged)
+Full tourist guide actor end-to-end.
 
-### 2. Phase 5c — README.md
-Add a project README to the repository root.
+**DB migrations** (all applied in production ✅):
+- `20260802000000_create_tourist_guides.sql` — `tourist_guides` + `guide_tours` + RLS
+- `20260802100000_add_phone_to_tourist_guides.sql` — phone column + `approveRoleRequest` auto-fill
+- `20260802200000_add_notes_to_bookings.sql` — nullable `notes` text column on `bookings`
 
-### 3. Phase 5d — PWA manifest + Open Graph
-Can bundle in a single `chore/pwa-meta` branch:
-- `public/manifest.json` — PWA manifest with pin icons
-- `src/app/layout.tsx` — add `<meta>` og tags + link to manifest
+**`approveRoleRequest`** (admin/actions.ts): `tourist_guide` branch auto-inserts `tourist_guides`
+row from metadata (specialties, languages, bio, phone).
+
+**`/guias`** — public listing with availability badge, bio, specialty pills (slug→label via
+`roleRequestsCopy`), tour count. Static `metadata` export.
+
+**`/guias/[id]`** — guide profile: bio, specialties, languages, phone, tour cards with full
+description (no line-clamp), price, duration, capacity. `generateMetadata` with real guide name/bio.
+Three-state `bookingAccess`: `tourist` (booking form) / `guest` (→ login button) / `other_role`
+(hidden — prevents guide from booking own tours).
+
+**`TourBookingForm`** — tourist selects date + people, adds optional notes ("Notas para el guía").
+
+**`/reservas/[bookingId]/confirmacion`** — shows WhatsApp block for guide-tour bookings:
+`wa.me/57{phone}` link (green #25D366) + tourist notes in muted box.
+
+**`/mi-perfil-guia`** — guide panel: availability toggle, tour CRUD (`/tours/nueva`,
+`/tours/[id]/editar` with ImageManager up to 5 images), recent bookings with tourist notes.
+
+**`/mi-perfil-guia/editar`** — guide updates phone, bio, specialties, languages post-approval.
+`updateGuideProfile` server action validates slugs against `VALID_SPECIALTIES` / `VALID_LANGUAGES`
+allowlist sets before persisting.
+
+**`/solicitar-rol`** — tourist_guide step now captures phone field.
+
+**Slug translation** applied on all 4 specialty/language render points (admin/solicitudes,
+mi-perfil-guia, /guias, /guias/[id]).
+
+**Commission** — 10% rate for `guide_tour` added to `commission_config` seed.
+
+**Copy files touched**: `src/lib/copy/guides.ts`, `src/lib/copy/bookings.ts`.
+
+---
+
+### PR #21 — feat/open-graph (merged)
+**`src/app/opengraph-image.tsx`** — edge runtime, `ImageResponse`, 1200×630. Bosque gradient
+background, decorative circles, pin SVG (white body / green mountain / amber sun),
+"ManTur" 88px bold white, tagline 30px amber, location line muted.
+
+**`src/app/layout.tsx`** additions:
+- `metadataBase: new URL('https://mantur.co')`
+- `title: { default: 'ManTur — Turismo con alma local', template: '%s | ManTur' }`
+- `openGraph` defaults: siteName, locale `es_CO`, type `website`
+- `twitter: { card: 'summary_large_image' }`
+- `themeColor`: `#0e7a54` light / `#0a2b1e` dark
+
+**`generateMetadata`** on `/negocios/[id]` (uses admin client, reads `name`, `description`,
+first image URL) and `/guias/[id]` (guide name + bio).
+
+**Static `metadata`** exports on `/negocios`, `/guias`, `/transportistas`.
+
+---
+
+### PR #22 — feat/pwa (merged)
+**`src/app/manifest.ts`** — `MetadataRoute.Manifest`: standalone display, portrait, Bosque
+background, Verde theme, 3 shortcuts (Negocios / Guías / Transportadores), SVG icon + maskable
+PNG icon.
+
+**`src/app/apple-icon.tsx`** — edge runtime, 180×180 PNG via `ImageResponse`. Verde background,
+white pin SVG (108×132 in 180×180 canvas), amber sun. Used as `purpose: 'maskable'` in manifest.
+
+---
+
+### PR #23 — docs/readme-and-handoff (merged)
+`README.md` created. `CLAUDE.md` updated (5d marked done, pending section trimmed). This file updated.
+
+---
+
+## Current schema (all migrations applied in production ✅)
+
+```
+auth.users              → Supabase managed
+profiles                → id (FK auth.users), role (user_role), full_name, avatar_url, phone
+businesses              → id, owner_id, name, description, type, address, phone, images[],
+                          verified, status, is_featured, lat, lng
+places                  → id, name, description, type (waterfall|river|viewpoint|plaza|park|other),
+                          images[], lat, lng
+experiences             → id, business_id, name, description, price, capacity,
+                          duration_minutes, images[], status
+commission_config       → id, service_type (UNIQUE), rate, updated_by, updated_at
+bookings                → id, experience_id (nullable), guide_tour_id (nullable),
+                          tourist_id, business_id (nullable), guide_id (nullable),
+                          people_count, booking_date, total_amount, status,
+                          notes (nullable text), created_at, updated_at
+transactions            → id, booking_id (UNIQUE), wompi_reference, wompi_link_id,
+                          wompi_link_url, status, amount_in_cents, currency,
+                          commission_rate, commission_amount_cents, created_at, updated_at
+business_categories     → id, name, slug (UNIQUE), is_active, sort_order, created_at
+business_category_links → business_id (FK), category_id (FK) [composite PK]
+role_requests           → id, user_id, requested_role, status, notes, metadata (JSONB),
+                          rejection_reason, reviewer_id, reviewed_at, created_at
+transporters            → id, profile_id (UNIQUE FK), vehicle_type, license_plate,
+                          phone, is_available, bio, created_at, updated_at
+transport_requests      → id, tourist_id, transporter_id (nullable), origin, destination,
+                          requested_datetime, people_count, notes, status, created_at, updated_at
+tourist_guides          → id, profile_id (UNIQUE FK), specialties[], languages[], bio,
+                          phone, is_available, created_at, updated_at
+guide_tours             → id, guide_id (FK tourist_guides), name, description, price,
+                          capacity, duration_minutes, images[], status, created_at, updated_at
+```
+
+**Storage buckets** (all public read):
+- `business-images` — business owner/admin write (businesses + experiences images)
+- `place-images` — admin-only write
+
+---
+
+## Stack and key configuration
+
+| Item | Value |
+|------|-------|
+| Next.js | 16 (App Router) |
+| React | 19 |
+| Tailwind | v4 |
+| shadcn/ui | v4 Vega preset (Base UI primitives) |
+| @supabase/ssr | 0.12.4 |
+| Supabase keys | JWT legacy format (`eyJ...`) — do NOT use `sb_publishable_` format |
+| Confirm email | **Disabled** in Supabase Dashboard |
+
+Supabase project ref: `ndozquvwgvxmtabqaaba`. Keys in `.env.local` (git-ignored).
+
+---
+
+## Key decisions (do not re-derive)
+
+- **Admin client** (`service_role`) in `signUp` to upsert `role` + `full_name`; `is_admin()` SECURITY DEFINER to avoid infinite RLS recursion
+- **`get_commission_rate()`** EXECUTE revoked from PUBLIC, granted only to `service_role`
+- **Money is server-only** — price display-safe client side, all calculations in Server Actions
+- **Booking access tri-state** — `'tourist'` shows form, `'guest'` shows login redirect, `'other_role'` renders null (prevents guides booking own tours)
+- **WhatsApp coordination** for guide tours — guide phone shown as `wa.me/57{phone}` on confirmation; tourist adds notes at booking time
+- **Slug translation** everywhere specialties/languages render — DB stores English slugs, UI maps through `roleRequestsCopy.form.touristGuide` dictionaries
+- **`acceptTransportRequest`** uses service_role for atomic first-one-wins claim
+- **OG image** generated at edge with `ImageResponse` — no binary PNG in repo
+- **PWA icon** via `apple-icon.tsx` edge route — reused as `purpose: 'maskable'` in manifest
+- **`as unknown as Type`** cast pattern for Supabase nested join type workaround
+- **`business_id` denormalized** in `bookings` — avoids JOIN in RLS for business owners
+- **Commission stored at booking time** — never recalculated retroactively
+
+---
+
+## Technical debt (post-MVP)
+
+| Priority | Item |
+|----------|------|
+| M-1 | Wrap `bookings` + `transactions` inserts in a Postgres RPC for atomicity |
+| M-2 | Add FK from `businesses.type` to `business_categories.slug` + migrate existing data |
+| L-1 | DB-level capacity enforcement (SELECT FOR UPDATE) to prevent overbooking race |
+| L-2 | Real Wompi integration (webhook signature verification, production keys) |
+| L-3 | Guide tour image carousel + calendar availability picker |
+
+---
+
+## Next steps (if project continues)
+
+- **Review/rating system** for guides and experiences
+- **Native push notifications** (Supabase Realtime or FCM)
+- **Itinerary packages** — bundle transport + guide + experience into one booking
+- **Municipal institutional integration** — official tourism board data feed

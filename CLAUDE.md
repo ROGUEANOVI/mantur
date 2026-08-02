@@ -193,16 +193,28 @@ Confirmation page: shows guide WhatsApp link (`wa.me/57...`) + tourist notes whe
 `/solicitar-rol`: tourist_guide step captures phone. Slug translation for specialties/languages
 across all pages. `bookings.notes` column added. Commission rate 10% for `guide_tour`.
 
-## Pending / Phase 5 (continued)
+### Phase 5c — README (PR #23 — merged)
+`README.md` added to repository root: project overview, stack, local setup
+instructions (env vars, `npm install`, Supabase schema overview, contributing
+conventions).
 
-- **Open Graph / meta tags** (`feat/open-graph`, Phase 5d — PR #21 open): default
-  OG image (pin logo on Bosque background), per-page metadata for all public routes,
-  `generateMetadata` with real business/guide data for entity pages.
-- **README.md** (Phase 5c): add a project README to the repository.
-- **PWA manifest** (`manifest.json` + icons using the pin logo) for home screen
-  install on Android/iOS (Phase 5d).
+### Phase 5d — Open Graph + PWA (PRs #21, #22 — merged)
+`src/app/opengraph-image.tsx` — edge-rendered 1200×630 default OG image
+(Bosque gradient, pin SVG, ManTur wordmark, tagline in amber). `generateMetadata`
+on `/negocios/[id]` and `/guias/[id]` with real entity name/description/image;
+static `metadata` on `/negocios`, `/guias`, `/transportistas`. Title template
+`'%s | ManTur'` in root layout. `themeColor` light/dark for browser chrome.
+`src/app/manifest.ts` — PWA manifest (standalone, portrait, 3 shortcuts).
+`src/app/apple-icon.tsx` — edge-rendered 180×180 maskable PNG icon.
+
+## Pending / post-MVP
+
 - **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
   Auth redirect URLs already updated to include `https://mantur.co/**` ✅.
+- **Tourist guide enhancements**: tour image carousels, calendar availability
+  picker, review/rating system.
+- **Real Wompi integration**: replace sandbox with production keys + webhook
+  signature verification.
 
 ## Data model (v1 — English names, relational)
 
