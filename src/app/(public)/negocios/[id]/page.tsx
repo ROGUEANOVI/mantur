@@ -1,10 +1,56 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { MapPin, Phone, Store, ChevronLeft, Clock, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
 import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  if (!UUID_RE.test(id)) return {}
+
+  const { data } = await createAdminClient()
+    .from('businesses')
+    .select('name, description, images')
+    .eq('id', id)
+    .eq('verified', true)
+    .eq('status', 'active')
+    .single()
+
+  if (!data) return {}
+
+  const title = data.name
+  const description =
+    data.description ??
+    `Reserva experiencias en ${data.name} en Manaure Balcón del Cesar.`
+  const image = (data.images as string[] | null)?.[0]
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: `https://mantur.co/negocios/${id}`,
+      images: image ? [{ url: image, width: 1200, height: 630, alt: title }] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+  }
+}
 
 type ExperienceRow = {
   id: string
