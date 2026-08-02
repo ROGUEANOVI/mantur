@@ -5,13 +5,34 @@ import { cn } from "@/lib/utils";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
+const APP_URL = 'https://mantur.co'
+const DESCRIPTION =
+  'Descubre Manaure Balcón del Cesar. Reserva experiencias en negocios locales, contrata guías turísticos y encuentra transporte con alma local.'
+
 export const metadata: Metadata = {
-  title: 'ManTur',
-  description: 'Descubre Manaure Balcón del Cesar',
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: 'ManTur — Turismo con alma local',
+    template: '%s | ManTur',
+  },
+  description: DESCRIPTION,
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg',
     apple: '/icon.svg',
+  },
+  openGraph: {
+    siteName: 'ManTur',
+    locale: 'es_CO',
+    type: 'website',
+    title: 'ManTur — Turismo con alma local',
+    description: DESCRIPTION,
+    url: APP_URL,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ManTur — Turismo con alma local',
+    description: DESCRIPTION,
   },
 }
 

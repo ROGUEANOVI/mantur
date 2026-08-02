@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Clock, Users, Phone } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -7,6 +8,36 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import TourBookingForm from '@/components/guias/TourBookingForm'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  if (!UUID_RE.test(id)) return {}
+
+  const { data } = await createAdminClient()
+    .from('tourist_guides')
+    .select('bio, profiles(full_name)')
+    .eq('id', id)
+    .single()
+
+  if (!data) return {}
+
+  const name = (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? 'Guía turístico'
+  const description = data.bio ?? `Conoce a ${name}, guía turístico local en Manaure Balcón del Cesar.`
+
+  return {
+    title: name,
+    description,
+    openGraph: {
+      title: `${name} — Guía turístico | ManTur`,
+      description,
+      url: `https://mantur.co/guias/${id}`,
+    },
+  }
+}
 
 type Guide = {
   id: string

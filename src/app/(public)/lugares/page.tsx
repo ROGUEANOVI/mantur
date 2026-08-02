@@ -1,8 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
+
+export const metadata: Metadata = {
+  title: 'Lugares Imperdibles',
+  description: 'Descubre los atractivos turísticos de Manaure: cerros, parques, ríos y sitios históricos de la Serranía del Perijá.',
+  openGraph: {
+    title: 'Lugares imperdibles en Manaure | ManTur',
+    description: 'Descubre los atractivos turísticos de Manaure: cerros, parques, ríos y sitios históricos.',
+    url: 'https://mantur.co/lugares',
+  },
+}
 import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
 import PaginationNav from '@/components/shared/PaginationNav'

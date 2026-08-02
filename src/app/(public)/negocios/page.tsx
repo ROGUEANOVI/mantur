@@ -1,8 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { Store, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
+
+export const metadata: Metadata = {
+  title: 'Negocios',
+  description: 'Explora restaurantes, balnearios, fincas y más en Manaure Balcón del Cesar. Reserva experiencias únicas con negocios locales.',
+  openGraph: {
+    title: 'Negocios locales en Manaure | ManTur',
+    description: 'Explora restaurantes, balnearios, fincas y más en Manaure Balcón del Cesar.',
+    url: 'https://mantur.co/negocios',
+  },
+}
 import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
 import PaginationNav from '@/components/shared/PaginationNav'

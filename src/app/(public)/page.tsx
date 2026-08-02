@@ -1,8 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Store, TreePine, Waves, Utensils, Home, Star, MapPin } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { landingCopy } from '@/lib/copy/landing'
 import { cn } from '@/lib/utils'
+
+export const metadata: Metadata = {
+  title: 'ManTur — Turismo con alma local',
+  description: 'Descubre Manaure Balcón del Cesar. Reserva experiencias en negocios locales, contrata guías turísticos y encuentra transporte con alma local.',
+  openGraph: {
+    title: 'ManTur — Turismo con alma local',
+    description: 'Descubre Manaure Balcón del Cesar. Reserva experiencias, guías y transporte local.',
+    url: 'https://mantur.co',
+  },
+}
 
 type FeaturedBusiness = {
   id: string

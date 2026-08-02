@@ -1,8 +1,19 @@
+import type { Metadata } from 'next'
 import { Car } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
 import TransporterCardWithModal from '@/components/transporte/TransporterCardWithModal'
+
+export const metadata: Metadata = {
+  title: 'Transportadores',
+  description: 'Encuentra mototaxi y transporte local en Manaure Balcón del Cesar. Solicita un traslado con conductores locales de confianza.',
+  openGraph: {
+    title: 'Transportadores en Manaure | ManTur',
+    description: 'Encuentra mototaxi y transporte local en Manaure. Solicita un traslado con conductores locales.',
+    url: 'https://mantur.co/transportistas',
+  },
+}
 
 type TransporterRow = {
   id: string
