@@ -164,6 +164,8 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
             </div>
           </div>
 
+          <Field label={copy.form.touristGuide.phone} name="phone" placeholder={copy.form.touristGuide.phonePlaceholder} type="tel" />
+
           <Field label={copy.form.touristGuide.experienceYears} name="experience_years" placeholder={copy.form.touristGuide.experienceYearsPlaceholder} type="number" min={0} max={60} />
 
           <div className="space-y-1.5">

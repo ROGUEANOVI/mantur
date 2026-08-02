@@ -76,6 +76,8 @@ export const roleRequestsCopy = {
         english: 'Inglés',
         other:   'Otro idioma',
       },
+      phone:                      'Teléfono de contacto',
+      phonePlaceholder:           'Ej: 300 123 4567',
       experienceYears:            'Años de experiencia',
       experienceYearsPlaceholder: 'Ej: 3',
       bio:                        'Presentación',

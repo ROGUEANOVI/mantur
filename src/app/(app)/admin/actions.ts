@@ -442,6 +442,19 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     })
   }
 
+  // Auto-create tourist guide profile from the metadata captured at application time
+  if (request.requested_role === 'tourist_guide') {
+    const meta = (request.metadata ?? {}) as Record<string, unknown>
+    await admin.from('tourist_guides').insert({
+      profile_id: request.user_id,
+      specialties: Array.isArray(meta.specialties) ? meta.specialties : [],
+      languages: Array.isArray(meta.languages) ? meta.languages : [],
+      bio: (meta.bio as string | undefined)?.trim() || null,
+      phone: (meta.phone as string | undefined)?.trim() || '',
+      is_available: false,
+    })
+  }
+
   // Cancel any other pending requests from this user (they got a role)
   await admin
     .from('role_requests')

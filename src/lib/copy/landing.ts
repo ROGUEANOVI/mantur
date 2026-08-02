@@ -4,6 +4,7 @@ export const landingCopy = {
     negocios: 'Explorar',
     lugares: 'Lugares Imperdibles',
     transportistas: 'Transportadores',
+    guias: 'Guías',
     login: 'Iniciar sesión',
     signup: 'Registrarse',
     signout: 'Cerrar sesión',
@@ -12,6 +13,7 @@ export const landingCopy = {
     myTrips: 'Mis traslados',
     myBusiness: 'Mis negocios',
     myTransport: 'Mi panel',
+    myGuidePanel: 'Mi panel de guía',
     joinMantur: 'Únete',
   },
 
