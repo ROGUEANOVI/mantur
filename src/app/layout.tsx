@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -21,10 +21,6 @@ export const metadata: Metadata = {
     shortcut: '/icon.svg',
     apple: '/icon.svg',
   },
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#0e7a54' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a2b1e' },
-  ],
   openGraph: {
     siteName: 'ManTur',
     locale: 'es_CO',
@@ -38,6 +34,13 @@ export const metadata: Metadata = {
     title: 'ManTur — Turismo con alma local',
     description: DESCRIPTION,
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#0e7a54' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a2b1e' },
+  ],
 }
 
 export default function RootLayout({
