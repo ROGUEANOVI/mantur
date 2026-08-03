@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePrice, parsePositiveInt } from './actions'
+import { parsePrice, parsePositiveInt } from './parsers'
 
 describe('parsePrice', () => {
   it('accepts a normal positive price', () => {
