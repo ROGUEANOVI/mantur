@@ -9,14 +9,14 @@ type ActionResult = { error: string } | void
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function parsePrice(raw: string): number | null {
+export function parsePrice(raw: string): number | null {
   const price = parseFloat(raw)
   // isNaN catches NaN; Number.isFinite rejects Infinity/-Infinity
   if (!Number.isFinite(price) || price < 0 || price > 100_000_000) return null
   return price
 }
 
-function parsePositiveInt(raw: string | null): number | null | false {
+export function parsePositiveInt(raw: string | null): number | null | false {
   if (!raw) return null
   const n = parseInt(raw, 10)
   if (isNaN(n) || n <= 0) return false
