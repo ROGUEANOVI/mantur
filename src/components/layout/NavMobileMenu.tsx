@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Menu, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -15,7 +16,12 @@ export default function NavMobileMenu({
   children: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Close when navigating
   useEffect(() => {
@@ -38,7 +44,7 @@ export default function NavMobileMenu({
         )}
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <>
           {/* Backdrop */}
           <div
@@ -47,7 +53,7 @@ export default function NavMobileMenu({
             aria-hidden="true"
           />
           {/* Drawer */}
-          <div className="absolute left-0 right-0 top-full z-20 border-b border-border bg-background shadow-lg">
+          <div className="fixed left-0 right-0 top-14 z-20 border-b border-border bg-background shadow-lg">
             <nav className="flex flex-col divide-y divide-border">
               {links.map((link) => {
                 const isActive = pathname.startsWith(link.href)
@@ -69,7 +75,8 @@ export default function NavMobileMenu({
             </nav>
             <div className="px-4 py-4 border-t border-border">{children}</div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   )
