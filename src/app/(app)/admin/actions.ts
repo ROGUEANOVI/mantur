@@ -119,7 +119,7 @@ export async function createBusinessAsAdmin(
 ): Promise<ActionResult> {
   const { admin } = await getAuthenticatedAdmin()
 
-  const name = (formData.get('name') as string).trim()
+  const name = ((formData.get('name') as string | null) ?? '').trim()
   if (!name) return { error: adminCopy.negocios.form.errors.nameRequired }
 
   const type = formData.get('type') as string
@@ -130,9 +130,9 @@ export async function createBusinessAsAdmin(
   if (!UUID_RE.test(ownerId))
     return { error: adminCopy.negocios.form.errors.ownerRequired }
 
-  const description = (formData.get('description') as string).trim() || null
-  const address = (formData.get('address') as string).trim() || null
-  const phone = (formData.get('phone') as string).trim() || null
+  const description = (formData.get('description') as string | null)?.trim() || null
+  const address = (formData.get('address') as string | null)?.trim() || null
+  const phone = (formData.get('phone') as string | null)?.trim() || null
 
   const { error } = await admin.from('businesses').insert({
     name,
@@ -157,14 +157,14 @@ const PLACE_TYPES = ['waterfall', 'river', 'viewpoint', 'plaza', 'park', 'other'
 export async function createPlace(formData: FormData): Promise<ActionResult> {
   const { admin } = await getAuthenticatedAdmin()
 
-  const name = (formData.get('name') as string).trim()
+  const name = ((formData.get('name') as string | null) ?? '').trim()
   if (!name) return { error: adminCopy.lugares.errors.nameRequired }
 
   const type = formData.get('type') as string
   if (!PLACE_TYPES.includes(type as (typeof PLACE_TYPES)[number]))
     return { error: adminCopy.lugares.errors.typeRequired }
 
-  const description = (formData.get('description') as string).trim() || null
+  const description = (formData.get('description') as string | null)?.trim() || null
   const rawLat = formData.get('lat') as string
   const rawLng = formData.get('lng') as string
   const lat = rawLat ? Number(rawLat) : null
@@ -191,14 +191,14 @@ export async function updatePlace(formData: FormData): Promise<ActionResult> {
   const placeId = formData.get('placeId') as string
   if (!UUID_RE.test(placeId)) return { error: adminCopy.lugares.errors.notFound }
 
-  const name = (formData.get('name') as string).trim()
+  const name = ((formData.get('name') as string | null) ?? '').trim()
   if (!name) return { error: adminCopy.lugares.errors.nameRequired }
 
   const type = formData.get('type') as string
   if (!PLACE_TYPES.includes(type as (typeof PLACE_TYPES)[number]))
     return { error: adminCopy.lugares.errors.typeRequired }
 
-  const description = (formData.get('description') as string).trim() || null
+  const description = (formData.get('description') as string | null)?.trim() || null
   const rawLat = formData.get('lat') as string
   const rawLng = formData.get('lng') as string
   const lat = rawLat ? Number(rawLat) : null
