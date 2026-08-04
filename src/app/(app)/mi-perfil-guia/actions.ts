@@ -48,7 +48,7 @@ const VALID_LANGUAGES = new Set(['spanish','english','french','portuguese','indi
 export async function updateGuideProfile(formData: FormData): Promise<ActionResult> {
   const { supabase, userId } = await getAuthenticatedGuide()
 
-  const phone = (formData.get('phone') as string).trim()
+  const phone = ((formData.get('phone') as string | null) ?? '').trim()
   const bio = (formData.get('bio') as string | null)?.trim() || null
   const specialties = (formData.getAll('specialties') as string[]).filter((s) => VALID_SPECIALTIES.has(s))
   const languages = (formData.getAll('languages') as string[]).filter((l) => VALID_LANGUAGES.has(l))
@@ -96,14 +96,14 @@ function parsePrice(raw: string): number | null {
 export async function createGuideTour(formData: FormData): Promise<ActionResult> {
   const { guideId } = await getAuthenticatedGuide()
 
-  const name = (formData.get('name') as string).trim()
+  const name = ((formData.get('name') as string | null) ?? '').trim()
   if (!name) return { error: guidesCopy.errors.nameRequired }
 
   const rawPrice = formData.get('price') as string
   const price = parsePrice(rawPrice)
   if (price === null) return { error: guidesCopy.errors.priceInvalid }
 
-  const description = (formData.get('description') as string).trim() || null
+  const description = (formData.get('description') as string | null)?.trim() || null
 
   const rawCapacity = formData.get('capacity') as string
   const capacity = rawCapacity ? parseInt(rawCapacity, 10) : 1
@@ -139,14 +139,14 @@ export async function updateGuideTour(
   const { guideId } = await getAuthenticatedGuide()
   if (!UUID_RE.test(tourId)) return { error: guidesCopy.errors.notFound }
 
-  const name = (formData.get('name') as string).trim()
+  const name = ((formData.get('name') as string | null) ?? '').trim()
   if (!name) return { error: guidesCopy.errors.nameRequired }
 
   const rawPrice = formData.get('price') as string
   const price = parsePrice(rawPrice)
   if (price === null) return { error: guidesCopy.errors.priceInvalid }
 
-  const description = (formData.get('description') as string).trim() || null
+  const description = (formData.get('description') as string | null)?.trim() || null
 
   const rawCapacity = formData.get('capacity') as string
   const capacity = rawCapacity ? parseInt(rawCapacity, 10) : 1
