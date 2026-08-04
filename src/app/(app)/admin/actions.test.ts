@@ -41,7 +41,9 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 
 const businessesUpdateSelect = vi.fn()
+const businessesUpdateAwait = vi.fn()
 const businessInsertSingle = vi.fn()
+const businessInsertAwait = vi.fn()
 const commissionUpdateSelect = vi.fn()
 const roleRequestSingle = vi.fn()
 const roleRequestStatusUpdate = vi.fn()
@@ -52,16 +54,48 @@ const categoryLinksInsert = vi.fn()
 const transportersInsert = vi.fn()
 const touristGuidesInsert = vi.fn()
 
+const placeInsertAwait = vi.fn()
+const placeUpdateSelect = vi.fn()
+const placeUpdateAwait = vi.fn()
+const placeDeleteEq = vi.fn()
+const placeImagesMaybeSingle = vi.fn()
+const storageUpload = vi.fn()
+const storageGetPublicUrl = vi.fn()
+const storageRemove = vi.fn()
+
+function businessesUpdateChain(payload: unknown) {
+  return {
+    eq: (col: string, val: string) => ({
+      select: () => businessesUpdateSelect(payload, col, val),
+      then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve(businessesUpdateAwait(payload, col, val))),
+    }),
+  }
+}
+
+function businessesInsertChain(payload: unknown) {
+  return {
+    select: () => ({ single: () => businessInsertSingle(payload) }),
+    then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve(businessInsertAwait(payload))),
+  }
+}
+
+function placeUpdateChain(payload: unknown) {
+  return {
+    eq: (col: string, val: string) => ({
+      select: () => placeUpdateSelect(payload, col, val),
+      then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve(placeUpdateAwait(payload, col, val))),
+    }),
+  }
+}
+
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
     from: (table: string) => {
       switch (table) {
         case 'businesses':
           return {
-            update: (payload: unknown) => ({
-              eq: (col: string, val: string) => ({ select: () => businessesUpdateSelect(payload, col, val) }),
-            }),
-            insert: (payload: unknown) => ({ select: () => ({ single: () => businessInsertSingle(payload) }) }),
+            update: (payload: unknown) => businessesUpdateChain(payload),
+            insert: (payload: unknown) => businessesInsertChain(payload),
           }
         case 'commission_config':
           return {
@@ -104,9 +138,23 @@ vi.mock('@/lib/supabase/admin', () => ({
           return { insert: (payload: unknown) => transportersInsert(payload) }
         case 'tourist_guides':
           return { insert: (payload: unknown) => touristGuidesInsert(payload) }
+        case 'places':
+          return {
+            insert: (payload: unknown) => placeInsertAwait(payload),
+            update: (payload: unknown) => placeUpdateChain(payload),
+            delete: () => ({ eq: (col: string, val: string) => placeDeleteEq(col, val) }),
+            select: () => ({ eq: () => ({ maybeSingle: placeImagesMaybeSingle }) }),
+          }
         default:
           throw new Error(`unexpected table on admin client: ${table}`)
       }
+    },
+    storage: {
+      from: (bucket: string) => ({
+        upload: (path: string, file: unknown, opts: unknown) => storageUpload(bucket, path, file, opts),
+        getPublicUrl: (path: string) => storageGetPublicUrl(bucket, path),
+        remove: (paths: string[]) => storageRemove(bucket, paths),
+      }),
     },
   })),
 }))
@@ -114,15 +162,31 @@ vi.mock('@/lib/supabase/admin', () => ({
 const {
   approveBusiness,
   rejectBusiness,
+  forceDeactivateBusiness,
+  forceActivateBusiness,
+  toggleFeaturedBusiness,
+  createBusinessAsAdmin,
   updateCommissionRate,
   approveRoleRequest,
   rejectRoleRequest,
+  createPlace,
+  updatePlace,
+  deletePlace,
+  uploadPlaceImage,
+  deletePlaceImage,
 } = await import('./actions')
 
-function formData(fields: Record<string, string>) {
+function formData(fields: Record<string, string | string[]>) {
   const fd = new FormData()
-  for (const [k, v] of Object.entries(fields)) fd.set(k, v)
+  for (const [k, v] of Object.entries(fields)) {
+    if (Array.isArray(v)) v.forEach((item) => fd.append(k, item))
+    else fd.set(k, v)
+  }
   return fd
+}
+
+function fakeImageFile(overrides: Partial<{ type: string; size: number }> = {}) {
+  return new File([new Uint8Array(overrides.size ?? 1024)], 'photo.jpg', { type: overrides.type ?? 'image/jpeg' })
 }
 
 const BIZ_ID = '11111111-1111-1111-1111-111111111111'
@@ -130,11 +194,14 @@ const CONFIG_ID = '22222222-2222-2222-2222-222222222222'
 const REQUEST_ID = '33333333-3333-3333-3333-333333333333'
 const USER_ID = '44444444-4444-4444-4444-444444444444'
 const ADMIN_ID = 'admin-1'
+const OWNER_ID = '55555555-5555-5555-5555-555555555555'
+const PLACE_ID = '66666666-6666-6666-6666-666666666666'
 
 beforeEach(() => {
   vi.clearAllMocks()
   authGetUser.mockResolvedValue({ data: { user: { id: ADMIN_ID } } })
   adminProfileSingle.mockResolvedValue({ data: { role: 'admin' } })
+  storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
 })
 
 describe('getAuthenticatedAdmin guard (shared by every action in this file)', () => {
@@ -453,5 +520,338 @@ describe('rejectRoleRequest', () => {
     const fd = formData({ requestId: REQUEST_ID, rejection_reason: 'No cumple los requisitos' })
     await expect(rejectRoleRequest(fd)).rejects.toThrow('redirect:/')
     expect(roleRequestStatusUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('forceDeactivateBusiness / forceActivateBusiness', () => {
+  it('redirects without querying the DB when businessId is not a UUID', async () => {
+    const fd = formData({ businessId: 'not-a-uuid' })
+    await expect(forceDeactivateBusiness(fd)).rejects.toThrow('redirect:/admin/negocios')
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+
+  it('forceDeactivateBusiness sets status=inactive, no ownership filter (admin override)', async () => {
+    businessesUpdateAwait.mockResolvedValue({ error: null })
+    const fd = formData({ businessId: BIZ_ID })
+    await forceDeactivateBusiness(fd)
+
+    expect(businessesUpdateAwait).toHaveBeenCalledWith({ status: 'inactive' }, 'id', BIZ_ID)
+    expect(revalidatePathMock).toHaveBeenCalledWith('/admin/negocios')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/negocios')
+  })
+
+  it('forceActivateBusiness sets status=active AND verified=true', async () => {
+    businessesUpdateAwait.mockResolvedValue({ error: null })
+    const fd = formData({ businessId: BIZ_ID })
+    await forceActivateBusiness(fd)
+
+    expect(businessesUpdateAwait).toHaveBeenCalledWith({ status: 'active', verified: true }, 'id', BIZ_ID)
+  })
+
+  it('redirects to / when a non-admin calls forceActivateBusiness', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({ businessId: BIZ_ID })
+    await expect(forceActivateBusiness(fd)).rejects.toThrow('redirect:/')
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+
+  it('redirects to / when a non-admin calls forceDeactivateBusiness', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'business_owner' } })
+    const fd = formData({ businessId: BIZ_ID })
+    await expect(forceDeactivateBusiness(fd)).rejects.toThrow('redirect:/')
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+})
+
+describe('toggleFeaturedBusiness', () => {
+  it('redirects without querying the DB when businessId is not a UUID', async () => {
+    const fd = formData({ businessId: 'not-a-uuid', featured: 'true' })
+    await expect(toggleFeaturedBusiness(fd)).rejects.toThrow('redirect:/admin/negocios')
+  })
+
+  it('sets is_featured=true when featured="true"', async () => {
+    businessesUpdateAwait.mockResolvedValue({ error: null })
+    const fd = formData({ businessId: BIZ_ID, featured: 'true' })
+    await toggleFeaturedBusiness(fd)
+    expect(businessesUpdateAwait).toHaveBeenCalledWith({ is_featured: true }, 'id', BIZ_ID)
+    expect(revalidatePathMock).toHaveBeenCalledWith('/')
+  })
+
+  it('sets is_featured=false for any value other than the literal string "true"', async () => {
+    businessesUpdateAwait.mockResolvedValue({ error: null })
+    const fd = formData({ businessId: BIZ_ID, featured: 'false' })
+    await toggleFeaturedBusiness(fd)
+    expect(businessesUpdateAwait).toHaveBeenCalledWith({ is_featured: false }, 'id', BIZ_ID)
+  })
+
+  it('redirects to / when a non-admin calls toggleFeaturedBusiness', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({ businessId: BIZ_ID, featured: 'true' })
+    await expect(toggleFeaturedBusiness(fd)).rejects.toThrow('redirect:/')
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+})
+
+describe('createBusinessAsAdmin', () => {
+  it('rejects a missing name', async () => {
+    const fd = formData({ name: ' ', type: 'restaurant', ownerId: OWNER_ID })
+    const result = await createBusinessAsAdmin(fd)
+    expect(result).toEqual({ error: 'El nombre es obligatorio.' })
+    expect(businessInsertAwait).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid type', async () => {
+    const fd = formData({ name: 'Finca X', type: 'not-a-real-type', ownerId: OWNER_ID })
+    const result = await createBusinessAsAdmin(fd)
+    expect(result).toEqual({ error: 'Selecciona un tipo.' })
+  })
+
+  it('rejects a non-UUID ownerId', async () => {
+    const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: 'not-a-uuid' })
+    const result = await createBusinessAsAdmin(fd)
+    expect(result).toEqual({ error: 'Selecciona un propietario.' })
+  })
+
+  it('creates the business already active and verified — unlike owner self-registration, which starts pending', async () => {
+    businessInsertAwait.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID, phone: '3001234567' })
+    const result = await createBusinessAsAdmin(fd)
+
+    expect(result).toEqual({ success: true })
+    expect(businessInsertAwait).toHaveBeenCalledWith(
+      expect.objectContaining({ owner_id: OWNER_ID, status: 'active', verified: true }),
+    )
+  })
+
+  // Regression: description/address/phone were cast straight to string and
+  // .trim()'d with no null guard, crashing when a field was entirely absent
+  // from formData (not just empty). Found by /qa on 2026-08-04 while
+  // extending this suite.
+  it('does not crash when description/address/phone are missing from formData entirely', async () => {
+    businessInsertAwait.mockResolvedValue({ error: null })
+    const fd = new FormData()
+    fd.set('name', 'Finca X')
+    fd.set('type', 'restaurant')
+    fd.set('ownerId', OWNER_ID)
+    const result = await createBusinessAsAdmin(fd)
+    expect(result).toEqual({ success: true })
+    expect(businessInsertAwait).toHaveBeenCalledWith(
+      expect.objectContaining({ description: null, address: null, phone: null }),
+    )
+  })
+
+  it('returns a generic error when the insert fails', async () => {
+    businessInsertAwait.mockResolvedValue({ error: { message: 'db error' } })
+    const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID })
+    const result = await createBusinessAsAdmin(fd)
+    expect(result).toEqual({ error: 'Error al crear el negocio. Intenta de nuevo.' })
+  })
+
+  it('redirects to / when a non-admin calls createBusinessAsAdmin', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'business_owner' } })
+    const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID })
+    await expect(createBusinessAsAdmin(fd)).rejects.toThrow('redirect:/')
+    expect(businessInsertAwait).not.toHaveBeenCalled()
+  })
+})
+
+describe('createPlace / updatePlace / deletePlace', () => {
+  it('createPlace rejects a missing name', async () => {
+    const fd = formData({ name: ' ', type: 'waterfall' })
+    const result = await createPlace(fd)
+    expect(result).toEqual({ error: 'El nombre es obligatorio.' })
+    expect(placeInsertAwait).not.toHaveBeenCalled()
+  })
+
+  it('createPlace rejects an invalid type', async () => {
+    const fd = formData({ name: 'Pozo Azul', type: 'not-a-real-type' })
+    const result = await createPlace(fd)
+    expect(result).toEqual({ error: 'Selecciona un tipo.' })
+  })
+
+  it('createPlace rejects non-numeric coordinates', async () => {
+    const fd = formData({ name: 'Pozo Azul', type: 'river', lat: 'abc', lng: '-72.99' })
+    const result = await createPlace(fd)
+    expect(result).toEqual({ error: 'Las coordenadas deben ser números válidos.' })
+  })
+
+  it('createPlace accepts missing coordinates as null (they are optional)', async () => {
+    placeInsertAwait.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Pozo Azul', type: 'river' })
+    await expect(createPlace(fd)).rejects.toThrow('redirect:/admin/lugares')
+    expect(placeInsertAwait).toHaveBeenCalledWith(expect.objectContaining({ lat: null, lng: null }))
+  })
+
+  it('createPlace inserts valid coordinates and redirects', async () => {
+    placeInsertAwait.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Pozo Azul', type: 'river', lat: '11.7808', lng: '-72.9944' })
+    await expect(createPlace(fd)).rejects.toThrow('redirect:/admin/lugares')
+    expect(placeInsertAwait).toHaveBeenCalledWith(expect.objectContaining({ lat: 11.7808, lng: -72.9944 }))
+  })
+
+  it('does not crash when description is missing from formData entirely (regression)', async () => {
+    placeInsertAwait.mockResolvedValue({ error: null })
+    const fd = new FormData()
+    fd.set('name', 'Pozo Azul')
+    fd.set('type', 'river')
+    await expect(createPlace(fd)).rejects.toThrow('redirect:/admin/lugares')
+    expect(placeInsertAwait).toHaveBeenCalledWith(expect.objectContaining({ description: null }))
+  })
+
+  it('redirects to / when a non-admin calls createPlace', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({ name: 'Pozo Azul', type: 'river' })
+    await expect(createPlace(fd)).rejects.toThrow('redirect:/')
+    expect(placeInsertAwait).not.toHaveBeenCalled()
+  })
+
+  it('updatePlace returns notFound (not a redirect) for a non-UUID placeId', async () => {
+    const fd = formData({ placeId: 'bad-id', name: 'X', type: 'river' })
+    const result = await updatePlace(fd)
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+  })
+
+  it('updatePlace redirects on a successful update (row returned)', async () => {
+    placeUpdateSelect.mockResolvedValue({ data: [{ id: PLACE_ID }], error: null })
+    const fd = formData({ placeId: PLACE_ID, name: 'Pozo Azul actualizado', type: 'river' })
+    await expect(updatePlace(fd)).rejects.toThrow('redirect:/admin/lugares')
+    expect(placeUpdateSelect).toHaveBeenCalledWith(expect.objectContaining({ name: 'Pozo Azul actualizado' }), 'id', PLACE_ID)
+  })
+
+  it('updatePlace returns a generic error when no row matches', async () => {
+    placeUpdateSelect.mockResolvedValue({ data: [], error: null })
+    const fd = formData({ placeId: PLACE_ID, name: 'X', type: 'river' })
+    const result = await updatePlace(fd)
+    expect(result).toEqual({ error: 'Error al guardar. Intenta de nuevo.' })
+  })
+
+  it('updatePlace does not crash when description is missing from formData entirely (regression)', async () => {
+    placeUpdateSelect.mockResolvedValue({ data: [{ id: PLACE_ID }], error: null })
+    const fd = new FormData()
+    fd.set('placeId', PLACE_ID)
+    fd.set('name', 'Pozo Azul')
+    fd.set('type', 'river')
+    await expect(updatePlace(fd)).rejects.toThrow('redirect:/admin/lugares')
+    expect(placeUpdateSelect).toHaveBeenCalledWith(expect.objectContaining({ description: null }), 'id', PLACE_ID)
+  })
+
+  it('redirects to / when a non-admin calls updatePlace', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({ placeId: PLACE_ID, name: 'X', type: 'river' })
+    await expect(updatePlace(fd)).rejects.toThrow('redirect:/')
+    expect(placeUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('deletePlace redirects without querying for a non-UUID placeId', async () => {
+    const fd = formData({ placeId: 'bad-id' })
+    await expect(deletePlace(fd)).rejects.toThrow('redirect:/admin/lugares')
+    expect(placeDeleteEq).not.toHaveBeenCalled()
+  })
+
+  it('deletePlace deletes by id and redirects', async () => {
+    const fd = formData({ placeId: PLACE_ID })
+    await expect(deletePlace(fd)).rejects.toThrow('redirect:/admin/lugares')
+    expect(placeDeleteEq).toHaveBeenCalledWith('id', PLACE_ID)
+  })
+
+  it('redirects to / when a non-admin calls deletePlace', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({ placeId: PLACE_ID })
+    await expect(deletePlace(fd)).rejects.toThrow('redirect:/')
+    expect(placeDeleteEq).not.toHaveBeenCalled()
+  })
+})
+
+describe('uploadPlaceImage / deletePlaceImage', () => {
+  it('uploadPlaceImage rejects a non-UUID placeId before any auth check', async () => {
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadPlaceImage('bad-id', fd)
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('uploadPlaceImage rejects when the place does not exist', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: null })
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadPlaceImage(PLACE_ID, fd)
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(storageUpload).not.toHaveBeenCalled()
+  })
+
+  it('uploadPlaceImage rejects at the 5-image cap', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: Array(5).fill('https://x/i.webp') } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadPlaceImage(PLACE_ID, fd)
+    expect(result).toEqual({ error: 'Máximo 5 fotos por lugar.' })
+  })
+
+  it('uploadPlaceImage rejects an invalid file type', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [] } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile({ type: 'application/pdf' }))
+    const result = await uploadPlaceImage(PLACE_ID, fd)
+    expect(result).toEqual({ error: 'Formato no válido. Usa JPEG, PNG o WebP.' })
+  })
+
+  it('uploadPlaceImage appends the new URL on success', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: ['https://x/old.webp'] } })
+    storageUpload.mockResolvedValue({ error: null })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    await uploadPlaceImage(PLACE_ID, fd)
+
+    expect(placeUpdateAwait).toHaveBeenCalledWith(
+      { images: ['https://x/old.webp', 'https://cdn.example.com/photo.webp'] }, 'id', PLACE_ID,
+    )
+  })
+
+  it('uploadPlaceImage rolls back the uploaded file when the DB update fails', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [] } })
+    storageUpload.mockResolvedValue({ error: null })
+    placeUpdateAwait.mockResolvedValue({ error: { message: 'db error' } })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadPlaceImage(PLACE_ID, fd)
+
+    expect(result).toEqual({ error: 'No se pudo guardar la imagen.' })
+    expect(storageRemove).toHaveBeenCalled()
+  })
+
+  it('deletePlaceImage rejects a non-UUID placeId before any auth check', async () => {
+    const result = await deletePlaceImage('bad-id', 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('deletePlaceImage removes the file from storage and filters the URL out of the images array', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({
+      data: { id: PLACE_ID, images: ['https://x.supabase.co/storage/v1/object/public/place-images/places/p1/a.webp', 'https://x/keep.webp'] },
+    })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    await deletePlaceImage(PLACE_ID, 'https://x.supabase.co/storage/v1/object/public/place-images/places/p1/a.webp')
+
+    expect(storageRemove).toHaveBeenCalledWith('place-images', ['places/p1/a.webp'])
+    expect(placeUpdateAwait).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', PLACE_ID)
+  })
+
+  it('redirects to / when a non-admin calls uploadPlaceImage (well-formed id, past the UUID check)', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    await expect(uploadPlaceImage(PLACE_ID, fd)).rejects.toThrow('redirect:/')
+    expect(placeImagesMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('redirects to / when a non-admin calls deletePlaceImage (well-formed id, past the UUID check)', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    await expect(deletePlaceImage(PLACE_ID, 'https://x/a.webp')).rejects.toThrow('redirect:/')
+    expect(placeImagesMaybeSingle).not.toHaveBeenCalled()
   })
 })
