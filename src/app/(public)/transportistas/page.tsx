@@ -39,16 +39,17 @@ export default async function TransportistasPage() {
     supabase.auth.getUser(),
   ])
 
-  // Determine if the visitor is a tourist so the modal can open; otherwise the
-  // button redirects to login.
-  let isTourist = false
+  // Three-state access, matching the guide-booking pattern: a tourist gets
+  // the request modal, a guest gets a login redirect, and any other
+  // authenticated role (admin, transporter, etc.) never sees the button.
+  let access: 'tourist' | 'guest' | 'other_role' = 'guest'
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
-    isTourist = profile?.role === 'tourist'
+    access = profile?.role === 'tourist' ? 'tourist' : 'other_role'
   }
 
   const transporters = (data ?? []) as unknown as TransporterRow[]
@@ -98,7 +99,7 @@ export default async function TransportistasPage() {
                   bio: t.bio,
                   full_name: t.profiles?.full_name ?? null,
                 }}
-                isTourist={isTourist}
+                access={access}
               />
             ))}
           </div>
