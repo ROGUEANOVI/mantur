@@ -251,6 +251,18 @@ describe('approveBusiness / rejectBusiness', () => {
     await expect(approveBusiness(fd)).rejects.toThrow('redirect:/admin/negocios')
   })
 
+  it('redirects without querying the DB when businessId is not a UUID (rejectBusiness)', async () => {
+    const fd = formData({ businessId: 'not-a-uuid' })
+    await expect(rejectBusiness(fd)).rejects.toThrow('redirect:/admin/negocios')
+    expect(businessesUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('rejectBusiness redirects when the update fails to find a matching row', async () => {
+    businessesUpdateSelect.mockResolvedValue({ data: [], error: null })
+    const fd = formData({ businessId: BIZ_ID })
+    await expect(rejectBusiness(fd)).rejects.toThrow('redirect:/admin/negocios')
+  })
+
   it('redirects to / when a non-admin calls rejectBusiness', async () => {
     adminProfileSingle.mockResolvedValue({ data: { role: 'business_owner' } })
     const fd = formData({ businessId: BIZ_ID })
@@ -391,6 +403,77 @@ describe('approveRoleRequest', () => {
     expect(businessInsertSingle).not.toHaveBeenCalled()
   })
 
+  it('business_owner: tolerates a null/undefined metadata object entirely (no crash, no business created)', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'business_owner', metadata: null },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(businessInsertSingle).not.toHaveBeenCalled()
+  })
+
+  it('business_owner: stores phone as null when metadata omits it', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'business_owner', metadata: { business_name: 'Finca Sin Telefono' } },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-3' } })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(businessInsertSingle).toHaveBeenCalledWith(expect.objectContaining({ phone: null }))
+  })
+
+  it('business_owner: skips category linking when category_slugs is missing from metadata', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'business_owner', metadata: { business_name: 'Finca Sin Categorias' } },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-4' } })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(categoriesSelect).not.toHaveBeenCalled()
+    expect(categoryLinksInsert).not.toHaveBeenCalled()
+  })
+
+  it('business_owner: skips category linking entirely when the business insert itself returns no row', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'business_owner',
+        metadata: { business_name: 'Finca Fallida', category_slugs: ['finca'] },
+      },
+    })
+    businessInsertSingle.mockResolvedValue({ data: null })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(categoriesSelect).not.toHaveBeenCalled()
+    expect(categoryLinksInsert).not.toHaveBeenCalled()
+  })
+
+  it('business_owner: skips category linking when none of the requested slugs match an active category', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'business_owner',
+        metadata: { business_name: 'Finca Categorias Invalidas', category_slugs: ['no-existe'] },
+      },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-5' } })
+    categoriesSelect.mockResolvedValue({ data: [] })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(categoriesSelect).toHaveBeenCalled()
+    expect(categoryLinksInsert).not.toHaveBeenCalled()
+  })
+
   it('transporter: creates a transporters row with the plate uppercased', async () => {
     roleRequestSingle.mockResolvedValue({
       data: {
@@ -410,6 +493,34 @@ describe('approveRoleRequest', () => {
       phone: '3009876543',
       is_available: false,
     })
+  })
+
+  it('transporter: falls back to defaults when metadata omits vehicle_type/license_plate/phone', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'transporter', metadata: {} },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(transportersInsert).toHaveBeenCalledWith({
+      profile_id: USER_ID,
+      vehicle_type: 'otro',
+      license_plate: '',
+      phone: '',
+      is_available: false,
+    })
+  })
+
+  it('transporter: tolerates a null metadata object entirely', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'transporter', metadata: null },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(transportersInsert).toHaveBeenCalledWith(expect.objectContaining({ vehicle_type: 'otro' }))
   })
 
   it('transporter: is_available is hardcoded to false even if metadata claims otherwise', async () => {
@@ -447,6 +558,35 @@ describe('approveRoleRequest', () => {
       phone: '3005551234',
       is_available: false,
     })
+  })
+
+  it('tourist_guide: falls back to defaults when metadata omits specialties/languages/bio/phone', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'tourist_guide', metadata: {} },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(touristGuidesInsert).toHaveBeenCalledWith({
+      profile_id: USER_ID,
+      specialties: [],
+      languages: [],
+      bio: null,
+      phone: '',
+      is_available: false,
+    })
+  })
+
+  it('tourist_guide: tolerates a null metadata object entirely', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'tourist_guide', metadata: null },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(touristGuidesInsert).toHaveBeenCalledWith(expect.objectContaining({ specialties: [] }))
   })
 
   it('tourist_guide: is_available is hardcoded to false even if metadata claims otherwise', async () => {
@@ -499,6 +639,11 @@ describe('rejectRoleRequest', () => {
     await expect(rejectRoleRequest(fd)).rejects.toThrow('redirect:/admin/solicitudes')
   })
 
+  it('redirects when the rejection_reason field is absent from formData entirely', async () => {
+    const fd = formData({ requestId: REQUEST_ID })
+    await expect(rejectRoleRequest(fd)).rejects.toThrow('redirect:/admin/solicitudes')
+  })
+
   it('redirects when the rejection reason is only whitespace', async () => {
     const fd = formData({ requestId: REQUEST_ID, rejection_reason: '   ' })
     await expect(rejectRoleRequest(fd)).rejects.toThrow('redirect:/admin/solicitudes')
@@ -538,6 +683,12 @@ describe('forceDeactivateBusiness / forceActivateBusiness', () => {
     expect(businessesUpdateAwait).toHaveBeenCalledWith({ status: 'inactive' }, 'id', BIZ_ID)
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/negocios')
     expect(revalidatePathMock).toHaveBeenCalledWith('/negocios')
+  })
+
+  it('redirects without querying the DB when businessId is not a UUID (forceActivateBusiness)', async () => {
+    const fd = formData({ businessId: 'not-a-uuid' })
+    await expect(forceActivateBusiness(fd)).rejects.toThrow('redirect:/admin/negocios')
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
   })
 
   it('forceActivateBusiness sets status=active AND verified=true', async () => {
@@ -595,6 +746,15 @@ describe('toggleFeaturedBusiness', () => {
 describe('createBusinessAsAdmin', () => {
   it('rejects a missing name', async () => {
     const fd = formData({ name: ' ', type: 'restaurant', ownerId: OWNER_ID })
+    const result = await createBusinessAsAdmin(fd)
+    expect(result).toEqual({ error: 'El nombre es obligatorio.' })
+    expect(businessInsertAwait).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the name field is absent from formData entirely', async () => {
+    const fd = new FormData()
+    fd.set('type', 'restaurant')
+    fd.set('ownerId', OWNER_ID)
     const result = await createBusinessAsAdmin(fd)
     expect(result).toEqual({ error: 'El nombre es obligatorio.' })
     expect(businessInsertAwait).not.toHaveBeenCalled()
@@ -663,16 +823,37 @@ describe('createPlace / updatePlace / deletePlace', () => {
     expect(placeInsertAwait).not.toHaveBeenCalled()
   })
 
+  it('createPlace rejects when the name field is absent from formData entirely', async () => {
+    const fd = new FormData()
+    fd.set('type', 'waterfall')
+    const result = await createPlace(fd)
+    expect(result).toEqual({ error: 'El nombre es obligatorio.' })
+    expect(placeInsertAwait).not.toHaveBeenCalled()
+  })
+
   it('createPlace rejects an invalid type', async () => {
     const fd = formData({ name: 'Pozo Azul', type: 'not-a-real-type' })
     const result = await createPlace(fd)
     expect(result).toEqual({ error: 'Selecciona un tipo.' })
   })
 
-  it('createPlace rejects non-numeric coordinates', async () => {
+  it('createPlace rejects non-numeric coordinates (invalid lat)', async () => {
     const fd = formData({ name: 'Pozo Azul', type: 'river', lat: 'abc', lng: '-72.99' })
     const result = await createPlace(fd)
     expect(result).toEqual({ error: 'Las coordenadas deben ser números válidos.' })
+  })
+
+  it('createPlace rejects non-numeric coordinates (invalid lng, valid lat)', async () => {
+    const fd = formData({ name: 'Pozo Azul', type: 'river', lat: '11.7808', lng: 'xyz' })
+    const result = await createPlace(fd)
+    expect(result).toEqual({ error: 'Las coordenadas deben ser números válidos.' })
+  })
+
+  it('createPlace returns a generic error when the insert fails', async () => {
+    placeInsertAwait.mockResolvedValue({ error: { message: 'db error' } })
+    const fd = formData({ name: 'Pozo Azul', type: 'river' })
+    const result = await createPlace(fd)
+    expect(result).toEqual({ error: 'Error al guardar. Intenta de nuevo.' })
   })
 
   it('createPlace accepts missing coordinates as null (they are optional)', async () => {
@@ -723,6 +904,36 @@ describe('createPlace / updatePlace / deletePlace', () => {
     const fd = formData({ placeId: PLACE_ID, name: 'X', type: 'river' })
     const result = await updatePlace(fd)
     expect(result).toEqual({ error: 'Error al guardar. Intenta de nuevo.' })
+  })
+
+  it('updatePlace rejects when the name field is absent from formData entirely', async () => {
+    const fd = new FormData()
+    fd.set('placeId', PLACE_ID)
+    fd.set('type', 'river')
+    const result = await updatePlace(fd)
+    expect(result).toEqual({ error: 'El nombre es obligatorio.' })
+    expect(placeUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('updatePlace rejects an invalid type', async () => {
+    const fd = formData({ placeId: PLACE_ID, name: 'Pozo Azul', type: 'not-a-real-type' })
+    const result = await updatePlace(fd)
+    expect(result).toEqual({ error: 'Selecciona un tipo.' })
+    expect(placeUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('updatePlace rejects non-numeric coordinates (invalid lat)', async () => {
+    const fd = formData({ placeId: PLACE_ID, name: 'Pozo Azul', type: 'river', lat: 'abc', lng: '-72.99' })
+    const result = await updatePlace(fd)
+    expect(result).toEqual({ error: 'Las coordenadas deben ser números válidos.' })
+    expect(placeUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('updatePlace rejects non-numeric coordinates (invalid lng, valid lat)', async () => {
+    const fd = formData({ placeId: PLACE_ID, name: 'Pozo Azul', type: 'river', lat: '11.7808', lng: 'xyz' })
+    const result = await updatePlace(fd)
+    expect(result).toEqual({ error: 'Las coordenadas deben ser números válidos.' })
+    expect(placeUpdateSelect).not.toHaveBeenCalled()
   })
 
   it('updatePlace does not crash when description is missing from formData entirely (regression)', async () => {
@@ -788,12 +999,52 @@ describe('uploadPlaceImage / deletePlaceImage', () => {
     expect(result).toEqual({ error: 'Máximo 5 fotos por lugar.' })
   })
 
+  it('treats a place with no images field yet as having zero images', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: undefined } })
+    storageUpload.mockResolvedValue({ error: null })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    await uploadPlaceImage(PLACE_ID, fd)
+
+    expect(placeUpdateAwait).toHaveBeenCalledWith(
+      { images: ['https://cdn.example.com/photo.webp'] }, 'id', PLACE_ID,
+    )
+  })
+
+  it('uploadPlaceImage rejects when no image file is provided', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [] } })
+    const fd = formData({})
+    const result = await uploadPlaceImage(PLACE_ID, fd)
+    expect(result).toEqual({ error: 'Selecciona una imagen.' })
+    expect(storageUpload).not.toHaveBeenCalled()
+  })
+
   it('uploadPlaceImage rejects an invalid file type', async () => {
     placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [] } })
     const fd = formData({})
     fd.set('image', fakeImageFile({ type: 'application/pdf' }))
     const result = await uploadPlaceImage(PLACE_ID, fd)
     expect(result).toEqual({ error: 'Formato no válido. Usa JPEG, PNG o WebP.' })
+  })
+
+  it('uploadPlaceImage rejects a file over 5MB', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [] } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile({ size: 6 * 1024 * 1024 }))
+    const result = await uploadPlaceImage(PLACE_ID, fd)
+    expect(result).toEqual({ error: 'La imagen no puede superar 5 MB.' })
+  })
+
+  it('uploadPlaceImage returns an error when the storage upload itself fails', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [] } })
+    storageUpload.mockResolvedValue({ error: { message: 'storage down' } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadPlaceImage(PLACE_ID, fd)
+    expect(result).toEqual({ error: 'No se pudo subir la imagen. Intenta de nuevo.' })
+    expect(placeUpdateAwait).not.toHaveBeenCalled()
   })
 
   it('uploadPlaceImage appends the new URL on success', async () => {
@@ -839,6 +1090,34 @@ describe('uploadPlaceImage / deletePlaceImage', () => {
 
     expect(storageRemove).toHaveBeenCalledWith('place-images', ['places/p1/a.webp'])
     expect(placeUpdateAwait).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', PLACE_ID)
+  })
+
+  it('deletePlaceImage rejects when the place does not exist', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: null })
+    const result = await deletePlaceImage(PLACE_ID, 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(storageRemove).not.toHaveBeenCalled()
+  })
+
+  it('deletePlaceImage skips the storage removal when the URL does not match the bucket path (still filters it from the array)', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({
+      data: { id: PLACE_ID, images: ['https://cdn.other.com/random.webp', 'https://x/keep.webp'] },
+    })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    await deletePlaceImage(PLACE_ID, 'https://cdn.other.com/random.webp')
+
+    expect(storageRemove).not.toHaveBeenCalled()
+    expect(placeUpdateAwait).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', PLACE_ID)
+  })
+
+  it('deletePlaceImage treats a missing images field as an empty array', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: undefined } })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    await deletePlaceImage(PLACE_ID, 'https://x/whatever.webp')
+
+    expect(placeUpdateAwait).toHaveBeenCalledWith({ images: [] }, 'id', PLACE_ID)
   })
 
   it('redirects to / when a non-admin calls uploadPlaceImage (well-formed id, past the UUID check)', async () => {

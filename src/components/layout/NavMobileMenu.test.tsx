@@ -6,8 +6,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import NavMobileMenu from './NavMobileMenu'
 
+const usePathnameMock = vi.fn(() => '/')
+
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/',
+  usePathname: () => usePathnameMock(),
 }))
 
 describe('NavMobileMenu', () => {
@@ -51,5 +53,19 @@ describe('NavMobileMenu', () => {
     await user.click(backdrop as Element)
 
     expect(screen.queryByText('Explorar')).not.toBeInTheDocument()
+  })
+
+  it('highlights the link matching the current pathname as active', async () => {
+    usePathnameMock.mockReturnValue('/negocios')
+    const user = userEvent.setup()
+    render(<NavMobileMenu links={links}>auth content</NavMobileMenu>)
+
+    await user.click(screen.getByRole('button', { name: /abrir menú/i }))
+
+    const activeLink = await screen.findByText('Explorar')
+    const inactiveLink = screen.getByText('Guías')
+
+    expect(activeLink.closest('a')).toHaveClass('text-primary', 'font-semibold', 'bg-primary/5')
+    expect(inactiveLink.closest('a')).not.toHaveClass('text-primary')
   })
 })

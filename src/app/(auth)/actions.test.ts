@@ -213,6 +213,15 @@ describe('signUp', () => {
     )
   })
 
+  it('redirects without touching the profile when Supabase returns no user (e.g. email confirmation pending)', async () => {
+    authSignUp.mockResolvedValue({ data: { user: null }, error: null })
+
+    const fd = formData({ email: 'x@example.com', password: 'Correct1!', full_name: 'X' })
+    await expect(signUp(fd)).rejects.toThrow('redirect:/')
+
+    expect(profilesUpsert).not.toHaveBeenCalled()
+  })
+
   it('returns a generic error if the profile upsert fails after the auth user was created', async () => {
     authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-4' } }, error: null })
     profilesUpsert.mockResolvedValue({ error: { message: 'db error' } })

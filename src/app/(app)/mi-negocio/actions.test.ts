@@ -285,6 +285,20 @@ describe('updateBusiness', () => {
     expect(result).toEqual({ error: 'No se pudo actualizar el negocio. Intenta de nuevo.' })
     expect(categoryLinksDeleteMock).not.toHaveBeenCalled()
   })
+
+  it('rejects a missing name', async () => {
+    const fd = formData({ name: '  ', category_ids: [CAT_ID_1] })
+    const result = await updateBusiness(BIZ_ID, fd)
+    expect(result).toEqual({ error: 'El nombre del negocio es obligatorio.' })
+    expect(businessUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when no valid category ids are selected', async () => {
+    const fd = formData({ name: 'Nuevo nombre', category_ids: ['not-a-uuid'] })
+    const result = await updateBusiness(BIZ_ID, fd)
+    expect(result).toEqual({ error: 'Selecciona al menos una categoría.' })
+    expect(businessUpdateMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('deactivateBusiness / reactivateBusiness', () => {
@@ -298,6 +312,25 @@ describe('deactivateBusiness / reactivateBusiness', () => {
     businessUpdateMock.mockResolvedValue({ error: null })
     await expect(deactivateBusiness(BIZ_ID, new FormData())).rejects.toThrow('redirect:/mi-negocio')
     expect(businessUpdateMock).toHaveBeenCalledWith({ status: 'inactive' }, 'id', BIZ_ID, 'owner_id', USER_ID)
+  })
+
+  it('deactivateBusiness silently returns (no redirect) when the update fails (e.g. RLS blocks a non-owner)', async () => {
+    businessUpdateMock.mockResolvedValue({ error: { message: 'rls blocked' } })
+    await deactivateBusiness(BIZ_ID, new FormData())
+    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it('reactivateBusiness silently returns (no redirect) for a non-UUID id', async () => {
+    await reactivateBusiness('bad-id', new FormData())
+    expect(redirectMock).not.toHaveBeenCalled()
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('reactivateBusiness silently returns when the admin update fails', async () => {
+    businessReactivateMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, verified: true } })
+    adminBusinessesUpdate.mockResolvedValue({ error: { message: 'db error' } })
+    await reactivateBusiness(BIZ_ID, new FormData())
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
   it('reactivateBusiness restores a verified business directly to active', async () => {
@@ -325,6 +358,13 @@ describe('deactivateBusiness / reactivateBusiness', () => {
 })
 
 describe('createExperience', () => {
+  it('rejects a non-UUID business_id before querying the DB', async () => {
+    const fd = formData({ business_id: 'not-a-uuid', name: 'Tour', price: '10000' })
+    const result = await createExperience(fd)
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(businessOwnershipSingle).not.toHaveBeenCalled()
+  })
+
   it('rejects when the business is not owned by the caller', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: null })
     const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000' })
@@ -345,6 +385,21 @@ describe('createExperience', () => {
     const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000', capacity: '0' })
     const result = await createExperience(fd)
     expect(result).toEqual({ error: 'El cupo debe ser un número positivo.' })
+  })
+
+  it('rejects an invalid duration', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000', duration_minutes: '0' })
+    const result = await createExperience(fd)
+    expect(result).toEqual({ error: 'La duración debe ser un número positivo.' })
+  })
+
+  it('returns a generic error when the insert fails', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    experienceInsertMock.mockResolvedValue({ error: { message: 'db error' } })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000' })
+    const result = await createExperience(fd)
+    expect(result).toEqual({ error: 'No se pudo crear la experiencia. Intenta de nuevo.' })
   })
 
   it('creates the experience scoped to the owned business and redirects', async () => {
@@ -394,6 +449,18 @@ describe('updateExperience', () => {
     const result = await updateExperience(EXP_ID, fd)
     expect(result).toEqual({ error: 'No se pudo actualizar la experiencia. Intenta de nuevo.' })
   })
+
+  it('rejects an invalid capacity', async () => {
+    const fd = formData({ name: 'Tour', price: '20000', capacity: '0' })
+    const result = await updateExperience(EXP_ID, fd)
+    expect(result).toEqual({ error: 'El cupo debe ser un número positivo.' })
+  })
+
+  it('rejects an invalid duration', async () => {
+    const fd = formData({ name: 'Tour', price: '20000', duration_minutes: '0' })
+    const result = await updateExperience(EXP_ID, fd)
+    expect(result).toEqual({ error: 'La duración debe ser un número positivo.' })
+  })
 })
 
 describe('toggleExperienceStatus', () => {
@@ -422,6 +489,14 @@ describe('toggleExperienceStatus', () => {
 })
 
 describe('uploadBusinessImage', () => {
+  it('rejects a non-UUID businessId before any auth check', async () => {
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadBusinessImage('not-a-uuid', fd)
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
   it('rejects when the business is not owned by the caller', async () => {
     businessImagesMaybeSingle.mockResolvedValue({ data: null })
     const fd = formData({})
@@ -431,6 +506,20 @@ describe('uploadBusinessImage', () => {
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
+  it('treats a business with no images field yet as having zero images', async () => {
+    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: undefined } })
+    storageUpload.mockResolvedValue({ error: null })
+    adminBusinessesUpdate.mockResolvedValue({ error: null })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    await uploadBusinessImage(BIZ_ID, fd)
+
+    expect(adminBusinessesUpdate).toHaveBeenCalledWith(
+      { images: ['https://cdn.example.com/photo.webp'] }, 'id', BIZ_ID,
+    )
+  })
+
   it('rejects once the business already has 5 images', async () => {
     businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: Array(5).fill('https://x/img.webp') } })
     const fd = formData({})
@@ -438,6 +527,24 @@ describe('uploadBusinessImage', () => {
     const result = await uploadBusinessImage(BIZ_ID, fd)
     expect(result).toEqual({ error: 'Máximo 5 fotos por negocio.' })
     expect(storageUpload).not.toHaveBeenCalled()
+  })
+
+  it('rejects when no image file is provided', async () => {
+    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [] } })
+    const fd = formData({})
+    const result = await uploadBusinessImage(BIZ_ID, fd)
+    expect(result).toEqual({ error: 'Selecciona una imagen.' })
+    expect(storageUpload).not.toHaveBeenCalled()
+  })
+
+  it('returns an error when the storage upload itself fails', async () => {
+    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [] } })
+    storageUpload.mockResolvedValue({ error: { message: 'storage down' } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadBusinessImage(BIZ_ID, fd)
+    expect(result).toEqual({ error: 'No se pudo subir la imagen. Intenta de nuevo.' })
+    expect(adminBusinessesUpdate).not.toHaveBeenCalled()
   })
 
   it('rejects a file that is not jpeg/png/webp', async () => {
@@ -485,6 +592,54 @@ describe('uploadBusinessImage', () => {
 })
 
 describe('uploadExperienceImage / deleteExperienceImage — two-level ownership (experience -> business)', () => {
+  it('uploadExperienceImage rejects a non-UUID experienceId before any auth check', async () => {
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadExperienceImage('not-a-uuid', fd)
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('uploadExperienceImage rejects an invalid file type', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile({ type: 'application/pdf' }))
+    const result = await uploadExperienceImage(EXP_ID, fd)
+
+    expect(result).toEqual({ error: 'Formato no válido. Usa JPEG, PNG o WebP.' })
+    expect(storageUpload).not.toHaveBeenCalled()
+  })
+
+  it('treats an experience with no images field yet as having zero images', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: undefined, business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    storageUpload.mockResolvedValue({ error: null })
+    adminExperiencesUpdate.mockResolvedValue({ error: null })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    await uploadExperienceImage(EXP_ID, fd)
+
+    expect(adminExperiencesUpdate).toHaveBeenCalledWith(
+      { images: ['https://cdn.example.com/photo.webp'] }, 'id', EXP_ID,
+    )
+  })
+
+  it('uploadExperienceImage returns an error when the storage upload itself fails', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    storageUpload.mockResolvedValue({ error: { message: 'storage down' } })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadExperienceImage(EXP_ID, fd)
+
+    expect(result).toEqual({ error: 'No se pudo subir la imagen. Intenta de nuevo.' })
+    expect(adminExperiencesUpdate).not.toHaveBeenCalled()
+  })
+
   it('uploadExperienceImage rejects when the experience does not exist', async () => {
     experienceMaybeSingle.mockResolvedValue({ data: null })
     const fd = formData({})
@@ -503,6 +658,20 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
     const result = await uploadExperienceImage(EXP_ID, fd)
 
     expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(storageUpload).not.toHaveBeenCalled()
+  })
+
+  it('rejects once the experience already has 5 images', async () => {
+    experienceMaybeSingle.mockResolvedValue({
+      data: { id: EXP_ID, images: Array(5).fill('https://x/img.webp'), business_id: BIZ_ID },
+    })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadExperienceImage(EXP_ID, fd)
+
+    expect(result).toEqual({ error: 'Máximo 5 fotos por actividad.' })
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
@@ -556,9 +725,51 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
     expect(result).toEqual({ error: 'Experiencia no encontrada.' })
     expect(adminExperiencesUpdate).not.toHaveBeenCalled()
   })
+
+  it('deleteExperienceImage rejects a non-UUID experienceId before any auth check', async () => {
+    const result = await deleteExperienceImage('not-a-uuid', 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('deleteExperienceImage rejects when the experience does not exist', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: null })
+    const result = await deleteExperienceImage(EXP_ID, 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(storageRemove).not.toHaveBeenCalled()
+  })
+
+  it('deleteExperienceImage skips storage removal when the URL does not match the bucket path (still filters it out)', async () => {
+    experienceMaybeSingle.mockResolvedValue({
+      data: { id: EXP_ID, business_id: BIZ_ID, images: ['https://cdn.other.com/random.webp', 'https://x/keep.webp'] },
+    })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    adminExperiencesUpdate.mockResolvedValue({ error: null })
+
+    await deleteExperienceImage(EXP_ID, 'https://cdn.other.com/random.webp')
+
+    expect(storageRemove).not.toHaveBeenCalled()
+    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', EXP_ID)
+  })
+
+  it('deleteExperienceImage treats a missing images field as an empty array', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, business_id: BIZ_ID, images: undefined } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    adminExperiencesUpdate.mockResolvedValue({ error: null })
+
+    await deleteExperienceImage(EXP_ID, 'https://x/whatever.webp')
+
+    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ images: [] }, 'id', EXP_ID)
+  })
 })
 
 describe('deleteBusinessImage', () => {
+  it('rejects a non-UUID businessId before any auth check', async () => {
+    const result = await deleteBusinessImage('not-a-uuid', 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
   it('rejects when the business is not owned by the caller', async () => {
     businessImagesMaybeSingle.mockResolvedValue({ data: null })
     const result = await deleteBusinessImage(BIZ_ID, 'https://x/a.webp')
@@ -576,5 +787,26 @@ describe('deleteBusinessImage', () => {
 
     expect(storageRemove).toHaveBeenCalledWith('business-images', ['businesses/b1/a.webp'])
     expect(adminBusinessesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', BIZ_ID)
+  })
+
+  it('skips storage removal when the URL does not match the bucket path (still filters it out)', async () => {
+    businessImagesMaybeSingle.mockResolvedValue({
+      data: { id: BIZ_ID, images: ['https://cdn.other.com/random.webp', 'https://x/keep.webp'] },
+    })
+    adminBusinessesUpdate.mockResolvedValue({ error: null })
+
+    await deleteBusinessImage(BIZ_ID, 'https://cdn.other.com/random.webp')
+
+    expect(storageRemove).not.toHaveBeenCalled()
+    expect(adminBusinessesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', BIZ_ID)
+  })
+
+  it('treats a missing images field as an empty array', async () => {
+    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: undefined } })
+    adminBusinessesUpdate.mockResolvedValue({ error: null })
+
+    await deleteBusinessImage(BIZ_ID, 'https://x/whatever.webp')
+
+    expect(adminBusinessesUpdate).toHaveBeenCalledWith({ images: [] }, 'id', BIZ_ID)
   })
 })
