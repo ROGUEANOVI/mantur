@@ -46,7 +46,7 @@ export default function UserMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="group flex items-center gap-2 px-2 min-h-[44px] rounded-lg text-sm text-foreground hover:bg-muted/50 transition-colors">
+      <DropdownMenuTrigger className="group flex items-center gap-2 px-2 min-h-11 rounded-lg text-sm text-foreground hover:bg-muted/50 transition-colors">
         <span
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold select-none"
           aria-hidden="true"

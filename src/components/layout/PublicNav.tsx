@@ -8,13 +8,13 @@ import UserMenu, { type UserMenuLink } from './UserMenu'
 import ManturLogo from '@/components/shared/ManturLogo'
 
 const PRIMARY_LINK_CLASS =
-  'text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors'
+  'text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors'
 const PRIMARY_LINK_ACTIVE_CLASS = 'text-foreground font-semibold bg-muted/40'
 const SECONDARY_LINK_CLASS =
-  'text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors'
+  'text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors'
 const SECONDARY_LINK_ACTIVE_CLASS = 'text-foreground font-semibold bg-muted/40'
 const ACCENT_LINK_CLASS =
-  'text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-[44px] flex items-center rounded-lg hover:bg-accent/10 transition-colors'
+  'text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-11 flex items-center rounded-lg hover:bg-accent/10 transition-colors'
 const ACCENT_LINK_ACTIVE_CLASS = 'text-accent font-semibold bg-accent/10'
 
 export default async function PublicNav() {
@@ -80,7 +80,7 @@ export default async function PublicNav() {
     primaryLink.isAdmin ? (
       <Link
         href={primaryLink.href}
-        className="text-sm font-medium text-primary px-3 min-h-[44px] flex items-center rounded-lg hover:bg-primary/10 transition-colors"
+        className="text-sm font-medium text-primary px-3 min-h-11 flex items-center rounded-lg hover:bg-primary/10 transition-colors"
       >
         {primaryLink.label}
       </Link>
@@ -99,7 +99,7 @@ export default async function PublicNav() {
     <form action={signOut}>
       <button
         type="submit"
-        className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors whitespace-nowrap"
+        className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors whitespace-nowrap"
       >
         {copy.signout}
       </button>
@@ -150,7 +150,7 @@ export default async function PublicNav() {
             <NavLink
               key={link.href}
               href={link.href}
-              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center transition-colors rounded-lg hover:bg-muted/50"
+              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center transition-colors rounded-lg hover:bg-muted/50"
               activeClassName="text-foreground font-semibold bg-muted/40"
             >
               {link.label}
@@ -178,13 +178,13 @@ function GuestActions({ copy }: { copy: typeof landingCopy.nav }) {
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
       <Link
         href="/login"
-        className="text-sm font-medium text-foreground border border-border px-4 min-h-[44px] flex items-center justify-center rounded-xl hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-colors"
+        className="text-sm font-medium text-foreground border border-border px-4 min-h-11 flex items-center justify-center rounded-xl hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-colors"
       >
         {copy.login}
       </Link>
       <Link
         href="/signup"
-        className="text-sm font-semibold bg-primary text-primary-foreground px-4 min-h-[44px] flex items-center justify-center rounded-xl hover:bg-primary/90 transition-colors"
+        className="text-sm font-semibold bg-primary text-primary-foreground px-4 min-h-11 flex items-center justify-center rounded-xl hover:bg-primary/90 transition-colors"
       >
         {copy.signup}
       </Link>
