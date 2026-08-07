@@ -60,7 +60,7 @@ export default async function MiNegocioPage() {
           </div>
           <Link
             href="/mi-negocio/nuevo"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
           >
             <Plus className="size-4" aria-hidden="true" />
             {miNegocioCopy.setup.submit}
@@ -77,7 +77,7 @@ export default async function MiNegocioPage() {
           <h1 className="text-2xl font-bold text-foreground">{miNegocioCopy.overview.title}</h1>
           <Link
             href="/mi-negocio/nuevo"
-            className="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-primary text-primary-foreground text-sm font-medium px-3 min-h-[44px] hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-primary text-primary-foreground text-sm font-medium px-3 min-h-11 hover:bg-primary/90 transition-colors"
           >
             <Plus className="size-4" aria-hidden="true" />
             Nuevo

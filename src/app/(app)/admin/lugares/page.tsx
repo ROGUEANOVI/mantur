@@ -37,7 +37,7 @@ export default async function AdminLugaresPage() {
           </div>
           <Link
             href="/admin/lugares/nuevo"
-            className="inline-flex items-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] px-4 hover:bg-primary/90 transition-colors shrink-0"
+            className="inline-flex items-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 transition-colors shrink-0"
           >
             {copy.new}
           </Link>

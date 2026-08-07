@@ -201,7 +201,7 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
       <button
         type="submit"
         disabled={pending}
-        className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors disabled:opacity-60"
+        className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors disabled:opacity-60"
       >
         {pending ? copy.form.submitting : copy.form.submit}
       </button>

@@ -38,7 +38,7 @@ export default async function EditarLugarPage({
       <div className="mx-auto max-w-lg space-y-6">
         <Link
           href="/admin/lugares"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary min-h-[44px] py-2 hover:underline"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary min-h-11 py-2 hover:underline"
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
           {copy.form.backToList}

@@ -87,7 +87,7 @@ export default async function MiNegocioDetailPage({
         {/* Back */}
         <Link
           href="/mi-negocio"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary min-h-[44px] py-2 hover:underline underline-offset-4"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary min-h-11 py-2 hover:underline underline-offset-4"
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
           Mis negocios
@@ -106,7 +106,7 @@ export default async function MiNegocioDetailPage({
           </div>
           <Link
             href={`/mi-negocio/${b.id}/editar`}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium min-h-[44px] hover:bg-muted/50 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium min-h-11 hover:bg-muted/50 transition-colors"
           >
             <Pencil className="size-3.5" aria-hidden="true" />
             Editar

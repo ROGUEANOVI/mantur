@@ -35,7 +35,7 @@ export default async function NuevaExperienciaPage({
           href={`/mi-negocio/${id}/experiencias`}
           className={cn(
             'inline-flex items-center gap-1.5 mb-6',
-            'text-sm font-medium text-primary min-h-[44px] py-2',
+            'text-sm font-medium text-primary min-h-11 py-2',
             'hover:underline underline-offset-4',
           )}
         >

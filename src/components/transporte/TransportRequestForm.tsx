@@ -116,7 +116,7 @@ export default function TransportRequestForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground font-semibold text-sm min-h-[44px] px-6 hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground font-semibold text-sm min-h-11 px-6 hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {isPending ? copy.submitting : copy.submit}
       </button>
