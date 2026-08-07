@@ -238,6 +238,13 @@ describe('toggleGuideAvailability', () => {
     const result = await toggleGuideAvailability()
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
+
+  it('returns a generic error when the update fails', async () => {
+    currentAvailabilitySingle.mockResolvedValue({ data: { is_available: true } })
+    touristGuidesUpdateMock.mockResolvedValue({ error: { message: 'db error' } })
+    const result = await toggleGuideAvailability()
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
 })
 
 describe('createGuideTour', () => {
@@ -297,6 +304,20 @@ describe('createGuideTour', () => {
       price: 15000, capacity: 5, duration_minutes: 90, status: 'active',
     })
   })
+
+  it('rejects an invalid duration', async () => {
+    const fd = formData({ name: 'Tour', price: '10000', duration_minutes: '0' })
+    const result = await createGuideTour(fd)
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(tourInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when the insert fails', async () => {
+    tourInsertMock.mockResolvedValue({ error: { message: 'db error' } })
+    const fd = formData({ name: 'Tour', price: '10000' })
+    const result = await createGuideTour(fd)
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
 })
 
 describe('updateGuideTour', () => {
@@ -327,6 +348,24 @@ describe('updateGuideTour', () => {
   it('returns a generic error when no row matches (wrong owner or not found)', async () => {
     tourUpdateSelectMock.mockResolvedValue({ data: [], error: null })
     const fd = formData({ name: 'Tour actualizado', price: '20000' })
+    const result = await updateGuideTour(TOUR_ID, fd)
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+
+  it('rejects a negative price', async () => {
+    const fd = formData({ name: 'Tour', price: '-1' })
+    const result = await updateGuideTour(TOUR_ID, fd)
+    expect(result).toEqual({ error: 'El precio debe ser un número mayor o igual a 0.' })
+  })
+
+  it('rejects an invalid capacity', async () => {
+    const fd = formData({ name: 'Tour', price: '10000', capacity: '0' })
+    const result = await updateGuideTour(TOUR_ID, fd)
+    expect(result).toEqual({ error: 'La capacidad debe ser un número entero positivo.' })
+  })
+
+  it('rejects an invalid duration', async () => {
+    const fd = formData({ name: 'Tour', price: '10000', duration_minutes: '0' })
     const result = await updateGuideTour(TOUR_ID, fd)
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
@@ -367,6 +406,14 @@ describe('toggleTourStatus', () => {
 })
 
 describe('uploadTourImage / deleteTourImage', () => {
+  it('uploadTourImage rejects a non-UUID tourId before any auth check', async () => {
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadTourImage('not-a-uuid', fd)
+    expect(result).toEqual({ error: 'Tour no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
   it('uploadTourImage rejects when the tour is not owned by the caller', async () => {
     tourImagesMaybeSingle.mockResolvedValue({ data: null })
     const fd = formData({})
@@ -374,6 +421,42 @@ describe('uploadTourImage / deleteTourImage', () => {
     const result = await uploadTourImage(TOUR_ID, fd)
     expect(result).toEqual({ error: 'Tour no encontrado.' })
     expect(storageUpload).not.toHaveBeenCalled()
+  })
+
+  it('treats a tour with no images field yet as having zero images', async () => {
+    tourImagesMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID, images: undefined } })
+    storageUpload.mockResolvedValue({ error: null })
+    tourUpdateAwaitMock.mockReturnValue({ error: null })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    await uploadTourImage(TOUR_ID, fd)
+
+    expect(tourUpdatePayloadMock).toHaveBeenCalledWith({ images: ['https://cdn.example.com/photo.webp'] })
+  })
+
+  it('uploadTourImage rejects when no image file is provided', async () => {
+    tourImagesMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID, images: [] } })
+    const fd = formData({})
+    const result = await uploadTourImage(TOUR_ID, fd)
+    expect(result).toEqual({ error: 'Selecciona una imagen.' })
+    expect(storageUpload).not.toHaveBeenCalled()
+  })
+
+  it('uploadTourImage rejects an invalid file type', async () => {
+    tourImagesMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID, images: [] } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile({ type: 'application/pdf' }))
+    const result = await uploadTourImage(TOUR_ID, fd)
+    expect(result).toEqual({ error: 'Formato no válido. Usa JPEG, PNG o WebP.' })
+  })
+
+  it('uploadTourImage rejects a file over 5MB', async () => {
+    tourImagesMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID, images: [] } })
+    const fd = formData({})
+    fd.set('image', fakeImageFile({ size: 6 * 1024 * 1024 }))
+    const result = await uploadTourImage(TOUR_ID, fd)
+    expect(result).toEqual({ error: 'La imagen no puede superar 5 MB.' })
   })
 
   it('uploadTourImage rejects at the 5-image cap', async () => {
@@ -410,11 +493,29 @@ describe('uploadTourImage / deleteTourImage', () => {
     expect(storageRemove).toHaveBeenCalled()
   })
 
+  it('uploadTourImage returns an error when the storage upload itself fails', async () => {
+    tourImagesMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID, images: [] } })
+    storageUpload.mockResolvedValue({ error: { message: 'storage down' } })
+
+    const fd = formData({})
+    fd.set('image', fakeImageFile())
+    const result = await uploadTourImage(TOUR_ID, fd)
+
+    expect(result).toEqual({ error: 'No se pudo subir la imagen. Intenta de nuevo.' })
+    expect(tourUpdatePayloadMock).not.toHaveBeenCalled()
+  })
+
   it('deleteTourImage rejects when the tour is not owned by the caller', async () => {
     tourImagesMaybeSingle.mockResolvedValue({ data: null })
     const result = await deleteTourImage(TOUR_ID, 'https://x/a.webp')
     expect(result).toEqual({ error: 'Tour no encontrado.' })
     expect(storageRemove).not.toHaveBeenCalled()
+  })
+
+  it('deleteTourImage rejects a non-UUID tourId without querying the DB', async () => {
+    const result = await deleteTourImage('not-a-uuid', 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Tour no encontrado.' })
+    expect(tourImagesMaybeSingle).not.toHaveBeenCalled()
   })
 
   it('deleteTourImage removes the file from storage and filters the URL out', async () => {
@@ -428,5 +529,26 @@ describe('uploadTourImage / deleteTourImage', () => {
     expect(tourImagesMaybeSingleEqMock).toHaveBeenCalledWith('id', TOUR_ID, 'guide_id', GUIDE_ID)
     expect(storageRemove).toHaveBeenCalledWith('business-images', ['guide-tours/t1/a.webp'])
     expect(tourUpdatePayloadMock).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] })
+  })
+
+  it('deleteTourImage skips the storage removal when the URL does not match the bucket path (still filters it from the array)', async () => {
+    tourImagesMaybeSingle.mockResolvedValue({
+      data: { id: TOUR_ID, images: ['https://cdn.other.com/random.webp', 'https://x/keep.webp'] },
+    })
+    tourUpdateAwaitMock.mockReturnValue({ error: null })
+
+    await deleteTourImage(TOUR_ID, 'https://cdn.other.com/random.webp')
+
+    expect(storageRemove).not.toHaveBeenCalled()
+    expect(tourUpdatePayloadMock).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] })
+  })
+
+  it('deleteTourImage treats a missing images field as an empty array', async () => {
+    tourImagesMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID, images: undefined } })
+    tourUpdateAwaitMock.mockReturnValue({ error: null })
+
+    await deleteTourImage(TOUR_ID, 'https://x/whatever.webp')
+
+    expect(tourUpdatePayloadMock).toHaveBeenCalledWith({ images: [] })
   })
 })

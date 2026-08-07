@@ -106,6 +106,13 @@ describe('createCategory — slug generation', () => {
     expect(categoryInsertMock).not.toHaveBeenCalled()
   })
 
+  it('rejects when the name field is absent from formData entirely', async () => {
+    const fd = new FormData()
+    const result = await createCategory(fd)
+    expect(result).toEqual({ error: 'El nombre es obligatorio.' })
+    expect(categoryInsertMock).not.toHaveBeenCalled()
+  })
+
   it('generates a lowercase, underscore-separated slug', async () => {
     categoryInsertMock.mockResolvedValue({ error: null })
     const fd = formData({ name: 'Casa de campo' })

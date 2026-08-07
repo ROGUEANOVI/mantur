@@ -246,9 +246,58 @@ describe('createBooking', () => {
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
     expect(bookingDeleteEq).toHaveBeenCalledWith('id', 'booking-99')
   })
+
+  it('returns a generic error when the booking insert itself fails', async () => {
+    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 10, status: 'active', business_id: 'biz-1' } })
+    rpcMock.mockResolvedValue({ data: 10, error: null })
+    bookingInsertSingle.mockResolvedValue({ data: null, error: { message: 'db error' } })
+
+    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createBooking(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(txInsertMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('createGuideTourBooking', () => {
+  it('rejects a non-UUID guide_tour_id before querying the DB', async () => {
+    const fd = formData({ guide_tour_id: 'not-a-uuid', people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourBooking(fd)
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(guideTourSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-numeric or zero people_count', async () => {
+    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '0', booking_date: FUTURE_DATE })
+    const result = await createGuideTourBooking(fd)
+    expect(result).toEqual({ error: 'El número de personas debe ser al menos 1.' })
+  })
+
+  it('returns a generic error when the commission RPC fails', async () => {
+    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
+    rpcMock.mockResolvedValue({ data: null, error: { message: 'rpc failed' } })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourBooking(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(bookingInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when the booking insert itself fails', async () => {
+    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
+    rpcMock.mockResolvedValue({ data: 15, error: null })
+    bookingInsertSingle.mockResolvedValue({ data: null, error: { message: 'db error' } })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourBooking(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(txInsertMock).not.toHaveBeenCalled()
+  })
+
   it('reads the commission rate for "guide_tour", not "experience"', async () => {
     guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
     rpcMock.mockResolvedValue({ data: 15, error: null })
@@ -275,5 +324,32 @@ describe('createGuideTourBooking', () => {
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
     const result = await createGuideTourBooking(fd)
     expect(result).toEqual({ error: 'Esta experiencia no está disponible en este momento.' })
+  })
+
+  it('rejects people_count above the tour capacity', async () => {
+    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 4, status: 'active', guide_id: 'guide-1' } })
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '5', booking_date: FUTURE_DATE })
+    const result = await createGuideTourBooking(fd)
+    expect(result).toEqual({ error: 'Supera el cupo máximo de esta experiencia.' })
+  })
+
+  it('rejects a booking date in the past', async () => {
+    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: '2000-01-01' })
+    const result = await createGuideTourBooking(fd)
+    expect(result).toEqual({ error: 'La fecha debe ser hoy o en el futuro.' })
+  })
+
+  it('rolls back (deletes) the booking when the transaction insert fails', async () => {
+    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
+    rpcMock.mockResolvedValue({ data: 15, error: null })
+    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-8' }, error: null })
+    txInsertMock.mockResolvedValue({ error: { message: 'insert failed' } })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourBooking(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(bookingDeleteEq).toHaveBeenCalledWith('id', 'booking-8')
   })
 })
