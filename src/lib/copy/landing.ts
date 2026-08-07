@@ -15,6 +15,13 @@ export const landingCopy = {
     myTransport: 'Mi panel',
     myGuidePanel: 'Mi panel de guía',
     joinMantur: 'Únete',
+    roleLabels: {
+      tourist: 'Turista',
+      business_owner: 'Dueño de negocio',
+      transporter: 'Transportador',
+      tourist_guide: 'Guía turístico',
+      admin: 'Administrador',
+    },
   },
 
   hero: {
