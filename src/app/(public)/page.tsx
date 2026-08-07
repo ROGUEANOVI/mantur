@@ -240,7 +240,10 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
 
 function PlaceCard({ place }: { place: PlacePreview }) {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 hover:shadow-sm transition-shadow">
+    <Link
+      href={`/lugares/${place.id}`}
+      className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 hover:shadow-sm transition-shadow"
+    >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
         <MapPin className="size-5 text-primary" aria-hidden="true" strokeWidth={1.5} />
       </div>
@@ -254,6 +257,6 @@ function PlaceCard({ place }: { place: PlacePreview }) {
           </p>
         )}
       </div>
-    </div>
+    </Link>
   )
 }
