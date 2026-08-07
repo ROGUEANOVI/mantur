@@ -4,6 +4,7 @@ import { Store, TreePine, Waves, Utensils, Home, Star, MapPin } from 'lucide-rea
 import { createAdminClient } from '@/lib/supabase/admin'
 import { landingCopy } from '@/lib/copy/landing'
 import { cn } from '@/lib/utils'
+import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
 
 export const metadata: Metadata = {
   title: 'ManTur — Turismo con alma local',
@@ -114,11 +115,11 @@ export default async function LandingPage() {
                 {copy.featured.title}
               </h2>
             </div>
-            <div className="flex gap-4 overflow-x-auto px-4 pb-2 snap-x snap-mandatory scrollbar-none">
+            <FeaturedCarousel>
               {featuredList.map((b) => (
                 <FeaturedCard key={b.id} business={b} />
               ))}
-            </div>
+            </FeaturedCarousel>
           </div>
         </section>
       )}
@@ -188,7 +189,10 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
   const imageUrl = business.images?.[0]
 
   return (
-    <div className="snap-start shrink-0 w-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border">
+    <div
+      data-carousel-item
+      className="snap-start shrink-0 w-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border"
+    >
       <div className="relative aspect-[4/3]">
         {imageUrl ? (
           <div
