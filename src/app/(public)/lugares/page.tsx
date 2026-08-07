@@ -183,8 +183,11 @@ function PlaceCard({ place }: { place: PlaceRow }) {
   const Icon = TYPE_ICONS[(place.type as PlaceType)] ?? TreePine
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-shadow
-                    flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0">
+    <Link
+      href={`/lugares/${place.id}`}
+      className="group rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-shadow
+                    flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
+    >
       {/* Image */}
       <div className="relative size-24 rounded-xl overflow-hidden shrink-0 sm:size-auto sm:rounded-none sm:aspect-[4/3]">
         {imageUrl ? (
@@ -216,7 +219,7 @@ function PlaceCard({ place }: { place: PlaceRow }) {
           </p>
         )}
       </div>
-    </div>
+    </Link>
   )
 }
 
