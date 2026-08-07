@@ -4,7 +4,18 @@ import { signOut } from '@/app/(auth)/actions'
 import { landingCopy } from '@/lib/copy/landing'
 import NavMobileMenu from './NavMobileMenu'
 import NavLink from './NavLink'
+import UserMenu, { type UserMenuLink } from './UserMenu'
 import ManturLogo from '@/components/shared/ManturLogo'
+
+const PRIMARY_LINK_CLASS =
+  'text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors'
+const PRIMARY_LINK_ACTIVE_CLASS = 'text-foreground font-semibold bg-muted/40'
+const SECONDARY_LINK_CLASS =
+  'text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors'
+const SECONDARY_LINK_ACTIVE_CLASS = 'text-foreground font-semibold bg-muted/40'
+const ACCENT_LINK_CLASS =
+  'text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-11 flex items-center rounded-lg hover:bg-accent/10 transition-colors'
+const ACCENT_LINK_ACTIVE_CLASS = 'text-accent font-semibold bg-accent/10'
 
 export default async function PublicNav() {
   const supabase = await createClient()
@@ -34,94 +45,95 @@ export default async function PublicNav() {
     { label: copy.guias, href: '/guias' },
   ]
 
-  // Auth section — same markup reused in both desktop + mobile drawer
-  const authContent = user ? (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1">
-      {role === 'tourist' && (
-        <>
-          <NavLink
-            href="/mis-reservas"
-            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
-            activeClassName="text-foreground font-semibold bg-muted/40"
-          >
-            {copy.myBookings}
-          </NavLink>
-          <NavLink
-            href="/mis-viajes"
-            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
-            activeClassName="text-foreground font-semibold bg-muted/40"
-          >
-            {copy.myTrips}
-          </NavLink>
-          <NavLink
-            href="/solicitar-rol"
-            className="text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-[44px] flex items-center rounded-lg hover:bg-accent/10 transition-colors"
-            activeClassName="text-accent font-semibold bg-accent/10"
-          >
-            {copy.joinMantur}
-          </NavLink>
-        </>
-      )}
-      {role === 'transporter' && (
-        <NavLink
-          href="/mi-perfil-transporte"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
-          activeClassName="text-foreground font-semibold bg-muted/40"
-        >
-          {copy.myTransport}
-        </NavLink>
-      )}
-      {role === 'tourist_guide' && (
-        <NavLink
-          href="/mi-perfil-guia"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
-          activeClassName="text-foreground font-semibold bg-muted/40"
-        >
-          {copy.myGuidePanel}
-        </NavLink>
-      )}
-      {role === 'business_owner' && (
-        <NavLink
-          href="/mi-negocio"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
-          activeClassName="text-foreground font-semibold bg-muted/40"
-        >
-          {copy.myBusiness}
-        </NavLink>
-      )}
-      {role === 'admin' && (
-        <Link
-          href="/admin"
-          className="text-sm font-medium text-primary px-3 min-h-[44px] flex items-center rounded-lg hover:bg-primary/10 transition-colors"
-        >
-          {copy.admin}
-        </Link>
-      )}
-      <UserAvatar name={fullName ?? user.email ?? ''} />
-      <form action={signOut}>
-        <button
-          type="submit"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors whitespace-nowrap"
-        >
-          {copy.signout}
-        </button>
-      </form>
+  // Per role: one link stays visible inline next to the avatar menu; the
+  // rest moves into the UserMenu dropdown (desktop) / flat rows (mobile).
+  let primaryLink: { label: string; href: string; isAdmin?: boolean } | null = null
+  let secondaryLinks: UserMenuLink[] = []
+
+  switch (role) {
+    case 'tourist':
+      primaryLink = { label: copy.myBookings, href: '/mis-reservas' }
+      secondaryLinks = [
+        { label: copy.myTrips, href: '/mis-viajes' },
+        { label: copy.joinMantur, href: '/solicitar-rol', accent: true },
+      ]
+      break
+    case 'transporter':
+      primaryLink = { label: copy.myTransport, href: '/mi-perfil-transporte' }
+      break
+    case 'tourist_guide':
+      primaryLink = { label: copy.myGuidePanel, href: '/mi-perfil-guia' }
+      break
+    case 'business_owner':
+      primaryLink = { label: copy.myBusiness, href: '/mi-negocio' }
+      break
+    case 'admin':
+      primaryLink = { label: copy.admin, href: '/admin', isAdmin: true }
+      break
+    default:
+      break
+  }
+
+  // Same primary-link element reused in both the desktop cluster and the
+  // mobile drawer (mirrors how the whole auth block was shared pre-refactor).
+  const primaryLinkEl = primaryLink ? (
+    primaryLink.isAdmin ? (
+      <Link
+        href={primaryLink.href}
+        className="text-sm font-medium text-primary px-3 min-h-11 flex items-center rounded-lg hover:bg-primary/10 transition-colors"
+      >
+        {primaryLink.label}
+      </Link>
+    ) : (
+      <NavLink
+        href={primaryLink.href}
+        className={PRIMARY_LINK_CLASS}
+        activeClassName={PRIMARY_LINK_ACTIVE_CLASS}
+      >
+        {primaryLink.label}
+      </NavLink>
+    )
+  ) : null
+
+  const signOutButton = (
+    <form action={signOut}>
+      <button
+        type="submit"
+        className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors whitespace-nowrap"
+      >
+        {copy.signout}
+      </button>
+    </form>
+  )
+
+  // Desktop: primary link + avatar dropdown holding everything else.
+  const desktopAuthContent = user ? (
+    <div className="flex items-center gap-1">
+      {primaryLinkEl}
+      <UserMenu fullName={fullName} email={user.email ?? null} role={role} links={secondaryLinks} />
     </div>
   ) : (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
-      <Link
-        href="/login"
-        className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
-      >
-        {copy.login}
-      </Link>
-      <Link
-        href="/signup"
-        className="text-sm font-semibold bg-primary text-primary-foreground px-4 min-h-[44px] flex items-center justify-center rounded-xl hover:bg-primary/90 transition-colors"
-      >
-        {copy.signup}
-      </Link>
+    <GuestActions copy={copy} />
+  )
+
+  // Mobile drawer: same links, flattened — no nested dropdown inside a drawer.
+  const mobileAuthContent = user ? (
+    <div className="flex flex-col gap-2">
+      {primaryLinkEl}
+      {secondaryLinks.map((link) => (
+        <NavLink
+          key={link.href}
+          href={link.href}
+          className={link.accent ? ACCENT_LINK_CLASS : SECONDARY_LINK_CLASS}
+          activeClassName={link.accent ? ACCENT_LINK_ACTIVE_CLASS : SECONDARY_LINK_ACTIVE_CLASS}
+        >
+          {link.label}
+        </NavLink>
+      ))}
+      <div className="border-t border-border pt-2 mt-1">{signOutButton}</div>
     </div>
+  ) : (
+    <GuestActions copy={copy} />
   )
 
   return (
@@ -138,7 +150,7 @@ export default async function PublicNav() {
             <NavLink
               key={link.href}
               href={link.href}
-              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center transition-colors rounded-lg hover:bg-muted/50"
+              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center transition-colors rounded-lg hover:bg-muted/50"
               activeClassName="text-foreground font-semibold bg-muted/40"
             >
               {link.label}
@@ -148,34 +160,34 @@ export default async function PublicNav() {
 
         {/* Desktop auth */}
         <div className="hidden sm:flex items-center gap-1 shrink-0 ml-auto">
-          {authContent}
+          {desktopAuthContent}
         </div>
 
         {/* Mobile: spacer + hamburger */}
         <div className="flex-1 sm:hidden" />
         <div className="sm:hidden">
-          <NavMobileMenu links={navLinks}>{authContent}</NavMobileMenu>
+          <NavMobileMenu links={navLinks}>{mobileAuthContent}</NavMobileMenu>
         </div>
       </div>
     </header>
   )
 }
 
-function UserAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('')
-
+function GuestActions({ copy }: { copy: typeof landingCopy.nav }) {
   return (
-    <div
-      className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold select-none"
-      aria-hidden="true"
-      title={name}
-    >
-      {initials || '?'}
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+      <Link
+        href="/login"
+        className="text-sm font-medium text-foreground border border-border px-4 min-h-11 flex items-center justify-center rounded-xl hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-colors"
+      >
+        {copy.login}
+      </Link>
+      <Link
+        href="/signup"
+        className="text-sm font-semibold bg-primary text-primary-foreground px-4 min-h-11 flex items-center justify-center rounded-xl hover:bg-primary/90 transition-colors"
+      >
+        {copy.signup}
+      </Link>
     </div>
   )
 }
