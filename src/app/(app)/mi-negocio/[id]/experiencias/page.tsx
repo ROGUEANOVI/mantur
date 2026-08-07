@@ -52,7 +52,7 @@ export default async function ExperienciasPage({
           href={`/mi-negocio/${id}`}
           className={cn(
             'inline-flex items-center gap-1.5 mb-5',
-            'text-sm font-medium text-primary min-h-[44px] py-2',
+            'text-sm font-medium text-primary min-h-11 py-2',
             'hover:underline underline-offset-4',
           )}
         >
@@ -72,7 +72,7 @@ export default async function ExperienciasPage({
           <h1 className="text-2xl font-bold text-foreground">{copy.title}</h1>
           <Link
             href={`/mi-negocio/${id}/experiencias/nueva`}
-            className="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-primary text-primary-foreground text-sm font-medium px-3 min-h-[44px] hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-primary text-primary-foreground text-sm font-medium px-3 min-h-11 hover:bg-primary/90 transition-colors"
           >
             <Plus className="size-4" aria-hidden="true" />
             {copy.addButton}

@@ -32,7 +32,7 @@ export function ToggleExperienceButton({ experienceId, currentStatus }: Props) {
       onClick={handleToggle}
       disabled={isPending}
       aria-label={`${label} experiencia`}
-      className="min-h-[44px] min-w-[44px] rounded-xl"
+      className="min-h-11 min-w-[44px] rounded-xl"
     >
       {isPending ? copy.toggling : label}
     </Button>

@@ -53,7 +53,7 @@ export default function CommissionForm({ configId, serviceType, currentRate }: P
             max="100"
             step="0.01"
             required
-            className="w-full rounded-xl border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[44px]"
+            className="w-full rounded-xl border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
           />
           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
             %
@@ -64,7 +64,7 @@ export default function CommissionForm({ configId, serviceType, currentRate }: P
       <button
         type="submit"
         disabled={isPending}
-        className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] px-4 hover:bg-primary/90 transition-colors disabled:opacity-60"
+        className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 transition-colors disabled:opacity-60"
       >
         {isPending
           ? adminCopy.comisiones.saving

@@ -125,7 +125,7 @@ export default async function NegocioDetailPage({
             className={cn(
               'inline-flex items-center gap-1.5',
               'text-sm font-medium text-primary',
-              'min-h-[44px] py-2 hover:underline'
+              'min-h-11 py-2 hover:underline'
             )}
           >
             <ChevronLeft className="size-4" aria-hidden="true" />
@@ -247,14 +247,14 @@ function ExperienceCard({
         {isTourist ? (
           <Link
             href={`/reservas/nueva?exp=${exp.id}`}
-            className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
+            className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
           >
             {copy.book}
           </Link>
         ) : isGuest ? (
           <Link
             href="/login"
-            className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-[44px] hover:bg-primary/10 transition-colors"
+            className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 transition-colors"
           >
             {copy.bookGuest}
           </Link>

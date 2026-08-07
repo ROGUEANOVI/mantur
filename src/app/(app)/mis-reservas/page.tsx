@@ -72,7 +72,7 @@ export default async function MisReservasPage() {
             </p>
             <Link
               href="/negocios"
-              className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] px-6 hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-6 hover:bg-primary/90 transition-colors"
             >
               {bookingsCopy.list.explore}
             </Link>

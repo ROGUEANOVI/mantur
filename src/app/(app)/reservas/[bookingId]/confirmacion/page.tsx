@@ -224,7 +224,7 @@ export default async function ConfirmacionPage({
               href={`https://wa.me/57${b.guide_tours.tourist_guides.phone.replace(/\D/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white text-sm font-semibold min-h-[44px] hover:bg-[#1ebe59] transition-colors"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white text-sm font-semibold min-h-11 hover:bg-[#1ebe59] transition-colors"
             >
               <MessageCircle className="size-4" aria-hidden="true" />
               {bookingsCopy.confirmation.whatsappButton}
@@ -236,13 +236,13 @@ export default async function ConfirmacionPage({
         <div className="space-y-3 pt-1">
           <Link
             href="/mis-reservas"
-            className="inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors"
+            className="inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
           >
             {bookingsCopy.confirmation.myBookings}
           </Link>
           <Link
             href="/negocios"
-            className="inline-flex w-full items-center justify-center min-h-[44px] text-sm text-primary underline-offset-4 hover:underline"
+            className="inline-flex w-full items-center justify-center min-h-11 text-sm text-primary underline-offset-4 hover:underline"
           >
             {bookingsCopy.confirmation.explore}
           </Link>

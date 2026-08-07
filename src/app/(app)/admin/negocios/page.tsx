@@ -68,7 +68,7 @@ export default async function AdminNegociosPage({
           </div>
           <Link
             href="/admin/negocios/nuevo"
-            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors min-h-[44px] flex items-center shrink-0"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors min-h-11 flex items-center shrink-0"
           >
             {adminCopy.negocios.new}
           </Link>

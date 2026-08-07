@@ -151,14 +151,14 @@ export default function AdminBusinessForm({ action, owners }: Props) {
       <div className="flex gap-3 pt-2">
         <Link
           href="/admin/negocios"
-          className="flex-1 rounded-xl border border-border px-4 py-2 text-center text-sm font-medium text-foreground hover:bg-muted/50 transition-colors min-h-[44px] flex items-center justify-center"
+          className="flex-1 rounded-xl border border-border px-4 py-2 text-center text-sm font-medium text-foreground hover:bg-muted/50 transition-colors min-h-11 flex items-center justify-center"
         >
           {copy.cancel}
         </Link>
         <button
           type="submit"
           disabled={pending || owners.length === 0}
-          className="flex-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px]"
+          className="flex-1 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-11"
         >
           {pending ? copy.submitting : copy.submit}
         </button>

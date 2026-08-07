@@ -127,7 +127,7 @@ export default function CreateBusinessForm({ categories }: { categories: Categor
       {/* Submit */}
       <Button
         type="submit"
-        className="w-full rounded-xl min-h-[44px]"
+        className="w-full rounded-xl min-h-11"
         disabled={pending}
       >
         {pending ? copy.setup.submitting : copy.setup.submit}

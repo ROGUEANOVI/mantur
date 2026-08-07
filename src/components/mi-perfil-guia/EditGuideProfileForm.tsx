@@ -114,7 +114,7 @@ export default function EditGuideProfileForm({ phone, bio, specialties, language
       <div className="flex gap-3 pt-1">
         <Link
           href="/mi-perfil-guia"
-          className="inline-flex items-center gap-1.5 flex-1 justify-center rounded-xl border border-border text-sm font-medium min-h-[44px] hover:bg-muted transition-colors"
+          className="inline-flex items-center gap-1.5 flex-1 justify-center rounded-xl border border-border text-sm font-medium min-h-11 hover:bg-muted transition-colors"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           {copy.back}
@@ -122,7 +122,7 @@ export default function EditGuideProfileForm({ phone, bio, specialties, language
         <button
           type="submit"
           disabled={pending}
-          className="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           {pending ? copy.saving : copy.save}
         </button>

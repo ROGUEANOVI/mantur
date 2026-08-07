@@ -41,21 +41,21 @@ export default async function PublicNav() {
         <>
           <NavLink
             href="/mis-reservas"
-            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors"
             activeClassName="text-foreground font-semibold bg-muted/40"
           >
             {copy.myBookings}
           </NavLink>
           <NavLink
             href="/mis-viajes"
-            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors"
             activeClassName="text-foreground font-semibold bg-muted/40"
           >
             {copy.myTrips}
           </NavLink>
           <NavLink
             href="/solicitar-rol"
-            className="text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-[44px] flex items-center rounded-lg hover:bg-accent/10 transition-colors"
+            className="text-sm font-medium text-accent hover:text-accent/80 px-3 min-h-11 flex items-center rounded-lg hover:bg-accent/10 transition-colors"
             activeClassName="text-accent font-semibold bg-accent/10"
           >
             {copy.joinMantur}
@@ -65,7 +65,7 @@ export default async function PublicNav() {
       {role === 'transporter' && (
         <NavLink
           href="/mi-perfil-transporte"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors"
           activeClassName="text-foreground font-semibold bg-muted/40"
         >
           {copy.myTransport}
@@ -74,7 +74,7 @@ export default async function PublicNav() {
       {role === 'tourist_guide' && (
         <NavLink
           href="/mi-perfil-guia"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors"
           activeClassName="text-foreground font-semibold bg-muted/40"
         >
           {copy.myGuidePanel}
@@ -83,7 +83,7 @@ export default async function PublicNav() {
       {role === 'business_owner' && (
         <NavLink
           href="/mi-negocio"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors"
           activeClassName="text-foreground font-semibold bg-muted/40"
         >
           {copy.myBusiness}
@@ -92,7 +92,7 @@ export default async function PublicNav() {
       {role === 'admin' && (
         <Link
           href="/admin"
-          className="text-sm font-medium text-primary px-3 min-h-[44px] flex items-center rounded-lg hover:bg-primary/10 transition-colors"
+          className="text-sm font-medium text-primary px-3 min-h-11 flex items-center rounded-lg hover:bg-primary/10 transition-colors"
         >
           {copy.admin}
         </Link>
@@ -101,7 +101,7 @@ export default async function PublicNav() {
       <form action={signOut}>
         <button
           type="submit"
-          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors whitespace-nowrap"
+          className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors whitespace-nowrap"
         >
           {copy.signout}
         </button>
@@ -111,13 +111,13 @@ export default async function PublicNav() {
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
       <Link
         href="/login"
-        className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center rounded-lg hover:bg-muted/50 transition-colors"
+        className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center rounded-lg hover:bg-muted/50 transition-colors"
       >
         {copy.login}
       </Link>
       <Link
         href="/signup"
-        className="text-sm font-semibold bg-primary text-primary-foreground px-4 min-h-[44px] flex items-center justify-center rounded-xl hover:bg-primary/90 transition-colors"
+        className="text-sm font-semibold bg-primary text-primary-foreground px-4 min-h-11 flex items-center justify-center rounded-xl hover:bg-primary/90 transition-colors"
       >
         {copy.signup}
       </Link>
@@ -138,7 +138,7 @@ export default async function PublicNav() {
             <NavLink
               key={link.href}
               href={link.href}
-              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-[44px] flex items-center transition-colors rounded-lg hover:bg-muted/50"
+              className="text-sm text-muted-foreground hover:text-foreground px-3 min-h-11 flex items-center transition-colors rounded-lg hover:bg-muted/50"
               activeClassName="text-foreground font-semibold bg-muted/40"
             >
               {link.label}

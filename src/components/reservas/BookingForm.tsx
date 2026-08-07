@@ -109,7 +109,7 @@ export default function BookingForm({
       {/* Submit */}
       <Button
         type="submit"
-        className="w-full rounded-xl min-h-[44px]"
+        className="w-full rounded-xl min-h-11"
         disabled={isPending}
       >
         {isPending ? bookingsCopy.form.submitting : bookingsCopy.form.submit}
@@ -118,7 +118,7 @@ export default function BookingForm({
       {/* Cancel */}
       <Link
         href="/negocios"
-        className="inline-flex w-full items-center justify-center min-h-[44px] text-sm text-primary underline-offset-4 hover:underline"
+        className="inline-flex w-full items-center justify-center min-h-11 text-sm text-primary underline-offset-4 hover:underline"
       >
         {bookingsCopy.form.cancel}
       </Link>
