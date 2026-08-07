@@ -11,6 +11,8 @@ import {
 import TransportRequestForm from '@/components/transporte/TransportRequestForm'
 import { transportCopy } from '@/lib/copy/transport'
 
+type Access = 'tourist' | 'guest' | 'other_role'
+
 type Props = {
   transporter: {
     vehicle_type: string
@@ -19,15 +21,15 @@ type Props = {
     bio: string | null
     full_name: string | null
   }
-  isTourist: boolean
+  access: Access
 }
 
-export default function TransporterCardWithModal({ transporter, isTourist }: Props) {
+export default function TransporterCardWithModal({ transporter, access }: Props) {
   const [open, setOpen] = useState(false)
   const copy = transportCopy.publicPage
 
   function handleRequest() {
-    if (!isTourist) {
+    if (access === 'guest') {
       window.location.href = '/login?next=/transportistas'
       return
     }
@@ -65,13 +67,15 @@ export default function TransporterCardWithModal({ transporter, isTourist }: Pro
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={handleRequest}
-          className="inline-flex items-center justify-center w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 transition-colors"
-        >
-          {copy.requestRide}
-        </button>
+        {access !== 'other_role' && (
+          <button
+            type="button"
+            onClick={handleRequest}
+            className="inline-flex items-center justify-center w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 transition-colors"
+          >
+            {copy.requestRide}
+          </button>
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
