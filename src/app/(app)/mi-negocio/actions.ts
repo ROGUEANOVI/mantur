@@ -258,10 +258,15 @@ export async function toggleExperienceStatus(
   revalidatePath('/mi-negocio', 'layout')
 }
 
-// ── Image helpers ────────────────────────────────────────────────────────────
+// ── Media helpers ────────────────────────────────────────────────────────────
 
 const BUSINESS_BUCKET = 'business-images'
-const MAX_BUSINESS_IMAGES = 5
+const BUSINESS_VIDEO_BUCKET = 'business-videos'
+const MAX_BUSINESS_MEDIA = 10
+const MAX_EXPERIENCE_MEDIA = 10
+
+const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024
 
 function extractStoragePath(url: string, bucket: string): string | null {
   const marker = `/storage/v1/object/public/${bucket}/`
@@ -277,6 +282,23 @@ function validateImageFile(file: File | null): string | null {
   return null
 }
 
+function validateVideoMeta(fileType: string, fileSize: number): string | null {
+  if (!VIDEO_MIME_TYPES.includes(fileType)) return 'Formato no válido. Usa MP4, WebM o QuickTime.'
+  if (!fileSize || fileSize > MAX_VIDEO_BYTES) return 'El video no puede superar 50 MB.'
+  return null
+}
+
+function videoExtension(fileType: string): string {
+  switch (fileType) {
+    case 'video/webm':
+      return 'webm'
+    case 'video/quicktime':
+      return 'mov'
+    default:
+      return 'mp4'
+  }
+}
+
 export async function uploadBusinessImage(
   businessId: string,
   formData: FormData,
@@ -286,7 +308,7 @@ export async function uploadBusinessImage(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id, images')
+    .select('id, images, videos')
     .eq('id', businessId)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -294,8 +316,8 @@ export async function uploadBusinessImage(
   if (!owned) return { error: 'Negocio no encontrado.' }
 
   const currentImages: string[] = owned.images ?? []
-  if (currentImages.length >= MAX_BUSINESS_IMAGES) {
-    return { error: `Máximo ${MAX_BUSINESS_IMAGES} fotos por negocio.` }
+  if (currentImages.length + (owned.videos ?? []).length >= MAX_BUSINESS_MEDIA) {
+    return { error: `Máximo ${MAX_BUSINESS_MEDIA} fotos y videos por negocio.` }
   }
 
   const file = formData.get('image') as File | null
@@ -327,7 +349,114 @@ export async function uploadBusinessImage(
   revalidatePath(`/negocios/${businessId}`)
 }
 
-const EXPERIENCE_MAX_IMAGES = 5
+type SignedUploadResult = { token: string; path: string; publicUrl: string } | { error: string }
+
+export async function requestBusinessVideoUpload(
+  businessId: string,
+  fileName: string,
+  fileType: string,
+  fileSize: number,
+): Promise<SignedUploadResult> {
+  if (!UUID_RE.test(businessId)) return { error: 'Negocio no encontrado.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id, images, videos')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Negocio no encontrado.' }
+
+  const currentCount = (owned.images ?? []).length + (owned.videos ?? []).length
+  if (currentCount >= MAX_BUSINESS_MEDIA) {
+    return { error: `Máximo ${MAX_BUSINESS_MEDIA} fotos y videos por negocio.` }
+  }
+
+  const fileError = validateVideoMeta(fileType, fileSize)
+  if (fileError) return { error: fileError }
+
+  const admin = createAdminClient()
+  const path = `businesses/${businessId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${videoExtension(fileType)}`
+
+  const { data, error } = await admin.storage.from(BUSINESS_VIDEO_BUCKET).createSignedUploadUrl(path)
+  if (error || !data) return { error: 'No se pudo iniciar la subida del video. Intenta de nuevo.' }
+
+  const { data: { publicUrl } } = admin.storage.from(BUSINESS_VIDEO_BUCKET).getPublicUrl(path)
+
+  return { token: data.token, path: data.path, publicUrl }
+}
+
+export async function confirmBusinessVideoUpload(
+  businessId: string,
+  path: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(businessId)) return { error: 'Negocio no encontrado.' }
+  // The path must fall under this business's own folder — confirm never
+  // trusts a client-supplied URL directly, since that would let a caller
+  // skip validateVideoMeta (called only in requestBusinessVideoUpload) or
+  // link in arbitrary external content as if it were an uploaded video.
+  if (!path.startsWith(`businesses/${businessId}/`)) return { error: 'Video no válido.' }
+
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id, images, videos')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Negocio no encontrado.' }
+
+  const currentVideos: string[] = owned.videos ?? []
+  if ((owned.images ?? []).length + currentVideos.length >= MAX_BUSINESS_MEDIA) {
+    return { error: `Máximo ${MAX_BUSINESS_MEDIA} fotos y videos por negocio.` }
+  }
+
+  const admin = createAdminClient()
+  const { data: { publicUrl } } = admin.storage.from(BUSINESS_VIDEO_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('businesses')
+    .update({ videos: [...currentVideos, publicUrl] })
+    .eq('id', businessId)
+
+  if (updateError) return { error: 'No se pudo guardar el video.' }
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${businessId}`)
+}
+
+export async function deleteBusinessVideo(
+  businessId: string,
+  videoUrl: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(businessId)) return { error: 'Negocio no encontrado.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id, videos')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Negocio no encontrado.' }
+
+  const admin = createAdminClient()
+  const storagePath = extractStoragePath(videoUrl, BUSINESS_VIDEO_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(BUSINESS_VIDEO_BUCKET).remove([storagePath])
+  }
+
+  const newVideos = (owned.videos ?? []).filter((u: string) => u !== videoUrl)
+  await admin.from('businesses').update({ videos: newVideos }).eq('id', businessId)
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${businessId}`)
+}
 
 export async function uploadExperienceImage(
   experienceId: string,
@@ -339,7 +468,7 @@ export async function uploadExperienceImage(
   // Verify the experience belongs to a business owned by this user.
   const { data: exp } = await supabase
     .from('experiences')
-    .select('id, images, business_id')
+    .select('id, images, videos, business_id')
     .eq('id', experienceId)
     .maybeSingle()
 
@@ -355,8 +484,8 @@ export async function uploadExperienceImage(
   if (!owned) return { error: 'Experiencia no encontrada.' }
 
   const currentImages: string[] = exp.images ?? []
-  if (currentImages.length >= EXPERIENCE_MAX_IMAGES) {
-    return { error: `Máximo ${EXPERIENCE_MAX_IMAGES} fotos por actividad.` }
+  if (currentImages.length + (exp.videos ?? []).length >= MAX_EXPERIENCE_MEDIA) {
+    return { error: `Máximo ${MAX_EXPERIENCE_MEDIA} fotos y videos por actividad.` }
   }
 
   const file = formData.get('image') as File | null
@@ -420,6 +549,135 @@ export async function deleteExperienceImage(
 
   const newImages = (exp.images ?? []).filter((u: string) => u !== imageUrl)
   await admin.from('experiences').update({ images: newImages }).eq('id', experienceId)
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${exp.business_id}`)
+}
+
+export async function requestExperienceVideoUpload(
+  experienceId: string,
+  fileName: string,
+  fileType: string,
+  fileSize: number,
+): Promise<SignedUploadResult> {
+  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: exp } = await supabase
+    .from('experiences')
+    .select('id, images, videos, business_id')
+    .eq('id', experienceId)
+    .maybeSingle()
+
+  if (!exp) return { error: 'Experiencia no encontrada.' }
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', exp.business_id)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Experiencia no encontrada.' }
+
+  const currentCount = (exp.images ?? []).length + (exp.videos ?? []).length
+  if (currentCount >= MAX_EXPERIENCE_MEDIA) {
+    return { error: `Máximo ${MAX_EXPERIENCE_MEDIA} fotos y videos por actividad.` }
+  }
+
+  const fileError = validateVideoMeta(fileType, fileSize)
+  if (fileError) return { error: fileError }
+
+  const admin = createAdminClient()
+  const path = `experiences/${experienceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${videoExtension(fileType)}`
+
+  const { data, error } = await admin.storage.from(BUSINESS_VIDEO_BUCKET).createSignedUploadUrl(path)
+  if (error || !data) return { error: 'No se pudo iniciar la subida del video. Intenta de nuevo.' }
+
+  const { data: { publicUrl } } = admin.storage.from(BUSINESS_VIDEO_BUCKET).getPublicUrl(path)
+
+  return { token: data.token, path: data.path, publicUrl }
+}
+
+export async function confirmExperienceVideoUpload(
+  experienceId: string,
+  path: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  // See confirmBusinessVideoUpload: confirm never trusts a client-supplied
+  // URL directly, only a path scoped to this experience's own folder.
+  if (!path.startsWith(`experiences/${experienceId}/`)) return { error: 'Video no válido.' }
+
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: exp } = await supabase
+    .from('experiences')
+    .select('id, images, videos, business_id')
+    .eq('id', experienceId)
+    .maybeSingle()
+
+  if (!exp) return { error: 'Experiencia no encontrada.' }
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', exp.business_id)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Experiencia no encontrada.' }
+
+  const currentVideos: string[] = exp.videos ?? []
+  if ((exp.images ?? []).length + currentVideos.length >= MAX_EXPERIENCE_MEDIA) {
+    return { error: `Máximo ${MAX_EXPERIENCE_MEDIA} fotos y videos por actividad.` }
+  }
+
+  const admin = createAdminClient()
+  const { data: { publicUrl } } = admin.storage.from(BUSINESS_VIDEO_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('experiences')
+    .update({ videos: [...currentVideos, publicUrl] })
+    .eq('id', experienceId)
+
+  if (updateError) return { error: 'No se pudo guardar el video.' }
+
+  revalidatePath('/mi-negocio', 'layout')
+  revalidatePath(`/negocios/${exp.business_id}`)
+}
+
+export async function deleteExperienceVideo(
+  experienceId: string,
+  videoUrl: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const { data: exp } = await supabase
+    .from('experiences')
+    .select('id, videos, business_id')
+    .eq('id', experienceId)
+    .maybeSingle()
+
+  if (!exp) return { error: 'Experiencia no encontrada.' }
+
+  const { data: owned } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', exp.business_id)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!owned) return { error: 'Experiencia no encontrada.' }
+
+  const admin = createAdminClient()
+  const storagePath = extractStoragePath(videoUrl, BUSINESS_VIDEO_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(BUSINESS_VIDEO_BUCKET).remove([storagePath])
+  }
+
+  const newVideos = (exp.videos ?? []).filter((u: string) => u !== videoUrl)
+  await admin.from('experiences').update({ videos: newVideos }).eq('id', experienceId)
 
   revalidatePath('/mi-negocio', 'layout')
   revalidatePath(`/negocios/${exp.business_id}`)

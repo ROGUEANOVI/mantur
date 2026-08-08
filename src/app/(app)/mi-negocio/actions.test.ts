@@ -34,7 +34,9 @@ const businessUpdateMock = vi.fn()
 const businessDeleteEq = vi.fn()
 const businessOwnershipSingle = vi.fn() // select('id').eq(id).eq(owner_id).single() — createExperience
 const businessReactivateMaybeSingle = vi.fn() // select('id, verified')... .maybeSingle() — reactivateBusiness
-const businessImagesMaybeSingle = vi.fn() // select('id, images')... .maybeSingle() — upload/deleteBusinessImage
+const businessImagesMaybeSingle = vi.fn() // select('id, images')... .maybeSingle() — deleteBusinessImage
+const businessMediaMaybeSingle = vi.fn() // select('id, images, videos')... .maybeSingle() — upload/requestBusinessVideoUpload/confirmBusinessVideoUpload
+const businessVideosMaybeSingle = vi.fn() // select('id, videos')... .maybeSingle() — deleteBusinessVideo
 
 const categoryLinksInsertMock = vi.fn()
 const categoryLinksDeleteMock = vi.fn()
@@ -63,6 +65,12 @@ function businessesUserTable() {
       }
       if (cols === 'id, images') {
         return { eq: () => ({ eq: () => ({ maybeSingle: businessImagesMaybeSingle }) }) }
+      }
+      if (cols === 'id, images, videos') {
+        return { eq: () => ({ eq: () => ({ maybeSingle: businessMediaMaybeSingle }) }) }
+      }
+      if (cols === 'id, videos') {
+        return { eq: () => ({ eq: () => ({ maybeSingle: businessVideosMaybeSingle }) }) }
       }
       throw new Error(`unexpected businesses select: ${cols}`)
     },
@@ -105,6 +113,7 @@ const adminExperiencesUpdate = vi.fn()
 const storageUpload = vi.fn()
 const storageGetPublicUrl = vi.fn()
 const storageRemove = vi.fn()
+const storageCreateSignedUploadUrl = vi.fn()
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
@@ -122,6 +131,7 @@ vi.mock('@/lib/supabase/admin', () => ({
         upload: (path: string, file: unknown, opts: unknown) => storageUpload(bucket, path, file, opts),
         getPublicUrl: (path: string) => storageGetPublicUrl(bucket, path),
         remove: (paths: string[]) => storageRemove(bucket, paths),
+        createSignedUploadUrl: (path: string) => storageCreateSignedUploadUrl(bucket, path),
       }),
     },
   })),
@@ -139,6 +149,12 @@ const {
   uploadExperienceImage,
   deleteExperienceImage,
   deleteBusinessImage,
+  requestBusinessVideoUpload,
+  confirmBusinessVideoUpload,
+  deleteBusinessVideo,
+  requestExperienceVideoUpload,
+  confirmExperienceVideoUpload,
+  deleteExperienceVideo,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[]>) {
@@ -498,7 +514,7 @@ describe('uploadBusinessImage', () => {
   })
 
   it('rejects when the business is not owned by the caller', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: null })
+    businessMediaMaybeSingle.mockResolvedValue({ data: null })
     const fd = formData({})
     fd.set('image', fakeImageFile())
     const result = await uploadBusinessImage(BIZ_ID, fd)
@@ -506,8 +522,8 @@ describe('uploadBusinessImage', () => {
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
-  it('treats a business with no images field yet as having zero images', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: undefined } })
+  it('treats a business with no images/videos fields yet as having zero media', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: undefined, videos: undefined } })
     storageUpload.mockResolvedValue({ error: null })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
@@ -520,17 +536,19 @@ describe('uploadBusinessImage', () => {
     )
   })
 
-  it('rejects once the business already has 5 images', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: Array(5).fill('https://x/img.webp') } })
+  it('rejects once the business already has 10 combined photos and videos', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({
+      data: { id: BIZ_ID, images: Array(7).fill('https://x/img.webp'), videos: Array(3).fill('https://x/vid.mp4') },
+    })
     const fd = formData({})
     fd.set('image', fakeImageFile())
     const result = await uploadBusinessImage(BIZ_ID, fd)
-    expect(result).toEqual({ error: 'Máximo 5 fotos por negocio.' })
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por negocio.' })
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
   it('rejects when no image file is provided', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
     const fd = formData({})
     const result = await uploadBusinessImage(BIZ_ID, fd)
     expect(result).toEqual({ error: 'Selecciona una imagen.' })
@@ -538,7 +556,7 @@ describe('uploadBusinessImage', () => {
   })
 
   it('returns an error when the storage upload itself fails', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
     storageUpload.mockResolvedValue({ error: { message: 'storage down' } })
     const fd = formData({})
     fd.set('image', fakeImageFile())
@@ -548,7 +566,7 @@ describe('uploadBusinessImage', () => {
   })
 
   it('rejects a file that is not jpeg/png/webp', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
     const fd = formData({})
     fd.set('image', fakeImageFile({ type: 'application/pdf' }))
     const result = await uploadBusinessImage(BIZ_ID, fd)
@@ -556,7 +574,7 @@ describe('uploadBusinessImage', () => {
   })
 
   it('rejects a file over 5MB', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
     const fd = formData({})
     fd.set('image', fakeImageFile({ size: 6 * 1024 * 1024 }))
     const result = await uploadBusinessImage(BIZ_ID, fd)
@@ -564,7 +582,7 @@ describe('uploadBusinessImage', () => {
   })
 
   it('uploads and appends the new URL to the existing images array', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: ['https://x/old.webp'] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: ['https://x/old.webp'], videos: [] } })
     storageUpload.mockResolvedValue({ error: null })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
@@ -578,7 +596,7 @@ describe('uploadBusinessImage', () => {
   })
 
   it('removes the just-uploaded file from storage when saving the DB row fails (rollback)', async () => {
-    businessImagesMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
     storageUpload.mockResolvedValue({ error: null })
     adminBusinessesUpdate.mockResolvedValue({ error: { message: 'db error' } })
 
@@ -588,6 +606,167 @@ describe('uploadBusinessImage', () => {
 
     expect(result).toEqual({ error: 'No se pudo guardar la imagen.' })
     expect(storageRemove).toHaveBeenCalled()
+  })
+})
+
+function fakeVideoMeta(overrides: Partial<{ fileType: string; fileSize: number }> = {}) {
+  return {
+    fileName: 'clip.mp4',
+    fileType: overrides.fileType ?? 'video/mp4',
+    fileSize: overrides.fileSize ?? 10 * 1024 * 1024,
+  }
+}
+
+describe('requestBusinessVideoUpload', () => {
+  it('rejects a non-UUID businessId before any auth check', async () => {
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestBusinessVideoUpload('not-a-uuid', fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the business is not owned by the caller', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: null })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestBusinessVideoUpload(BIZ_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
+  })
+
+  it('rejects once the business already has 10 combined photos and videos', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({
+      data: { id: BIZ_ID, images: Array(5).fill('https://x/img.webp'), videos: Array(5).fill('https://x/vid.mp4') },
+    })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestBusinessVideoUpload(BIZ_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por negocio.' })
+    expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
+  })
+
+  it('rejects a video with an unsupported mime type', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
+    const { fileName, fileSize } = fakeVideoMeta()
+    const result = await requestBusinessVideoUpload(BIZ_ID, fileName, 'video/avi', fileSize)
+    expect(result).toEqual({ error: 'Formato no válido. Usa MP4, WebM o QuickTime.' })
+    expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
+  })
+
+  it('rejects a video over 50MB', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
+    const { fileName, fileType } = fakeVideoMeta()
+    const result = await requestBusinessVideoUpload(BIZ_ID, fileName, fileType, 51 * 1024 * 1024)
+    expect(result).toEqual({ error: 'El video no puede superar 50 MB.' })
+  })
+
+  it('returns an error when creating the signed URL fails', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
+    storageCreateSignedUploadUrl.mockResolvedValue({ data: null, error: { message: 'storage down' } })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestBusinessVideoUpload(BIZ_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'No se pudo iniciar la subida del video. Intenta de nuevo.' })
+  })
+
+  it('returns the signed upload token, path, and public URL on success', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
+    storageCreateSignedUploadUrl.mockResolvedValue({
+      data: { token: 'tok-1', path: `businesses/${BIZ_ID}/clip.mp4`, signedUrl: 'https://x/signed' },
+      error: null,
+    })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestBusinessVideoUpload(BIZ_ID, fileName, fileType, fileSize)
+
+    expect(result).toEqual({
+      token: 'tok-1',
+      path: `businesses/${BIZ_ID}/clip.mp4`,
+      publicUrl: 'https://cdn.example.com/photo.webp',
+    })
+    expect(storageCreateSignedUploadUrl).toHaveBeenCalledWith('business-videos', expect.stringContaining(`businesses/${BIZ_ID}/`))
+  })
+})
+
+describe('confirmBusinessVideoUpload', () => {
+  it('rejects a non-UUID businessId before any auth check', async () => {
+    const result = await confirmBusinessVideoUpload('not-a-uuid', `businesses/not-a-uuid/clip.mp4`)
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects a path that does not belong to this business, before any auth check', async () => {
+    const result = await confirmBusinessVideoUpload(BIZ_ID, 'businesses/some-other-id/clip.mp4')
+    expect(result).toEqual({ error: 'Video no válido.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the business is not owned by the caller', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: null })
+    const result = await confirmBusinessVideoUpload(BIZ_ID, `businesses/${BIZ_ID}/clip.mp4`)
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(adminBusinessesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects once the business already has 10 combined photos and videos', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({
+      data: { id: BIZ_ID, images: Array(10).fill('https://x/img.webp'), videos: [] },
+    })
+    const result = await confirmBusinessVideoUpload(BIZ_ID, `businesses/${BIZ_ID}/clip.mp4`)
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por negocio.' })
+    expect(adminBusinessesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('appends the server-derived public URL (not the raw path) to the existing videos array on success', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: ['https://x/old.mp4'] } })
+    adminBusinessesUpdate.mockResolvedValue({ error: null })
+
+    await confirmBusinessVideoUpload(BIZ_ID, `businesses/${BIZ_ID}/new.mp4`)
+
+    expect(adminBusinessesUpdate).toHaveBeenCalledWith(
+      { videos: ['https://x/old.mp4', 'https://cdn.example.com/photo.webp'] }, 'id', BIZ_ID,
+    )
+  })
+
+  it('returns an error when saving the DB row fails', async () => {
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: [] } })
+    adminBusinessesUpdate.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await confirmBusinessVideoUpload(BIZ_ID, `businesses/${BIZ_ID}/new.mp4`)
+
+    expect(result).toEqual({ error: 'No se pudo guardar el video.' })
+  })
+})
+
+describe('deleteBusinessVideo', () => {
+  it('rejects a non-UUID businessId before any auth check', async () => {
+    const result = await deleteBusinessVideo('not-a-uuid', 'https://x/a.mp4')
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the business is not owned by the caller', async () => {
+    businessVideosMaybeSingle.mockResolvedValue({ data: null })
+    const result = await deleteBusinessVideo(BIZ_ID, 'https://x/a.mp4')
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(adminBusinessesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('removes the file from the video bucket and filters the URL out of the videos array', async () => {
+    businessVideosMaybeSingle.mockResolvedValue({
+      data: { id: BIZ_ID, videos: ['https://x.supabase.co/storage/v1/object/public/business-videos/businesses/b1/a.mp4', 'https://x/keep.mp4'] },
+    })
+    adminBusinessesUpdate.mockResolvedValue({ error: null })
+
+    await deleteBusinessVideo(BIZ_ID, 'https://x.supabase.co/storage/v1/object/public/business-videos/businesses/b1/a.mp4')
+
+    expect(storageRemove).toHaveBeenCalledWith('business-videos', ['businesses/b1/a.mp4'])
+    expect(adminBusinessesUpdate).toHaveBeenCalledWith({ videos: ['https://x/keep.mp4'] }, 'id', BIZ_ID)
+  })
+
+  it('treats a missing videos field as an empty array', async () => {
+    businessVideosMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, videos: undefined } })
+    adminBusinessesUpdate.mockResolvedValue({ error: null })
+
+    await deleteBusinessVideo(BIZ_ID, 'https://x/whatever.mp4')
+
+    expect(adminBusinessesUpdate).toHaveBeenCalledWith({ videos: [] }, 'id', BIZ_ID)
   })
 })
 
@@ -661,9 +840,9 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
-  it('rejects once the experience already has 5 images', async () => {
+  it('rejects once the experience already has 10 combined photos and videos', async () => {
     experienceMaybeSingle.mockResolvedValue({
-      data: { id: EXP_ID, images: Array(5).fill('https://x/img.webp'), business_id: BIZ_ID },
+      data: { id: EXP_ID, images: Array(6).fill('https://x/img.webp'), videos: Array(4).fill('https://x/vid.mp4'), business_id: BIZ_ID },
     })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
 
@@ -671,7 +850,7 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
     fd.set('image', fakeImageFile())
     const result = await uploadExperienceImage(EXP_ID, fd)
 
-    expect(result).toEqual({ error: 'Máximo 5 fotos por actividad.' })
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por actividad.' })
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
@@ -760,6 +939,140 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
     await deleteExperienceImage(EXP_ID, 'https://x/whatever.webp')
 
     expect(adminExperiencesUpdate).toHaveBeenCalledWith({ images: [] }, 'id', EXP_ID)
+  })
+})
+
+describe('requestExperienceVideoUpload', () => {
+  it('rejects a non-UUID experienceId before any auth check', async () => {
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestExperienceVideoUpload('not-a-uuid', fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the experience does not exist', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: null })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the experience exists but its business is not owned by the caller', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: null })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
+  })
+
+  it('rejects once the experience already has 10 combined photos and videos', async () => {
+    experienceMaybeSingle.mockResolvedValue({
+      data: { id: EXP_ID, images: Array(10).fill('https://x/img.webp'), videos: [], business_id: BIZ_ID },
+    })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por actividad.' })
+  })
+
+  it('rejects a video with an unsupported mime type', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    const { fileName, fileSize } = fakeVideoMeta()
+    const result = await requestExperienceVideoUpload(EXP_ID, fileName, 'video/avi', fileSize)
+    expect(result).toEqual({ error: 'Formato no válido. Usa MP4, WebM o QuickTime.' })
+  })
+
+  it('returns the signed upload token, path, and public URL on success', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    storageCreateSignedUploadUrl.mockResolvedValue({
+      data: { token: 'tok-1', path: `experiences/${EXP_ID}/clip.mp4`, signedUrl: 'https://x/signed' },
+      error: null,
+    })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
+
+    expect(result).toEqual({
+      token: 'tok-1',
+      path: `experiences/${EXP_ID}/clip.mp4`,
+      publicUrl: 'https://cdn.example.com/photo.webp',
+    })
+    expect(storageCreateSignedUploadUrl).toHaveBeenCalledWith('business-videos', expect.stringContaining(`experiences/${EXP_ID}/`))
+  })
+})
+
+describe('confirmExperienceVideoUpload', () => {
+  it('rejects a path that does not belong to this experience, before any auth check', async () => {
+    const result = await confirmExperienceVideoUpload(EXP_ID, 'experiences/some-other-id/clip.mp4')
+    expect(result).toEqual({ error: 'Video no válido.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the experience exists but its business is not owned by the caller', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: null })
+    const result = await confirmExperienceVideoUpload(EXP_ID, `experiences/${EXP_ID}/clip.mp4`)
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(adminExperiencesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('appends the server-derived public URL (not the raw path) to the existing videos array on success', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: ['https://x/old.mp4'], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    adminExperiencesUpdate.mockResolvedValue({ error: null })
+
+    await confirmExperienceVideoUpload(EXP_ID, `experiences/${EXP_ID}/new.mp4`)
+
+    expect(adminExperiencesUpdate).toHaveBeenCalledWith(
+      { videos: ['https://x/old.mp4', 'https://cdn.example.com/photo.webp'] }, 'id', EXP_ID,
+    )
+  })
+
+  it('returns an error when saving the DB row fails', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    adminExperiencesUpdate.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await confirmExperienceVideoUpload(EXP_ID, `experiences/${EXP_ID}/new.mp4`)
+
+    expect(result).toEqual({ error: 'No se pudo guardar el video.' })
+  })
+})
+
+describe('deleteExperienceVideo', () => {
+  it('rejects when the caller does not own the experience\'s business', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, business_id: BIZ_ID, videos: [] } })
+    businessOwnershipSingle.mockResolvedValue({ data: null })
+
+    const result = await deleteExperienceVideo(EXP_ID, 'https://x/a.mp4')
+    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(adminExperiencesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('removes the file from the video bucket and filters the URL out of the videos array', async () => {
+    experienceMaybeSingle.mockResolvedValue({
+      data: { id: EXP_ID, business_id: BIZ_ID, videos: ['https://x.supabase.co/storage/v1/object/public/business-videos/experiences/e1/a.mp4', 'https://x/keep.mp4'] },
+    })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    adminExperiencesUpdate.mockResolvedValue({ error: null })
+
+    await deleteExperienceVideo(EXP_ID, 'https://x.supabase.co/storage/v1/object/public/business-videos/experiences/e1/a.mp4')
+
+    expect(storageRemove).toHaveBeenCalledWith('business-videos', ['experiences/e1/a.mp4'])
+    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ videos: ['https://x/keep.mp4'] }, 'id', EXP_ID)
+  })
+
+  it('treats a missing videos field as an empty array', async () => {
+    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, business_id: BIZ_ID, videos: undefined } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    adminExperiencesUpdate.mockResolvedValue({ error: null })
+
+    await deleteExperienceVideo(EXP_ID, 'https://x/whatever.mp4')
+
+    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ videos: [] }, 'id', EXP_ID)
   })
 })
 

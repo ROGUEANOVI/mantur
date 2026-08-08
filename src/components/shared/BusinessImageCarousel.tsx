@@ -4,15 +4,24 @@ import { useRef, useState } from 'react'
 import { Store, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+type Slide = { url: string; type: 'image' | 'video' }
+
 export default function BusinessImageCarousel({
   images,
+  videos = [],
   name,
 }: {
   images: string[]
+  videos?: string[]
   name: string
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [current, setCurrent] = useState(0)
+
+  const slides: Slide[] = [
+    ...images.map((url) => ({ url, type: 'image' as const })),
+    ...videos.map((url) => ({ url, type: 'video' as const })),
+  ]
 
   function scrollTo(index: number) {
     const el = scrollRef.current
@@ -20,7 +29,7 @@ export default function BusinessImageCarousel({
     el.scrollTo({ left: index * el.offsetWidth, behavior: 'smooth' })
   }
 
-  if (images.length === 0) {
+  if (slides.length === 0) {
     return (
       <div className="relative mx-4 mt-2 rounded-2xl h-56 md:h-80 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
         <Store className="size-16 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
@@ -38,21 +47,34 @@ export default function BusinessImageCarousel({
           if (el) setCurrent(Math.round(el.scrollLeft / el.offsetWidth))
         }}
       >
-        {images.map((url, i) => (
-          <div
-            key={url}
-            className="w-full h-full shrink-0 snap-start bg-cover bg-center"
-            style={{ backgroundImage: `url(${url})` }}
-            role="img"
-            aria-label={i === 0 ? name : `${name} — foto ${i + 1}`}
-          />
-        ))}
+        {slides.map((slide, i) =>
+          slide.type === 'image' ? (
+            <div
+              key={slide.url}
+              className="w-full h-full shrink-0 snap-start bg-cover bg-center"
+              style={{ backgroundImage: `url(${slide.url})` }}
+              role="img"
+              aria-label={i === 0 ? name : `${name} — foto ${i + 1}`}
+            />
+          ) : (
+            <video
+              key={slide.url}
+              className="w-full h-full shrink-0 snap-start object-cover bg-black"
+              src={slide.url}
+              controls
+              playsInline
+              muted
+              preload="metadata"
+              aria-label={`${name} — video ${i + 1}`}
+            />
+          ),
+        )}
       </div>
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
 
       {/* Desktop arrow buttons */}
-      {images.length > 1 && current > 0 && (
+      {slides.length > 1 && current > 0 && (
         <button
           onClick={() => scrollTo(current - 1)}
           aria-label="Imagen anterior"
@@ -66,7 +88,7 @@ export default function BusinessImageCarousel({
           <ChevronLeft className="size-5" aria-hidden="true" />
         </button>
       )}
-      {images.length > 1 && current < images.length - 1 && (
+      {slides.length > 1 && current < slides.length - 1 && (
         <button
           onClick={() => scrollTo(current + 1)}
           aria-label="Siguiente imagen"
@@ -81,11 +103,11 @@ export default function BusinessImageCarousel({
         </button>
       )}
 
-      {images.length > 1 && (
+      {slides.length > 1 && (
         <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
-          {images.map((_, i) => (
+          {slides.map((slide, i) => (
             <span
-              key={i}
+              key={slide.url}
               className={cn(
                 'h-1.5 rounded-full transition-all duration-300',
                 i === current ? 'w-4 bg-white' : 'w-1.5 bg-white/50',

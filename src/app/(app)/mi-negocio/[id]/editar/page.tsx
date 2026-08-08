@@ -4,10 +4,13 @@ import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import EditBusinessForm from '@/components/mi-negocio/EditBusinessForm'
-import ImageManager from '@/components/shared/ImageManager'
+import MediaManager from '@/components/shared/MediaManager'
 import {
   uploadBusinessImage,
   deleteBusinessImage,
+  requestBusinessVideoUpload,
+  confirmBusinessVideoUpload,
+  deleteBusinessVideo,
 } from '@/app/(app)/mi-negocio/actions'
 
 export default async function EditarNegocioPage({
@@ -24,7 +27,7 @@ export default async function EditarNegocioPage({
   const [{ data: business }, { data: categoriesData }, { data: linksData }] = await Promise.all([
     supabase
       .from('businesses')
-      .select('id, name, description, address, phone, images')
+      .select('id, name, description, address, phone, images, videos')
       .eq('id', id)
       .eq('owner_id', user!.id)
       .maybeSingle(),
@@ -46,6 +49,9 @@ export default async function EditarNegocioPage({
 
   const boundUpload = uploadBusinessImage.bind(null, business.id)
   const boundDelete = deleteBusinessImage.bind(null, business.id)
+  const boundRequestVideo = requestBusinessVideoUpload.bind(null, business.id)
+  const boundConfirmVideo = confirmBusinessVideoUpload.bind(null, business.id)
+  const boundDeleteVideo = deleteBusinessVideo.bind(null, business.id)
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -80,16 +86,20 @@ export default async function EditarNegocioPage({
 
         <div className="space-y-3">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Fotos</h2>
+            <h2 className="text-base font-semibold text-foreground">Fotos y videos</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               La primera foto es la portada que ven los turistas.
             </p>
           </div>
-          <ImageManager
+          <MediaManager
             images={business.images ?? []}
-            maxImages={5}
-            uploadAction={boundUpload}
-            deleteAction={boundDelete}
+            videos={business.videos ?? []}
+            videoBucket="business-videos"
+            uploadImageAction={boundUpload}
+            deleteImageAction={boundDelete}
+            requestVideoUploadAction={boundRequestVideo}
+            confirmVideoUploadAction={boundConfirmVideo}
+            deleteVideoAction={boundDeleteVideo}
           />
         </div>
       </div>

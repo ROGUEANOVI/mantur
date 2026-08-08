@@ -67,6 +67,7 @@ type PlaceDetail = {
   description: string | null
   type: string
   images: string[] | null
+  videos: string[] | null
   lat: number | null
   lng: number | null
 }
@@ -81,7 +82,7 @@ export default async function LugarDetailPage({
 
   const { data: place, error } = await supabase
     .from('places')
-    .select('id, name, description, type, images, lat, lng')
+    .select('id, name, description, type, images, videos, lat, lng')
     .eq('id', id)
     .single()
 
@@ -115,7 +116,7 @@ export default async function LugarDetailPage({
         </div>
 
         {/* Image carousel */}
-        <BusinessImageCarousel images={p.images ?? []} name={p.name} />
+        <BusinessImageCarousel images={p.images ?? []} videos={p.videos ?? []} name={p.name} />
 
         {/* Place name + type */}
         <section className="px-4 mt-4">

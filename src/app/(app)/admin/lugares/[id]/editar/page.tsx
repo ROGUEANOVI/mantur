@@ -3,9 +3,16 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
-import { updatePlace, uploadPlaceImage, deletePlaceImage } from '@/app/(app)/admin/actions'
+import {
+  updatePlace,
+  uploadPlaceImage,
+  deletePlaceImage,
+  requestPlaceVideoUpload,
+  confirmPlaceVideoUpload,
+  deletePlaceVideo,
+} from '@/app/(app)/admin/actions'
 import LugarForm from '@/components/admin/LugarForm'
-import ImageManager from '@/components/shared/ImageManager'
+import MediaManager from '@/components/shared/MediaManager'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -22,7 +29,7 @@ export default async function EditarLugarPage({
 
   const { data: place, error } = await admin
     .from('places')
-    .select('id, name, description, type, lat, lng, images')
+    .select('id, name, description, type, lat, lng, images, videos')
     .eq('id', id)
     .single()
 
@@ -30,6 +37,9 @@ export default async function EditarLugarPage({
 
   const boundUpload = uploadPlaceImage.bind(null, place.id)
   const boundDelete = deletePlaceImage.bind(null, place.id)
+  const boundRequestVideo = requestPlaceVideoUpload.bind(null, place.id)
+  const boundConfirmVideo = confirmPlaceVideoUpload.bind(null, place.id)
+  const boundDeleteVideo = deletePlaceVideo.bind(null, place.id)
 
   const copy = adminCopy.lugares
 
@@ -62,16 +72,20 @@ export default async function EditarLugarPage({
 
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5 space-y-3">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Fotos</h2>
+            <h2 className="text-base font-semibold text-foreground">Fotos y videos</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               La primera foto es la imagen principal del lugar.
             </p>
           </div>
-          <ImageManager
+          <MediaManager
             images={place.images ?? []}
-            maxImages={5}
-            uploadAction={boundUpload}
-            deleteAction={boundDelete}
+            videos={place.videos ?? []}
+            videoBucket="place-videos"
+            uploadImageAction={boundUpload}
+            deleteImageAction={boundDelete}
+            requestVideoUploadAction={boundRequestVideo}
+            confirmVideoUploadAction={boundConfirmVideo}
+            deleteVideoAction={boundDeleteVideo}
           />
         </div>
       </div>
