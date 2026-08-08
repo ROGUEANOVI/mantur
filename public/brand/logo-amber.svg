@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 140" width="400" height="140">
+  <defs>
+    <clipPath id="mantur-a-clip"><circle cx="28" cy="28" r="21"/></clipPath>
+  </defs>
+  <rect width="400" height="140" fill="#e8a020"/>
+  <svg x="40" y="25" width="70" height="90" viewBox="0 0 56 72">
+    <path d="M28,69 C20,58 7,47 7,28 A21,21 0 0 1 49,28 C49,47 36,58 28,69 Z" fill="#0a2b1e"/>
+    <path d="M10,36 L18,14 L25,28 L28,8 L36,24 L44,36"
+      fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2.4"
+      stroke-linecap="round" stroke-linejoin="round" clip-path="url(#mantur-a-clip)"/>
+    <circle cx="38" cy="11" r="4.5" fill="#ffffff"/>
+  </svg>
+  <text x="130" y="88" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" font-weight="900" font-size="52" letter-spacing="-1.5">
+    <tspan fill="#0a2b1e">Man</tspan><tspan fill="#ffffff">Tur</tspan>
+  </text>
+</svg>
