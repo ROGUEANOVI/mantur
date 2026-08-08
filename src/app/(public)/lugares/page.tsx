@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Suspense } from 'react'
 import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
@@ -8,6 +9,7 @@ import { businessesCopy } from '@/lib/copy/businesses'
 export const metadata: Metadata = {
   title: 'Lugares Imperdibles',
   description: 'Descubre los atractivos turísticos de Manaure: cerros, parques, ríos y sitios históricos de la Serranía del Perijá.',
+  alternates: { canonical: 'https://mantur.co/lugares' },
   openGraph: {
     title: 'Lugares imperdibles en Manaure | ManTur',
     description: 'Descubre los atractivos turísticos de Manaure: cerros, parques, ríos y sitios históricos.',
@@ -191,11 +193,12 @@ function PlaceCard({ place }: { place: PlaceRow }) {
       {/* Image */}
       <div className="relative size-24 rounded-xl overflow-hidden shrink-0 sm:size-auto sm:rounded-none sm:aspect-[4/3]">
         {imageUrl ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${imageUrl})` }}
-            role="img"
-            aria-label={place.name}
+          <Image
+            src={imageUrl}
+            alt={place.name}
+            fill
+            sizes="(min-width: 640px) 33vw, 96px"
+            className="object-cover"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/15 to-primary/30 flex items-center justify-center">

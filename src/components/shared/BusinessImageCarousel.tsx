@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import Image from 'next/image'
 import { Store, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -49,13 +50,16 @@ export default function BusinessImageCarousel({
       >
         {slides.map((slide, i) =>
           slide.type === 'image' ? (
-            <div
-              key={slide.url}
-              className="w-full h-full shrink-0 snap-start bg-cover bg-center"
-              style={{ backgroundImage: `url(${slide.url})` }}
-              role="img"
-              aria-label={i === 0 ? name : `${name} — foto ${i + 1}`}
-            />
+            <div key={slide.url} className="relative w-full h-full shrink-0 snap-start">
+              <Image
+                src={slide.url}
+                alt={i === 0 ? name : `${name} — foto ${i + 1}`}
+                fill
+                sizes="(min-width: 768px) 800px, 100vw"
+                className="object-cover"
+                priority={i === 0}
+              />
+            </div>
           ) : (
             <video
               key={slide.url}

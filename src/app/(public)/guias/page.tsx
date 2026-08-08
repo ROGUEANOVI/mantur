@@ -8,6 +8,7 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 export const metadata: Metadata = {
   title: 'Guías Turísticos',
   description: 'Conoce Manaure Balcón del Cesar de la mano de guías locales expertos. Reserva tours de ecoturismo, historia y gastronomía local.',
+  alternates: { canonical: 'https://mantur.co/guias' },
   openGraph: {
     title: 'Guías turísticos locales en Manaure | ManTur',
     description: 'Conoce Manaure con guías locales expertos. Tours de ecoturismo, historia y gastronomía.',

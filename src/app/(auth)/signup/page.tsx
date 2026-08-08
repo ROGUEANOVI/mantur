@@ -3,6 +3,7 @@ import { authCopy } from '@/lib/copy/auth'
 
 export const metadata = {
   title: 'Crear cuenta — ManTur',
+  robots: { index: false, follow: true },
 }
 
 export default function SignupPage() {

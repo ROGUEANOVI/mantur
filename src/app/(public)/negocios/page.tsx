@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Suspense } from 'react'
 import { Store, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
@@ -8,6 +9,7 @@ import { businessesCopy } from '@/lib/copy/businesses'
 export const metadata: Metadata = {
   title: 'Negocios',
   description: 'Explora restaurantes, balnearios, fincas y más en Manaure Balcón del Cesar. Reserva experiencias únicas con negocios locales.',
+  alternates: { canonical: 'https://mantur.co/negocios' },
   openGraph: {
     title: 'Negocios locales en Manaure | ManTur',
     description: 'Explora restaurantes, balnearios, fincas y más en Manaure Balcón del Cesar.',
@@ -206,11 +208,12 @@ function BusinessCard({ business }: { business: BusinessRow }) {
       {/* Image — compact square on mobile, wide top image on sm+ */}
       <div className="relative size-24 rounded-xl overflow-hidden shrink-0 sm:size-auto sm:rounded-none sm:aspect-[4/3]">
         {imageUrl ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${imageUrl})` }}
-            role="img"
-            aria-label={business.name}
+          <Image
+            src={imageUrl}
+            alt={business.name}
+            fill
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 96px"
+            className="object-cover"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">

@@ -5,7 +5,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
+import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import TourBookingForm from '@/components/guias/TourBookingForm'
+import Breadcrumbs from '@/components/shared/Breadcrumbs'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -31,6 +33,7 @@ export async function generateMetadata({
   return {
     title: name,
     description,
+    alternates: { canonical: `https://mantur.co/guias/${id}` },
     openGraph: {
       title: `${name} — Guía turístico | ManTur`,
       description,
@@ -107,6 +110,16 @@ export default async function GuideProfilePage({
 
   return (
     <main className="min-h-screen bg-background pb-10">
+      <div className="max-w-2xl mx-auto">
+        <Breadcrumbs
+          items={[
+            { label: breadcrumbsCopy.home, href: '/' },
+            { label: breadcrumbsCopy.guides, href: '/guias' },
+            { label: name },
+          ]}
+        />
+      </div>
+
       {/* Guide header */}
       <section className="relative overflow-hidden bg-linear-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
         <svg
