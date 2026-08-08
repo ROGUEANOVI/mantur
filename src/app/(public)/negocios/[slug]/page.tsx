@@ -202,7 +202,13 @@ export default async function NegocioDetailPage({
           ) : (
             <div className="space-y-3">
               {activeExperiences.map((exp) => (
-                <ExperienceCard key={exp.id} experience={exp} isTourist={isTourist} isGuest={isGuest} />
+                <ExperienceCard
+                  key={exp.id}
+                  experience={exp}
+                  businessSlug={b.slug}
+                  isTourist={isTourist}
+                  isGuest={isGuest}
+                />
               ))}
             </div>
           )}
@@ -214,18 +220,25 @@ export default async function NegocioDetailPage({
 
 function ExperienceCard({
   experience: exp,
+  businessSlug,
   isTourist,
   isGuest,
 }: {
   experience: ExperienceRow
+  businessSlug: string
   isTourist: boolean
   isGuest: boolean
 }) {
   const copy = businessesCopy.experiences
   const imageUrl = exp.images?.[0]
+  const detailHref = `/negocios/${businessSlug}/actividades/${exp.id}`
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border flex">
+    <div className="relative rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border flex">
+      <Link href={detailHref} className="absolute inset-0 z-0" aria-label={exp.name}>
+        <span className="sr-only">{exp.name}</span>
+      </Link>
+
       <div
         className={cn(
           'relative w-24 shrink-0 self-stretch',
@@ -271,14 +284,14 @@ function ExperienceCard({
         {isTourist ? (
           <Link
             href={`/reservas/nueva?exp=${exp.id}`}
-            className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
+            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
           >
             {copy.book}
           </Link>
         ) : isGuest ? (
           <Link
             href="/login"
-            className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 transition-colors"
+            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 transition-colors"
           >
             {copy.bookGuest}
           </Link>
