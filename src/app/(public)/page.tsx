@@ -4,7 +4,6 @@ import Image from 'next/image'
 import { Store, TreePine, Waves, Utensils, Home, Star, MapPin } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { landingCopy } from '@/lib/copy/landing'
-import { cn } from '@/lib/utils'
 import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
 import Reveal from '@/components/shared/Reveal'
 
@@ -199,9 +198,10 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
   const imageUrl = business.images?.[0]
 
   return (
-    <div
+    <Link
+      href={`/negocios/${business.slug}`}
       data-carousel-item
-      className="snap-start shrink-0 w-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all bg-card border border-border"
+      className="block snap-start shrink-0 w-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-[0.98] transition-all bg-card border border-border"
     >
       <div className="relative aspect-[4/3]">
         {imageUrl ? (
@@ -221,25 +221,14 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
           {business.name}
         </p>
       </div>
-      <div className="p-3">
-        {business.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+      {business.description && (
+        <div className="p-3">
+          <p className="text-xs text-muted-foreground line-clamp-2">
             {business.description}
           </p>
-        )}
-        <Link
-          href={`/negocios/${business.slug}`}
-          className={cn(
-            'flex items-center justify-center w-full min-h-[40px]',
-            'rounded-xl bg-primary text-primary-foreground',
-            'text-xs font-medium px-3',
-            'hover:bg-primary/90 transition-colors',
-          )}
-        >
-          {copy.viewDetail}
-        </Link>
-      </div>
-    </div>
+        </div>
+      )}
+    </Link>
   )
 }
 

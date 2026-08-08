@@ -37,7 +37,6 @@ export const landingCopy = {
   featured: {
     title: 'Destacados',
     badge: 'Destacado',
-    viewDetail: 'Ver más',
   },
 
   categories: {
