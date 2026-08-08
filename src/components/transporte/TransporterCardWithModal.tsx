@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Car } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +9,8 @@ import {
 } from '@/components/ui/dialog'
 import TransportRequestForm from '@/components/transporte/TransportRequestForm'
 import { transportCopy } from '@/lib/copy/transport'
+import { cn } from '@/lib/utils'
+import Avatar from '@/components/shared/Avatar'
 
 type Access = 'tourist' | 'guest' | 'other_role'
 
@@ -20,6 +21,7 @@ type Props = {
     phone: string
     bio: string | null
     full_name: string | null
+    avatar_url: string | null
   }
   access: Access
 }
@@ -39,14 +41,24 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
   const vehicleLabel =
     copy.vehicleTypes[transporter.vehicle_type] ?? transporter.vehicle_type
 
+  // No dedicated /transportistas/[id] page exists — unlike negocios/lugares/
+  // guias, there's nowhere for the whole card to navigate to. The closest
+  // equivalent to "whole card clickable" is making it trigger the same
+  // request-a-ride action as the button, when that action is available.
+  const clickable = access !== 'other_role'
+
   return (
     <>
-      <div className="rounded-2xl border border-border bg-card shadow-sm p-4">
+      <div
+        onClick={clickable ? handleRequest : undefined}
+        className={cn(
+          'rounded-2xl border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all p-4',
+          clickable && 'cursor-pointer active:scale-[0.98]'
+        )}
+      >
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <Car className="size-5 text-primary" strokeWidth={1.5} aria-hidden="true" />
-            </div>
+            <Avatar name={transporter.full_name ?? 'Transportador'} avatarUrl={transporter.avatar_url} size="sm" />
             <div>
               <p className="font-semibold text-foreground text-sm">
                 {transporter.full_name ?? 'Transportador'}
@@ -71,7 +83,7 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
           <button
             type="button"
             onClick={handleRequest}
-            className="inline-flex items-center justify-center w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center justify-center w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 px-4 hover:bg-primary/90 active:scale-[0.98] transition-all"
           >
             {copy.requestRide}
           </button>
@@ -90,9 +102,7 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
               {copy.modalDriverLabel}
             </p>
             <div className="flex items-center gap-2.5">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <Car className="size-4 text-primary" strokeWidth={1.5} aria-hidden="true" />
-              </div>
+              <Avatar name={transporter.full_name ?? 'Transportador'} avatarUrl={transporter.avatar_url} size="sm" className="size-8 text-xs" />
               <div>
                 <p className="font-semibold text-sm text-foreground leading-tight">
                   {transporter.full_name ?? 'Transportador'}

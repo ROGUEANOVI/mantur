@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { Clock, Users, Phone } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -8,6 +9,8 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import TourBookingForm from '@/components/guias/TourBookingForm'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
+import Reveal from '@/components/shared/Reveal'
+import Avatar from '@/components/shared/Avatar'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -49,7 +52,7 @@ type Guide = {
   phone: string
   specialties: string[]
   languages: string[]
-  profiles: { full_name: string | null } | null
+  profiles: { full_name: string | null; avatar_url: string | null } | null
 }
 
 type Tour = {
@@ -76,7 +79,7 @@ export default async function GuideProfilePage({
   const [guideResult, userResult] = await Promise.all([
     admin
       .from('tourist_guides')
-      .select('id, slug, is_available, bio, phone, specialties, languages, profiles(full_name)')
+      .select('id, slug, is_available, bio, phone, specialties, languages, profiles(full_name, avatar_url)')
       .eq(isLegacyId ? 'id' : 'slug', slug)
       .single(),
     supabase.auth.getUser(),
@@ -136,6 +139,12 @@ export default async function GuideProfilePage({
           />
         </svg>
         <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-8 text-center">
+          <Avatar
+            name={name}
+            avatarUrl={guide.profiles?.avatar_url}
+            size="lg"
+            className="mx-auto mb-3 ring-4 ring-white/20"
+          />
           <h1 className="text-2xl font-bold text-white">{name}</h1>
           {guide.is_available && (
             <span className="mt-2 inline-flex items-center rounded-full bg-green-500/20 text-green-300 border border-green-400/30 px-3 py-0.5 text-xs font-semibold">
@@ -147,7 +156,7 @@ export default async function GuideProfilePage({
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Profile info card */}
-        <div className="rounded-2xl border border-border bg-card shadow-sm p-5 space-y-4">
+        <Reveal className="rounded-2xl border border-border bg-card shadow-sm p-5 space-y-4">
           {guide.bio && (
             <p className="text-sm text-muted-foreground leading-relaxed">{guide.bio}</p>
           )}
@@ -190,7 +199,7 @@ export default async function GuideProfilePage({
               <span className="text-foreground font-medium">{guide.phone}</span>
             </div>
           )}
-        </div>
+        </Reveal>
 
         {/* Tours section */}
         <section>
@@ -200,18 +209,15 @@ export default async function GuideProfilePage({
             <p className="text-sm text-muted-foreground text-center py-8">{copy.noTours}</p>
           ) : (
             <div className="space-y-4">
-              {tours.map((tour) => (
+              {tours.map((tour, i) => (
+                <Reveal key={tour.id} delay={Math.min(i, 8) * 60}>
                 <div
-                  key={tour.id}
-                  className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden"
+                  className="rounded-2xl border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden"
                 >
                   {tour.images.length > 0 && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={tour.images[0]}
-                      alt={tour.name}
-                      className="w-full h-36 object-cover"
-                    />
+                    <div className="relative w-full h-36">
+                      <Image src={tour.images[0]} alt={tour.name} fill sizes="(min-width: 640px) 512px, 100vw" className="object-cover" />
+                    </div>
                   )}
 
                   <div className="p-4 space-y-3">
@@ -246,6 +252,7 @@ export default async function GuideProfilePage({
                     />
                   </div>
                 </div>
+                </Reveal>
               ))}
             </div>
           )}

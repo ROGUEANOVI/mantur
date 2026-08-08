@@ -4,6 +4,8 @@ import { Compass } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
+import Reveal from '@/components/shared/Reveal'
+import Avatar from '@/components/shared/Avatar'
 
 export const metadata: Metadata = {
   title: 'Guías Turísticos',
@@ -22,7 +24,7 @@ type GuideRow = {
   specialties: string[]
   languages: string[]
   bio: string | null
-  profiles: { full_name: string | null } | null
+  profiles: { full_name: string | null; avatar_url: string | null } | null
   guide_tours: { id: string }[]
 }
 
@@ -31,7 +33,7 @@ export default async function GuiasPage() {
 
   const { data } = await admin
     .from('tourist_guides')
-    .select('id, slug, specialties, languages, bio, profiles(full_name), guide_tours(id)')
+    .select('id, slug, specialties, languages, bio, profiles(full_name, avatar_url), guide_tours(id)')
     .eq('is_available', true)
     .order('created_at', { ascending: true })
 
@@ -71,21 +73,25 @@ export default async function GuiasPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {guides.map((g) => {
+            {guides.map((g, i) => {
               const name = g.profiles?.full_name ?? 'Guía'
               const tourCount = g.guide_tours?.length ?? 0
 
               return (
-                <div
-                  key={g.id}
-                  className="rounded-2xl border border-border bg-card shadow-sm hover:shadow-md transition-shadow p-4 space-y-3"
+                <Reveal key={g.id} delay={Math.min(i, 8) * 60}>
+                <Link
+                  href={`/guias/${g.slug}`}
+                  className="block h-full rounded-2xl border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all p-4 space-y-3"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="font-semibold text-foreground text-base leading-snug">{name}</h2>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {tourCount}&nbsp;{copy.tours}
-                      </p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar name={name} avatarUrl={g.profiles?.avatar_url} size="sm" />
+                      <div className="min-w-0">
+                        <h2 className="font-semibold text-foreground text-base leading-snug">{name}</h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {tourCount}&nbsp;{copy.tours}
+                        </p>
+                      </div>
                     </div>
                     <span className="shrink-0 inline-flex items-center rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-2.5 py-0.5 text-xs font-semibold">
                       {copy.available}
@@ -110,14 +116,8 @@ export default async function GuiasPage() {
                       ))}
                     </div>
                   )}
-
-                  <Link
-                    href={`/guias/${g.slug}`}
-                    className="inline-flex items-center justify-center w-full rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 transition-colors"
-                  >
-                    {copy.viewProfile}
-                  </Link>
-                </div>
+                </Link>
+                </Reveal>
               )
             })}
           </div>
