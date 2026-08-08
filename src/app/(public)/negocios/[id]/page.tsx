@@ -71,6 +71,7 @@ type BusinessDetail = {
   address: string | null
   phone: string | null
   images: string[] | null
+  videos: string[] | null
   experiences: ExperienceRow[]
 }
 
@@ -97,7 +98,7 @@ export default async function NegocioDetailPage({
   const { data: business, error } = await supabase
     .from('businesses')
     .select(
-      'id, name, description, type, address, phone, images, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
+      'id, name, description, type, address, phone, images, videos, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
     )
     .eq('id', id)
     .eq('verified', true)
@@ -134,7 +135,7 @@ export default async function NegocioDetailPage({
         </div>
 
         {/* Image carousel */}
-        <BusinessImageCarousel images={b.images ?? []} name={b.name} />
+        <BusinessImageCarousel images={b.images ?? []} videos={b.videos ?? []} name={b.name} />
 
         {/* Business name + type */}
         <section className="px-4 mt-4">

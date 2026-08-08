@@ -4,9 +4,15 @@ import { ChevronLeft, ImageIcon, Settings2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
-import { uploadExperienceImage, deleteExperienceImage } from '@/app/(app)/mi-negocio/actions'
+import {
+  uploadExperienceImage,
+  deleteExperienceImage,
+  requestExperienceVideoUpload,
+  confirmExperienceVideoUpload,
+  deleteExperienceVideo,
+} from '@/app/(app)/mi-negocio/actions'
 import EditExperienceForm from '@/components/mi-negocio/EditExperienceForm'
-import ImageManager from '@/components/shared/ImageManager'
+import MediaManager from '@/components/shared/MediaManager'
 
 export default async function EditExperiencePage({
   params,
@@ -33,7 +39,7 @@ export default async function EditExperiencePage({
   // Verify experience belongs to this business
   const { data: experience } = await supabase
     .from('experiences')
-    .select('id, name, description, price, capacity, duration_minutes, images')
+    .select('id, name, description, price, capacity, duration_minutes, images, videos')
     .eq('id', expId)
     .eq('business_id', business.id)
     .maybeSingle()
@@ -42,10 +48,14 @@ export default async function EditExperiencePage({
 
   const copy = miNegocioCopy.experiences
   const images: string[] = experience.images ?? []
+  const videos: string[] = experience.videos ?? []
 
-  // Bind actions to this experience so ImageManager receives plain (formData) / (url) signatures
+  // Bind actions to this experience so MediaManager receives plain (formData) / (url) signatures
   const boundUpload = uploadExperienceImage.bind(null, expId)
   const boundDelete = deleteExperienceImage.bind(null, expId)
+  const boundRequestVideo = requestExperienceVideoUpload.bind(null, expId)
+  const boundConfirmVideo = confirmExperienceVideoUpload.bind(null, expId)
+  const boundDeleteVideo = deleteExperienceVideo.bind(null, expId)
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -89,11 +99,15 @@ export default async function EditExperiencePage({
             <h2 className="text-base font-semibold text-foreground">{copy.editImages}</h2>
           </div>
           <p className="text-xs text-muted-foreground mb-4">{copy.editImagesHint}</p>
-          <ImageManager
+          <MediaManager
             images={images}
-            maxImages={5}
-            uploadAction={boundUpload}
-            deleteAction={boundDelete}
+            videos={videos}
+            videoBucket="business-videos"
+            uploadImageAction={boundUpload}
+            deleteImageAction={boundDelete}
+            requestVideoUploadAction={boundRequestVideo}
+            confirmVideoUploadAction={boundConfirmVideo}
+            deleteVideoAction={boundDeleteVideo}
           />
         </section>
       </div>

@@ -62,6 +62,7 @@ const placeImagesMaybeSingle = vi.fn()
 const storageUpload = vi.fn()
 const storageGetPublicUrl = vi.fn()
 const storageRemove = vi.fn()
+const storageCreateSignedUploadUrl = vi.fn()
 
 function businessesUpdateChain(payload: unknown) {
   return {
@@ -154,6 +155,7 @@ vi.mock('@/lib/supabase/admin', () => ({
         upload: (path: string, file: unknown, opts: unknown) => storageUpload(bucket, path, file, opts),
         getPublicUrl: (path: string) => storageGetPublicUrl(bucket, path),
         remove: (paths: string[]) => storageRemove(bucket, paths),
+        createSignedUploadUrl: (path: string) => storageCreateSignedUploadUrl(bucket, path),
       }),
     },
   })),
@@ -174,6 +176,9 @@ const {
   deletePlace,
   uploadPlaceImage,
   deletePlaceImage,
+  requestPlaceVideoUpload,
+  confirmPlaceVideoUpload,
+  deletePlaceVideo,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[]>) {
@@ -991,12 +996,14 @@ describe('uploadPlaceImage / deletePlaceImage', () => {
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
-  it('uploadPlaceImage rejects at the 5-image cap', async () => {
-    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: Array(5).fill('https://x/i.webp') } })
+  it('uploadPlaceImage rejects at the 10-item combined photo/video cap', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({
+      data: { id: PLACE_ID, images: Array(6).fill('https://x/i.webp'), videos: Array(4).fill('https://x/v.mp4') },
+    })
     const fd = formData({})
     fd.set('image', fakeImageFile())
     const result = await uploadPlaceImage(PLACE_ID, fd)
-    expect(result).toEqual({ error: 'Máximo 5 fotos por lugar.' })
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por lugar.' })
   })
 
   it('treats a place with no images field yet as having zero images', async () => {
@@ -1131,6 +1138,178 @@ describe('uploadPlaceImage / deletePlaceImage', () => {
   it('redirects to / when a non-admin calls deletePlaceImage (well-formed id, past the UUID check)', async () => {
     adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
     await expect(deletePlaceImage(PLACE_ID, 'https://x/a.webp')).rejects.toThrow('redirect:/')
+    expect(placeImagesMaybeSingle).not.toHaveBeenCalled()
+  })
+})
+
+function fakeVideoMeta(overrides: Partial<{ fileType: string; fileSize: number }> = {}) {
+  return {
+    fileName: 'clip.mp4',
+    fileType: overrides.fileType ?? 'video/mp4',
+    fileSize: overrides.fileSize ?? 10 * 1024 * 1024,
+  }
+}
+
+describe('requestPlaceVideoUpload', () => {
+  it('rejects a non-UUID placeId before any auth check', async () => {
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestPlaceVideoUpload('bad-id', fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the place does not exist', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: null })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestPlaceVideoUpload(PLACE_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
+  })
+
+  it('rejects at the 10-item combined photo/video cap', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({
+      data: { id: PLACE_ID, images: Array(10).fill('https://x/i.webp'), videos: [] },
+    })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestPlaceVideoUpload(PLACE_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por lugar.' })
+  })
+
+  it('rejects a video with an unsupported mime type', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [], videos: [] } })
+    const { fileName, fileSize } = fakeVideoMeta()
+    const result = await requestPlaceVideoUpload(PLACE_ID, fileName, 'video/avi', fileSize)
+    expect(result).toEqual({ error: 'Formato no válido. Usa MP4, WebM o QuickTime.' })
+  })
+
+  it('rejects a video over 50MB', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [], videos: [] } })
+    const { fileName, fileType } = fakeVideoMeta()
+    const result = await requestPlaceVideoUpload(PLACE_ID, fileName, fileType, 51 * 1024 * 1024)
+    expect(result).toEqual({ error: 'El video no puede superar 50 MB.' })
+  })
+
+  it('returns an error when creating the signed URL fails', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [], videos: [] } })
+    storageCreateSignedUploadUrl.mockResolvedValue({ data: null, error: { message: 'storage down' } })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestPlaceVideoUpload(PLACE_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'No se pudo iniciar la subida del video. Intenta de nuevo.' })
+  })
+
+  it('returns the signed upload token, path, and public URL on success', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [], videos: [] } })
+    storageCreateSignedUploadUrl.mockResolvedValue({
+      data: { token: 'tok-1', path: `places/${PLACE_ID}/clip.mp4`, signedUrl: 'https://x/signed' },
+      error: null,
+    })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    const result = await requestPlaceVideoUpload(PLACE_ID, fileName, fileType, fileSize)
+
+    expect(result).toEqual({
+      token: 'tok-1',
+      path: `places/${PLACE_ID}/clip.mp4`,
+      publicUrl: 'https://cdn.example.com/photo.webp',
+    })
+    expect(storageCreateSignedUploadUrl).toHaveBeenCalledWith('place-videos', expect.stringContaining(`places/${PLACE_ID}/`))
+  })
+
+  it('redirects to / when a non-admin calls requestPlaceVideoUpload', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const { fileName, fileType, fileSize } = fakeVideoMeta()
+    await expect(requestPlaceVideoUpload(PLACE_ID, fileName, fileType, fileSize)).rejects.toThrow('redirect:/')
+    expect(placeImagesMaybeSingle).not.toHaveBeenCalled()
+  })
+})
+
+describe('confirmPlaceVideoUpload', () => {
+  it('rejects a non-UUID placeId before any auth check', async () => {
+    const result = await confirmPlaceVideoUpload('bad-id', 'places/bad-id/clip.mp4')
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects a path that does not belong to this place, before any auth check', async () => {
+    const result = await confirmPlaceVideoUpload(PLACE_ID, 'places/some-other-id/clip.mp4')
+    expect(result).toEqual({ error: 'Video no válido.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the place does not exist', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: null })
+    const result = await confirmPlaceVideoUpload(PLACE_ID, `places/${PLACE_ID}/clip.mp4`)
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(placeUpdateAwait).not.toHaveBeenCalled()
+  })
+
+  it('rejects at the 10-item combined photo/video cap', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({
+      data: { id: PLACE_ID, images: Array(10).fill('https://x/i.webp'), videos: [] },
+    })
+    const result = await confirmPlaceVideoUpload(PLACE_ID, `places/${PLACE_ID}/clip.mp4`)
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por lugar.' })
+    expect(placeUpdateAwait).not.toHaveBeenCalled()
+  })
+
+  it('appends the server-derived public URL (not the raw path) to the existing videos array on success', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [], videos: ['https://x/old.mp4'] } })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    await confirmPlaceVideoUpload(PLACE_ID, `places/${PLACE_ID}/new.mp4`)
+
+    expect(placeUpdateAwait).toHaveBeenCalledWith(
+      { videos: ['https://x/old.mp4', 'https://cdn.example.com/photo.webp'] }, 'id', PLACE_ID,
+    )
+  })
+
+  it('returns an error when saving the DB row fails', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, images: [], videos: [] } })
+    placeUpdateAwait.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await confirmPlaceVideoUpload(PLACE_ID, `places/${PLACE_ID}/new.mp4`)
+
+    expect(result).toEqual({ error: 'No se pudo guardar el video.' })
+  })
+})
+
+describe('deletePlaceVideo', () => {
+  it('rejects a non-UUID placeId before any auth check', async () => {
+    const result = await deletePlaceVideo('bad-id', 'https://x/a.mp4')
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(authGetUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the place does not exist', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: null })
+    const result = await deletePlaceVideo(PLACE_ID, 'https://x/a.mp4')
+    expect(result).toEqual({ error: 'Lugar no encontrado.' })
+    expect(storageRemove).not.toHaveBeenCalled()
+  })
+
+  it('removes the file from the video bucket and filters the URL out of the videos array', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({
+      data: { id: PLACE_ID, videos: ['https://x.supabase.co/storage/v1/object/public/place-videos/places/p1/a.mp4', 'https://x/keep.mp4'] },
+    })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    await deletePlaceVideo(PLACE_ID, 'https://x.supabase.co/storage/v1/object/public/place-videos/places/p1/a.mp4')
+
+    expect(storageRemove).toHaveBeenCalledWith('place-videos', ['places/p1/a.mp4'])
+    expect(placeUpdateAwait).toHaveBeenCalledWith({ videos: ['https://x/keep.mp4'] }, 'id', PLACE_ID)
+  })
+
+  it('treats a missing videos field as an empty array', async () => {
+    placeImagesMaybeSingle.mockResolvedValue({ data: { id: PLACE_ID, videos: undefined } })
+    placeUpdateAwait.mockResolvedValue({ error: null })
+
+    await deletePlaceVideo(PLACE_ID, 'https://x/whatever.mp4')
+
+    expect(placeUpdateAwait).toHaveBeenCalledWith({ videos: [] }, 'id', PLACE_ID)
+  })
+
+  it('redirects to / when a non-admin calls deletePlaceVideo', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    await expect(deletePlaceVideo(PLACE_ID, 'https://x/a.mp4')).rejects.toThrow('redirect:/')
     expect(placeImagesMaybeSingle).not.toHaveBeenCalled()
   })
 })

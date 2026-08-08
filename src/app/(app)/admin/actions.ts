@@ -234,10 +234,14 @@ export async function deletePlace(formData: FormData): Promise<void> {
   redirect('/admin/lugares')
 }
 
-// ── Place image actions ──────────────────────────────────────────────────────
+// ── Place media actions ──────────────────────────────────────────────────────
 
 const PLACE_BUCKET = 'place-images'
-const MAX_PLACE_IMAGES = 5
+const PLACE_VIDEO_BUCKET = 'place-videos'
+const MAX_PLACE_MEDIA = 10
+
+const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024
 
 function extractStoragePath(url: string, bucket: string): string | null {
   const marker = `/storage/v1/object/public/${bucket}/`
@@ -253,6 +257,23 @@ function validateImageFile(file: File | null): string | null {
   return null
 }
 
+function validateVideoMeta(fileType: string, fileSize: number): string | null {
+  if (!VIDEO_MIME_TYPES.includes(fileType)) return 'Formato no válido. Usa MP4, WebM o QuickTime.'
+  if (!fileSize || fileSize > MAX_VIDEO_BYTES) return 'El video no puede superar 50 MB.'
+  return null
+}
+
+function videoExtension(fileType: string): string {
+  switch (fileType) {
+    case 'video/webm':
+      return 'webm'
+    case 'video/quicktime':
+      return 'mov'
+    default:
+      return 'mp4'
+  }
+}
+
 export async function uploadPlaceImage(
   placeId: string,
   formData: FormData,
@@ -262,15 +283,15 @@ export async function uploadPlaceImage(
 
   const { data: place } = await admin
     .from('places')
-    .select('id, images')
+    .select('id, images, videos')
     .eq('id', placeId)
     .maybeSingle()
 
   if (!place) return { error: 'Lugar no encontrado.' }
 
   const currentImages: string[] = place.images ?? []
-  if (currentImages.length >= MAX_PLACE_IMAGES) {
-    return { error: `Máximo ${MAX_PLACE_IMAGES} fotos por lugar.` }
+  if (currentImages.length + (place.videos ?? []).length >= MAX_PLACE_MEDIA) {
+    return { error: `Máximo ${MAX_PLACE_MEDIA} fotos y videos por lugar.` }
   }
 
   const file = formData.get('image') as File | null
@@ -324,6 +345,108 @@ export async function deletePlaceImage(
 
   const newImages = (place.images ?? []).filter((u: string) => u !== imageUrl)
   await admin.from('places').update({ images: newImages }).eq('id', placeId)
+
+  revalidatePath('/admin/lugares')
+  revalidatePath('/lugares')
+  revalidatePath('/')
+}
+
+export async function requestPlaceVideoUpload(
+  placeId: string,
+  fileName: string,
+  fileType: string,
+  fileSize: number,
+): Promise<{ token: string; path: string; publicUrl: string } | { error: string }> {
+  if (!UUID_RE.test(placeId)) return { error: 'Lugar no encontrado.' }
+  const { admin } = await getAuthenticatedAdmin()
+
+  const { data: place } = await admin
+    .from('places')
+    .select('id, images, videos')
+    .eq('id', placeId)
+    .maybeSingle()
+
+  if (!place) return { error: 'Lugar no encontrado.' }
+
+  const currentCount = (place.images ?? []).length + (place.videos ?? []).length
+  if (currentCount >= MAX_PLACE_MEDIA) {
+    return { error: `Máximo ${MAX_PLACE_MEDIA} fotos y videos por lugar.` }
+  }
+
+  const fileError = validateVideoMeta(fileType, fileSize)
+  if (fileError) return { error: fileError }
+
+  const path = `places/${placeId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${videoExtension(fileType)}`
+
+  const { data, error } = await admin.storage.from(PLACE_VIDEO_BUCKET).createSignedUploadUrl(path)
+  if (error || !data) return { error: 'No se pudo iniciar la subida del video. Intenta de nuevo.' }
+
+  const { data: { publicUrl } } = admin.storage.from(PLACE_VIDEO_BUCKET).getPublicUrl(path)
+
+  return { token: data.token, path: data.path, publicUrl }
+}
+
+export async function confirmPlaceVideoUpload(
+  placeId: string,
+  path: string,
+): Promise<{ error: string } | void> {
+  if (!UUID_RE.test(placeId)) return { error: 'Lugar no encontrado.' }
+  // See confirmBusinessVideoUpload (mi-negocio/actions.ts): confirm never
+  // trusts a client-supplied URL directly, only a path scoped to this
+  // place's own folder — the public URL is derived server-side below.
+  if (!path.startsWith(`places/${placeId}/`)) return { error: 'Video no válido.' }
+
+  const { admin } = await getAuthenticatedAdmin()
+
+  const { data: place } = await admin
+    .from('places')
+    .select('id, images, videos')
+    .eq('id', placeId)
+    .maybeSingle()
+
+  if (!place) return { error: 'Lugar no encontrado.' }
+
+  const currentVideos: string[] = place.videos ?? []
+  if ((place.images ?? []).length + currentVideos.length >= MAX_PLACE_MEDIA) {
+    return { error: `Máximo ${MAX_PLACE_MEDIA} fotos y videos por lugar.` }
+  }
+
+  const { data: { publicUrl } } = admin.storage.from(PLACE_VIDEO_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('places')
+    .update({ videos: [...currentVideos, publicUrl] })
+    .eq('id', placeId)
+
+  if (updateError) return { error: 'No se pudo guardar el video.' }
+
+  revalidatePath('/admin/lugares')
+  revalidatePath('/lugares')
+  revalidatePath('/')
+}
+
+export async function deletePlaceVideo(
+  placeId: string,
+  videoUrl: string,
+): Promise<{ error: string } | void> {
+  if (!UUID_RE.test(placeId)) return { error: 'Lugar no encontrado.' }
+  const { admin } = await getAuthenticatedAdmin()
+
+  const { data: place } = await admin
+    .from('places')
+    .select('id, videos')
+    .eq('id', placeId)
+    .maybeSingle()
+
+  if (!place) return { error: 'Lugar no encontrado.' }
+
+  const storagePath = extractStoragePath(videoUrl, PLACE_VIDEO_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(PLACE_VIDEO_BUCKET).remove([storagePath])
+  }
+
+  const newVideos = (place.videos ?? []).filter((u: string) => u !== videoUrl)
+  await admin.from('places').update({ videos: newVideos }).eq('id', placeId)
 
   revalidatePath('/admin/lugares')
   revalidatePath('/lugares')
