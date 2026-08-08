@@ -3,6 +3,7 @@ import { authCopy } from '@/lib/copy/auth'
 
 export const metadata = {
   title: 'Iniciar sesión — ManTur',
+  robots: { index: false, follow: true },
 }
 
 export default function LoginPage() {

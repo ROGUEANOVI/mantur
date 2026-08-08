@@ -8,6 +8,7 @@ import TransporterCardWithModal from '@/components/transporte/TransporterCardWit
 export const metadata: Metadata = {
   title: 'Transportadores',
   description: 'Encuentra mototaxi y transporte local en Manaure Balcón del Cesar. Solicita un traslado con conductores locales de confianza.',
+  alternates: { canonical: 'https://mantur.co/transportistas' },
   openGraph: {
     title: 'Transportadores en Manaure | ManTur',
     description: 'Encuentra mototaxi y transporte local en Manaure. Solicita un traslado con conductores locales.',

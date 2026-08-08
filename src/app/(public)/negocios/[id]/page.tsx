@@ -1,13 +1,18 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { MapPin, Phone, Store, ChevronLeft, Clock, Users } from 'lucide-react'
+import { MapPin, Phone, Store, Clock, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
+import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import { cn } from '@/lib/utils'
 import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
+import Breadcrumbs from '@/components/shared/Breadcrumbs'
+import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 
+const APP_URL = 'https://mantur.co'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function generateMetadata({
@@ -37,6 +42,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    alternates: { canonical: `https://mantur.co/negocios/${id}` },
     openGraph: {
       title,
       description,
@@ -111,28 +117,40 @@ export default async function NegocioDetailPage({
   }
 
   const b = business as BusinessDetail
-  const copyDetail = businessesCopy.detail
   const copyExp = businessesCopy.experiences
 
   const activeExperiences = (b.experiences ?? []).filter((e) => e.status === 'active')
 
+  const businessJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: b.name,
+    description: b.description ?? undefined,
+    image: b.images?.[0] ? [b.images[0]] : undefined,
+    telephone: b.phone ?? undefined,
+    address: b.address
+      ? {
+          '@type': 'PostalAddress',
+          streetAddress: b.address,
+          addressLocality: 'Manaure Balcón del Cesar',
+          addressRegion: 'Cesar',
+          addressCountry: 'CO',
+        }
+      : undefined,
+    url: `${APP_URL}/negocios/${b.id}`,
+  }
+
   return (
     <main className="min-h-screen bg-background pb-10">
+      <script {...jsonLdScriptProps(businessJsonLd)} />
       <div className="max-w-2xl mx-auto">
-        {/* Back link */}
-        <div className="px-4 pt-4">
-          <Link
-            href="/negocios"
-            className={cn(
-              'inline-flex items-center gap-1.5',
-              'text-sm font-medium text-primary',
-              'min-h-11 py-2 hover:underline'
-            )}
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-            {copyDetail.back}
-          </Link>
-        </div>
+        <Breadcrumbs
+          items={[
+            { label: breadcrumbsCopy.home, href: '/' },
+            { label: breadcrumbsCopy.businesses, href: '/negocios' },
+            { label: b.name },
+          ]}
+        />
 
         {/* Image carousel */}
         <BusinessImageCarousel images={b.images ?? []} videos={b.videos ?? []} name={b.name} />
@@ -204,14 +222,13 @@ function ExperienceCard({
     <div className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border flex">
       <div
         className={cn(
-          'w-24 shrink-0 self-stretch bg-cover bg-center',
+          'relative w-24 shrink-0 self-stretch',
           !imageUrl && 'bg-gradient-to-br from-primary/20 to-accent/20'
         )}
-        style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}
-        role={imageUrl ? 'img' : undefined}
-        aria-label={imageUrl ? exp.name : undefined}
       >
-        {!imageUrl && (
+        {imageUrl ? (
+          <Image src={imageUrl} alt={exp.name} fill sizes="96px" className="object-cover" />
+        ) : (
           <div className="h-full min-h-[96px] flex items-center justify-center">
             <Store className="size-6 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
           </div>

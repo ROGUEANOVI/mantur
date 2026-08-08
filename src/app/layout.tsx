@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -43,6 +44,15 @@ export const viewport: Viewport = {
   ],
 }
 
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'ManTur',
+  url: APP_URL,
+  logo: `${APP_URL}/icons/512`,
+  description: DESCRIPTION,
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -50,7 +60,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={cn("font-sans", inter.variable)}>
-      <body>{children}</body>
+      <body>
+        <script {...jsonLdScriptProps(organizationJsonLd)} />
+        {children}
+      </body>
     </html>
   )
 }

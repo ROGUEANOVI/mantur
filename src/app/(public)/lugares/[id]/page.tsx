@@ -1,13 +1,15 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { MapPin, ChevronLeft, TreePine, Droplets, Eye, Waves, Trees, Landmark } from 'lucide-react'
+import { MapPin, TreePine, Droplets, Eye, Waves, Trees, Landmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
-import { cn } from '@/lib/utils'
+import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
+import Breadcrumbs from '@/components/shared/Breadcrumbs'
+import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 
+const APP_URL = 'https://mantur.co'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const VALID_TYPES = ['waterfall', 'river', 'viewpoint', 'plaza', 'park', 'other'] as const
@@ -46,6 +48,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    alternates: { canonical: `https://mantur.co/lugares/${id}` },
     openGraph: {
       title,
       description,
@@ -93,27 +96,33 @@ export default async function LugarDetailPage({
 
   const p = place as PlaceDetail
   const copy = businessesCopy.places
-  const copyDetail = businessesCopy.detail
   const typeLabel = copy.types[p.type] ?? copy.types.other
   const Icon = TYPE_ICONS[p.type as PlaceType] ?? TreePine
 
+  const placeJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TouristAttraction',
+    name: p.name,
+    description: p.description ?? undefined,
+    image: p.images?.[0] ? [p.images[0]] : undefined,
+    url: `${APP_URL}/lugares/${p.id}`,
+    geo:
+      p.lat != null && p.lng != null
+        ? { '@type': 'GeoCoordinates', latitude: p.lat, longitude: p.lng }
+        : undefined,
+  }
+
   return (
     <main className="min-h-screen bg-background pb-10">
+      <script {...jsonLdScriptProps(placeJsonLd)} />
       <div className="max-w-2xl mx-auto">
-        {/* Back link */}
-        <div className="px-4 pt-4">
-          <Link
-            href="/lugares"
-            className={cn(
-              'inline-flex items-center gap-1.5',
-              'text-sm font-medium text-primary',
-              'min-h-11 py-2 hover:underline'
-            )}
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-            {copyDetail.back}
-          </Link>
-        </div>
+        <Breadcrumbs
+          items={[
+            { label: breadcrumbsCopy.home, href: '/' },
+            { label: breadcrumbsCopy.places, href: '/lugares' },
+            { label: p.name },
+          ]}
+        />
 
         {/* Image carousel */}
         <BusinessImageCarousel images={p.images ?? []} videos={p.videos ?? []} name={p.name} />

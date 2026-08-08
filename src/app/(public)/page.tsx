@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Store, TreePine, Waves, Utensils, Home, Star, MapPin } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { landingCopy } from '@/lib/copy/landing'
@@ -9,6 +10,7 @@ import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
 export const metadata: Metadata = {
   title: 'ManTur — Turismo con alma local',
   description: 'Descubre Manaure Balcón del Cesar. Reserva experiencias en negocios locales, contrata guías turísticos y encuentra transporte con alma local.',
+  alternates: { canonical: 'https://mantur.co' },
   openGraph: {
     title: 'ManTur — Turismo con alma local',
     description: 'Descubre Manaure Balcón del Cesar. Reserva experiencias, guías y transporte local.',
@@ -195,12 +197,7 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
     >
       <div className="relative aspect-[4/3]">
         {imageUrl ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${imageUrl})` }}
-            role="img"
-            aria-label={business.name}
-          />
+          <Image src={imageUrl} alt={business.name} fill sizes="256px" className="object-cover" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/20 dark:from-primary/20 dark:to-primary/10 flex items-center justify-center">
             <Store className="size-10 text-primary/40" aria-hidden="true" strokeWidth={1.5} />
