@@ -207,6 +207,70 @@ static `metadata` on `/negocios`, `/guias`, `/transportistas`. Title template
 `src/app/manifest.ts` — PWA manifest (standalone, portrait, 3 shortcuts).
 `src/app/apple-icon.tsx` — edge-rendered 180×180 maskable PNG icon.
 
+### Phase 6 — Test framework bootstrap + QA fixes (PR #23 — merged)
+Vitest + Testing Library + Playwright bootstrapped. Fixed ISSUE-001 (mobile
+menu overlay not dimming page content, with regression test) and ISSUE-002
+(`themeColor` moved from `metadata` to the `viewport` export, as required by
+Next.js). `parsePrice`/`parsePositiveInt` extracted out of a `'use server'`
+file so they're importable directly in unit tests. CI bumped to Node 24
+(jsdom 30 requires it).
+
+### Phase 6 — Test coverage initiative (PRs #24–#42 — merged)
+19 PRs adding unit/integration coverage across every Server Action file
+(reservas, admin, auth, transporte-perfil, transporte-solicitud, mi-negocio,
+mi-perfil-guia, solicitar-rol, admin/categorias, admin/negocios+lugares) and
+every component directory (mi-negocio, admin forms, auth, layout, guias,
+reservas/transporte, shared components, role-request form). Project reached
+~100% test coverage; see `TESTING.md` for conventions.
+
+### Phase 7 — Navbar role menu (PR #43 — merged)
+Role-based nav links (Mi negocio / Mi panel / Mis reservas / etc.) moved out
+of the flat `PublicNav` bar into a new avatar dropdown: `UserMenu` component
+built on a new shadcn `dropdown-menu` primitive
+(`src/components/ui/dropdown-menu.tsx`). Reduces nav clutter, especially on
+mobile.
+
+### Phase 7 — UI polish: canonical `min-h-11` class (PR #44 — merged)
+Replaced arbitrary `min-h-[44px]` utility classes with the canonical Tailwind
+`min-h-11` across the codebase — same value, consistent with the design
+system's touch-target convention.
+
+### Phase 7 — Featured businesses carousel arrows (PR #45 — merged)
+Desktop prev/next arrow buttons added to the landing page's featured
+businesses carousel.
+
+### Phase 7 — Transporter request-ride gate fix (PR #46 — merged)
+Fixed: the "Solicitar viaje" button on `/transportistas` was visible to
+non-tourist roles; now hidden for `business_owner`/`transporter`/`admin`.
+
+### Phase 7 — Public place detail page (PR #47 — merged)
+`/lugares/[id]` — public detail page for a `place` (`BusinessImageCarousel`,
+Google Maps link, type icon), with a `loading.tsx` skeleton. `PlaceCard`s on
+`/lugares` and the landing page now link to it.
+
+### Phase 7 — Profile editing (PR #48 — merged)
+`/mi-perfil` — any authenticated user can edit their name, phone, and avatar.
+New `avatars` storage bucket (migration `20260807000000_add_avatars_bucket.sql`),
+`AvatarUploader` component (compressed upload via `browser-image-compression`,
+same pattern as `ImageManager`), `EditProfileForm`. Linked from `UserMenu`/
+`PublicNav`.
+
+### Phase 8 — Video uploads for businesses, experiences, and places (PR #49 — merged)
+`videos text[]` column added to `businesses`/`experiences`/`places`. New
+storage buckets `business-videos` (shared by businesses + experiences, same
+way `business-images` is) and `place-videos` — 50MB limit, video-only mime
+types (MP4/WebM/QuickTime). Combined photo+video cap raised from 5 to 10 per
+entity. Videos upload directly from the browser to Supabase Storage via a
+signed URL (`request*VideoUpload` / `confirm*VideoUpload` Server Actions),
+since a 50MB file exceeds Next.js/Vercel Server Action body limits;
+`confirm*VideoUpload` validates the storage path belongs to the caller's own
+entity and derives the public URL server-side rather than trusting a
+client-supplied URL. New `MediaManager` component (photos + videos) replaces
+`ImageManager` on the business/experience/place edit pages — `ImageManager`
+itself is untouched and still serves guide tours. `BusinessImageCarousel`
+plays video slides after photo slides. Migration:
+`20260807100000_add_videos_and_video_buckets.sql`.
+
 ## Pending / post-MVP
 
 - **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
