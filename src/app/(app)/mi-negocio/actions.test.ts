@@ -58,18 +58,28 @@ function businessesUserTable() {
         return { eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: businessReactivateMaybeSingle }) }) }) }
       }
       if (cols === 'id') {
-        // createExperience uses .single(), uploadExperienceImage/deleteExperienceImage
-        // use .maybeSingle() for the same "is this business mine" check — both
-        // resolve through the same mock since the assertion is identical either way.
+        // createExperience uses .single(), requestExperienceVideoUpload uses
+        // .maybeSingle() for the same "is this business mine" check — neither
+        // revalidates a public negocio path, so no slug is needed here.
         return { eq: () => ({ eq: () => ({ single: businessOwnershipSingle, maybeSingle: businessOwnershipSingle }) }) }
       }
-      if (cols === 'id, images') {
+      if (cols === 'id, slug') {
+        // uploadExperienceImage/deleteExperienceImage/confirmExperienceVideoUpload/
+        // deleteExperienceVideo — same ownership check as above, but these do
+        // revalidatePath(`/negocios/${owned.slug}`), so the select needs slug.
+        return { eq: () => ({ eq: () => ({ maybeSingle: businessOwnershipSingle }) }) }
+      }
+      if (cols === 'id, images, slug') {
         return { eq: () => ({ eq: () => ({ maybeSingle: businessImagesMaybeSingle }) }) }
       }
       if (cols === 'id, images, videos') {
+        // requestBusinessVideoUpload only — doesn't revalidate, no slug needed.
         return { eq: () => ({ eq: () => ({ maybeSingle: businessMediaMaybeSingle }) }) }
       }
-      if (cols === 'id, videos') {
+      if (cols === 'id, images, videos, slug') {
+        return { eq: () => ({ eq: () => ({ maybeSingle: businessMediaMaybeSingle }) }) }
+      }
+      if (cols === 'id, videos, slug') {
         return { eq: () => ({ eq: () => ({ maybeSingle: businessVideosMaybeSingle }) }) }
       }
       throw new Error(`unexpected businesses select: ${cols}`)
@@ -173,6 +183,7 @@ function fakeImageFile(overrides: Partial<{ type: string; size: number }> = {}) 
 }
 
 const BIZ_ID = '11111111-1111-1111-1111-111111111111'
+const BIZ_SLUG = 'finca-la-esperanza'
 const EXP_ID = '22222222-2222-2222-2222-222222222222'
 const CAT_ID_1 = '33333333-3333-3333-3333-333333333333'
 const CAT_ID_2 = '44444444-4444-4444-4444-444444444444'
@@ -582,7 +593,7 @@ describe('uploadBusinessImage', () => {
   })
 
   it('uploads and appends the new URL to the existing images array', async () => {
-    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: ['https://x/old.webp'], videos: [] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG, images: ['https://x/old.webp'], videos: [] } })
     storageUpload.mockResolvedValue({ error: null })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
@@ -593,6 +604,7 @@ describe('uploadBusinessImage', () => {
     expect(adminBusinessesUpdate).toHaveBeenCalledWith(
       { images: ['https://x/old.webp', 'https://cdn.example.com/photo.webp'] }, 'id', BIZ_ID,
     )
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('removes the just-uploaded file from storage when saving the DB row fails (rollback)', async () => {
@@ -714,7 +726,7 @@ describe('confirmBusinessVideoUpload', () => {
   })
 
   it('appends the server-derived public URL (not the raw path) to the existing videos array on success', async () => {
-    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, images: [], videos: ['https://x/old.mp4'] } })
+    businessMediaMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG, images: [], videos: ['https://x/old.mp4'] } })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
     await confirmBusinessVideoUpload(BIZ_ID, `businesses/${BIZ_ID}/new.mp4`)
@@ -722,6 +734,7 @@ describe('confirmBusinessVideoUpload', () => {
     expect(adminBusinessesUpdate).toHaveBeenCalledWith(
       { videos: ['https://x/old.mp4', 'https://cdn.example.com/photo.webp'] }, 'id', BIZ_ID,
     )
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('returns an error when saving the DB row fails', async () => {
@@ -750,7 +763,7 @@ describe('deleteBusinessVideo', () => {
 
   it('removes the file from the video bucket and filters the URL out of the videos array', async () => {
     businessVideosMaybeSingle.mockResolvedValue({
-      data: { id: BIZ_ID, videos: ['https://x.supabase.co/storage/v1/object/public/business-videos/businesses/b1/a.mp4', 'https://x/keep.mp4'] },
+      data: { id: BIZ_ID, slug: BIZ_SLUG, videos: ['https://x.supabase.co/storage/v1/object/public/business-videos/businesses/b1/a.mp4', 'https://x/keep.mp4'] },
     })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
@@ -758,6 +771,7 @@ describe('deleteBusinessVideo', () => {
 
     expect(storageRemove).toHaveBeenCalledWith('business-videos', ['businesses/b1/a.mp4'])
     expect(adminBusinessesUpdate).toHaveBeenCalledWith({ videos: ['https://x/keep.mp4'] }, 'id', BIZ_ID)
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('treats a missing videos field as an empty array', async () => {
@@ -856,7 +870,7 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
 
   it('uploadExperienceImage appends the new URL to the experience images array on success', async () => {
     experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: ['https://x/old.webp'], business_id: BIZ_ID } })
-    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
     storageUpload.mockResolvedValue({ error: null })
     adminExperiencesUpdate.mockResolvedValue({ error: null })
 
@@ -867,6 +881,7 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
     expect(adminExperiencesUpdate).toHaveBeenCalledWith(
       { images: ['https://x/old.webp', 'https://cdn.example.com/photo.webp'] }, 'id', EXP_ID,
     )
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('uploadExperienceImage removes the just-uploaded file from storage when saving the DB row fails (rollback)', async () => {
@@ -887,13 +902,14 @@ describe('uploadExperienceImage / deleteExperienceImage — two-level ownership 
     experienceMaybeSingle.mockResolvedValue({
       data: { id: EXP_ID, business_id: BIZ_ID, images: ['https://x.supabase.co/storage/v1/object/public/business-images/experiences/e1/a.webp', 'https://x/keep.webp'] },
     })
-    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
     adminExperiencesUpdate.mockResolvedValue({ error: null })
 
     await deleteExperienceImage(EXP_ID, 'https://x.supabase.co/storage/v1/object/public/business-images/experiences/e1/a.webp')
 
     expect(storageRemove).toHaveBeenCalledWith('business-images', ['experiences/e1/a.webp'])
     expect(adminExperiencesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', EXP_ID)
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('deleteExperienceImage rejects when the caller does not own the experience\'s business', async () => {
@@ -1021,7 +1037,7 @@ describe('confirmExperienceVideoUpload', () => {
 
   it('appends the server-derived public URL (not the raw path) to the existing videos array on success', async () => {
     experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: ['https://x/old.mp4'], business_id: BIZ_ID } })
-    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
     adminExperiencesUpdate.mockResolvedValue({ error: null })
 
     await confirmExperienceVideoUpload(EXP_ID, `experiences/${EXP_ID}/new.mp4`)
@@ -1029,6 +1045,7 @@ describe('confirmExperienceVideoUpload', () => {
     expect(adminExperiencesUpdate).toHaveBeenCalledWith(
       { videos: ['https://x/old.mp4', 'https://cdn.example.com/photo.webp'] }, 'id', EXP_ID,
     )
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('returns an error when saving the DB row fails', async () => {
@@ -1056,13 +1073,14 @@ describe('deleteExperienceVideo', () => {
     experienceMaybeSingle.mockResolvedValue({
       data: { id: EXP_ID, business_id: BIZ_ID, videos: ['https://x.supabase.co/storage/v1/object/public/business-videos/experiences/e1/a.mp4', 'https://x/keep.mp4'] },
     })
-    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
     adminExperiencesUpdate.mockResolvedValue({ error: null })
 
     await deleteExperienceVideo(EXP_ID, 'https://x.supabase.co/storage/v1/object/public/business-videos/experiences/e1/a.mp4')
 
     expect(storageRemove).toHaveBeenCalledWith('business-videos', ['experiences/e1/a.mp4'])
     expect(adminExperiencesUpdate).toHaveBeenCalledWith({ videos: ['https://x/keep.mp4'] }, 'id', EXP_ID)
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('treats a missing videos field as an empty array', async () => {
@@ -1092,7 +1110,7 @@ describe('deleteBusinessImage', () => {
 
   it('removes the file from storage and filters the URL out of the images array', async () => {
     businessImagesMaybeSingle.mockResolvedValue({
-      data: { id: BIZ_ID, images: ['https://x.supabase.co/storage/v1/object/public/business-images/businesses/b1/a.webp', 'https://x/keep.webp'] },
+      data: { id: BIZ_ID, slug: BIZ_SLUG, images: ['https://x.supabase.co/storage/v1/object/public/business-images/businesses/b1/a.webp', 'https://x/keep.webp'] },
     })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
@@ -1100,6 +1118,7 @@ describe('deleteBusinessImage', () => {
 
     expect(storageRemove).toHaveBeenCalledWith('business-images', ['businesses/b1/a.webp'])
     expect(adminBusinessesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', BIZ_ID)
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('skips storage removal when the URL does not match the bucket path (still filters it out)', async () => {

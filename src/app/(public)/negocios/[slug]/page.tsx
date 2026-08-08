@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { MapPin, Phone, Store, Clock, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -18,18 +18,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const { id } = await params
-  if (!UUID_RE.test(id)) return {}
+  const { slug } = await params
 
-  const { data } = await createAdminClient()
+  const query = createAdminClient()
     .from('businesses')
-    .select('name, description, images')
-    .eq('id', id)
+    .select('slug, name, description, images')
     .eq('verified', true)
     .eq('status', 'active')
-    .single()
+  const { data } = UUID_RE.test(slug)
+    ? await query.eq('id', slug).single()
+    : await query.eq('slug', slug).single()
 
   if (!data) return {}
 
@@ -38,15 +38,16 @@ export async function generateMetadata({
     data.description ??
     `Reserva experiencias en ${data.name} en Manaure Balcón del Cesar.`
   const image = (data.images as string[] | null)?.[0]
+  const url = `https://mantur.co/negocios/${data.slug}`
 
   return {
     title,
     description,
-    alternates: { canonical: `https://mantur.co/negocios/${id}` },
+    alternates: { canonical: url },
     openGraph: {
       title,
       description,
-      url: `https://mantur.co/negocios/${id}`,
+      url,
       images: image ? [{ url: image, width: 1200, height: 630, alt: title }] : undefined,
     },
     twitter: {
@@ -71,6 +72,7 @@ type ExperienceRow = {
 
 type BusinessDetail = {
   id: string
+  slug: string
   name: string
   description: string | null
   type: string
@@ -84,9 +86,9 @@ type BusinessDetail = {
 export default async function NegocioDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }) {
-  const { id } = await params
+  const { slug } = await params
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -101,12 +103,13 @@ export default async function NegocioDetailPage({
     isTourist = profile?.role === 'tourist'
   }
 
+  const isLegacyId = UUID_RE.test(slug)
   const { data: business, error } = await supabase
     .from('businesses')
     .select(
-      'id, name, description, type, address, phone, images, videos, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
+      'id, slug, name, description, type, address, phone, images, videos, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
     )
-    .eq('id', id)
+    .eq(isLegacyId ? 'id' : 'slug', slug)
     .eq('verified', true)
     .eq('status', 'active')
     .single()
@@ -117,6 +120,9 @@ export default async function NegocioDetailPage({
   }
 
   const b = business as BusinessDetail
+
+  if (isLegacyId) permanentRedirect(`/negocios/${b.slug}`)
+
   const copyExp = businessesCopy.experiences
 
   const activeExperiences = (b.experiences ?? []).filter((e) => e.status === 'active')
@@ -137,7 +143,7 @@ export default async function NegocioDetailPage({
           addressCountry: 'CO',
         }
       : undefined,
-    url: `${APP_URL}/negocios/${b.id}`,
+    url: `${APP_URL}/negocios/${b.slug}`,
   }
 
   return (

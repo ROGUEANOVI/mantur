@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { MapPin, TreePine, Droplets, Eye, Waves, Trees, Landmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -27,16 +27,14 @@ const TYPE_ICONS: Record<PlaceType, React.ElementType> = {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const { id } = await params
-  if (!UUID_RE.test(id)) return {}
+  const { slug } = await params
 
-  const { data } = await createAdminClient()
-    .from('places')
-    .select('name, description, images')
-    .eq('id', id)
-    .single()
+  const query = createAdminClient().from('places').select('slug, name, description, images')
+  const { data } = UUID_RE.test(slug)
+    ? await query.eq('id', slug).single()
+    : await query.eq('slug', slug).single()
 
   if (!data) return {}
 
@@ -44,15 +42,16 @@ export async function generateMetadata({
   const description =
     data.description ?? `Descubre ${data.name} en Manaure Balcón del Cesar.`
   const image = (data.images as string[] | null)?.[0]
+  const url = `https://mantur.co/lugares/${data.slug}`
 
   return {
     title,
     description,
-    alternates: { canonical: `https://mantur.co/lugares/${id}` },
+    alternates: { canonical: url },
     openGraph: {
       title,
       description,
-      url: `https://mantur.co/lugares/${id}`,
+      url,
       images: image ? [{ url: image, width: 1200, height: 630, alt: title }] : undefined,
     },
     twitter: {
@@ -66,6 +65,7 @@ export async function generateMetadata({
 
 type PlaceDetail = {
   id: string
+  slug: string
   name: string
   description: string | null
   type: string
@@ -78,15 +78,16 @@ type PlaceDetail = {
 export default async function LugarDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }) {
-  const { id } = await params
+  const { slug } = await params
   const supabase = await createClient()
 
+  const isLegacyId = UUID_RE.test(slug)
   const { data: place, error } = await supabase
     .from('places')
-    .select('id, name, description, type, images, videos, lat, lng')
-    .eq('id', id)
+    .select('id, slug, name, description, type, images, videos, lat, lng')
+    .eq(isLegacyId ? 'id' : 'slug', slug)
     .single()
 
   if (error) {
@@ -95,6 +96,9 @@ export default async function LugarDetailPage({
   }
 
   const p = place as PlaceDetail
+
+  if (isLegacyId) permanentRedirect(`/lugares/${p.slug}`)
+
   const copy = businessesCopy.places
   const typeLabel = copy.types[p.type] ?? copy.types.other
   const Icon = TYPE_ICONS[p.type as PlaceType] ?? TreePine
@@ -105,7 +109,7 @@ export default async function LugarDetailPage({
     name: p.name,
     description: p.description ?? undefined,
     image: p.images?.[0] ? [p.images[0]] : undefined,
-    url: `${APP_URL}/lugares/${p.id}`,
+    url: `${APP_URL}/lugares/${p.slug}`,
     geo:
       p.lat != null && p.lng != null
         ? { '@type': 'GeoCoordinates', latitude: p.lat, longitude: p.lng }

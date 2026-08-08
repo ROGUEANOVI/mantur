@@ -24,6 +24,7 @@ const PAGE_SIZE = 15
 
 type PlaceRow = {
   id: string
+  slug: string
   name: string
   description: string | null
   type: string
@@ -61,7 +62,7 @@ export default async function LugaresPage({
 
   let query = supabase
     .from('places')
-    .select('id, name, description, type, images', { count: 'exact' })
+    .select('id, slug, name, description, type, images', { count: 'exact' })
 
   if (typeFilter) query = query.eq('type', typeFilter)
   if (search) query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
@@ -186,7 +187,7 @@ function PlaceCard({ place }: { place: PlaceRow }) {
 
   return (
     <Link
-      href={`/lugares/${place.id}`}
+      href={`/lugares/${place.slug}`}
       className="group rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-shadow
                     flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
     >

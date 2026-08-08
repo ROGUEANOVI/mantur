@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 
 type GuideRow = {
   id: string
+  slug: string
   specialties: string[]
   languages: string[]
   bio: string | null
@@ -30,7 +31,7 @@ export default async function GuiasPage() {
 
   const { data } = await admin
     .from('tourist_guides')
-    .select('id, specialties, languages, bio, profiles(full_name), guide_tours(id)')
+    .select('id, slug, specialties, languages, bio, profiles(full_name), guide_tours(id)')
     .eq('is_available', true)
     .order('created_at', { ascending: true })
 
@@ -111,7 +112,7 @@ export default async function GuiasPage() {
                   )}
 
                   <Link
-                    href={`/guias/${g.id}`}
+                    href={`/guias/${g.slug}`}
                     className="inline-flex items-center justify-center w-full rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 transition-colors"
                   >
                     {copy.viewProfile}
