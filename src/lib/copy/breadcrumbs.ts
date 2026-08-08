@@ -3,4 +3,5 @@ export const breadcrumbsCopy = {
   businesses: 'Negocios',
   places: 'Lugares',
   guides: 'Guías',
+  discover: 'Descubre',
 }

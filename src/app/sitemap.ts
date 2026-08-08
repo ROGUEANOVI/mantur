@@ -9,6 +9,12 @@ const STATIC_ROUTES: Array<{ path: string; priority: number; changeFrequency: Me
   { path: '/lugares', priority: 0.9, changeFrequency: 'weekly' },
   { path: '/guias', priority: 0.8, changeFrequency: 'daily' },
   { path: '/transportistas', priority: 0.6, changeFrequency: 'daily' },
+  { path: '/descubre', priority: 0.7, changeFrequency: 'monthly' },
+  { path: '/descubre/que-hacer-en-manaure', priority: 0.7, changeFrequency: 'monthly' },
+  { path: '/descubre/naturaleza-en-manaure', priority: 0.7, changeFrequency: 'weekly' },
+  { path: '/descubre/donde-comer-en-manaure', priority: 0.7, changeFrequency: 'weekly' },
+  { path: '/descubre/como-llegar-a-manaure', priority: 0.7, changeFrequency: 'monthly' },
+  { path: '/descubre/mejor-epoca-para-visitar-manaure', priority: 0.7, changeFrequency: 'monthly' },
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
