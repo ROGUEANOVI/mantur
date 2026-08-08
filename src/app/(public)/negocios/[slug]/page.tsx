@@ -80,6 +80,8 @@ type BusinessDetail = {
   phone: string | null
   images: string[] | null
   videos: string[] | null
+  lat: number | null
+  lng: number | null
   experiences: ExperienceRow[]
 }
 
@@ -107,7 +109,7 @@ export default async function NegocioDetailPage({
   const { data: business, error } = await supabase
     .from('businesses')
     .select(
-      'id, slug, name, description, type, address, phone, images, videos, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
+      'id, slug, name, description, type, address, phone, images, videos, lat, lng, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
     )
     .eq(isLegacyId ? 'id' : 'slug', slug)
     .eq('verified', true)
@@ -143,6 +145,10 @@ export default async function NegocioDetailPage({
           addressCountry: 'CO',
         }
       : undefined,
+    geo:
+      b.lat != null && b.lng != null
+        ? { '@type': 'GeoCoordinates', latitude: b.lat, longitude: b.lng }
+        : undefined,
     url: `${APP_URL}/negocios/${b.slug}`,
   }
 
@@ -188,6 +194,17 @@ export default async function NegocioDetailPage({
                   {b.phone}
                 </a>
               </div>
+            )}
+            {b.lat != null && b.lng != null && (
+              <a
+                href={`https://www.google.com/maps?q=${b.lat},${b.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+              >
+                <MapPin className="size-4 shrink-0" aria-hidden="true" />
+                {businessesCopy.businesses.viewMap}
+              </a>
             )}
           </div>
         </section>

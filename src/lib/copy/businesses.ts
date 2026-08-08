@@ -82,6 +82,7 @@ export const businessesCopy = {
     empty: 'Próximamente habrá establecimientos disponibles en Manaure.',
     fromPrice: 'Desde',
     viewDetail: 'Ver detalles',
+    viewMap: 'Ver en el mapa',
     types: {
       resort: 'Balneario',
       restaurant: 'Restaurante',
