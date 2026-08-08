@@ -151,7 +151,7 @@ export default function SignupForm() {
         </p>
       )}
 
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
         {pending ? 'Creando cuenta...' : copy.submit}
       </Button>
 

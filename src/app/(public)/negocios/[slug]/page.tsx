@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
+import Reveal from '@/components/shared/Reveal'
 
 const APP_URL = 'https://mantur.co'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -201,14 +202,15 @@ export default async function NegocioDetailPage({
             </div>
           ) : (
             <div className="space-y-3">
-              {activeExperiences.map((exp) => (
-                <ExperienceCard
-                  key={exp.id}
-                  experience={exp}
-                  businessSlug={b.slug}
-                  isTourist={isTourist}
-                  isGuest={isGuest}
-                />
+              {activeExperiences.map((exp, i) => (
+                <Reveal key={exp.id} delay={Math.min(i, 8) * 60}>
+                  <ExperienceCard
+                    experience={exp}
+                    businessSlug={b.slug}
+                    isTourist={isTourist}
+                    isGuest={isGuest}
+                  />
+                </Reveal>
               ))}
             </div>
           )}
@@ -234,7 +236,7 @@ function ExperienceCard({
   const detailHref = `/negocios/${businessSlug}/actividades/${exp.id}`
 
   return (
-    <div className="relative rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border flex">
+    <div className="relative rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 has-[a:active]:scale-[0.98] transition-all bg-card border border-border flex">
       <Link href={detailHref} className="absolute inset-0 z-0" aria-label={exp.name}>
         <span className="sr-only">{exp.name}</span>
       </Link>
@@ -284,14 +286,14 @@ function ExperienceCard({
         {isTourist ? (
           <Link
             href={`/reservas/nueva?exp=${exp.id}`}
-            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
+            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 active:scale-[0.98] transition-all"
           >
             {copy.book}
           </Link>
         ) : isGuest ? (
           <Link
             href="/login"
-            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 transition-colors"
+            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 active:scale-[0.98] transition-all"
           >
             {copy.bookGuest}
           </Link>

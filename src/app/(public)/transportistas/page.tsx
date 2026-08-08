@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
 import TransporterCardWithModal from '@/components/transporte/TransporterCardWithModal'
+import Reveal from '@/components/shared/Reveal'
 
 export const metadata: Metadata = {
   title: 'Transportadores',
@@ -22,7 +23,7 @@ type TransporterRow = {
   license_plate: string
   phone: string
   bio: string | null
-  profiles: { full_name: string | null } | null
+  profiles: { full_name: string | null; avatar_url: string | null } | null
 }
 
 export default async function TransportistasPage() {
@@ -34,7 +35,7 @@ export default async function TransportistasPage() {
   const [{ data }, { data: { user } }] = await Promise.all([
     admin
       .from('transporters')
-      .select('id, vehicle_type, license_plate, phone, bio, profiles(full_name)')
+      .select('id, vehicle_type, license_plate, phone, bio, profiles(full_name, avatar_url)')
       .eq('is_available', true)
       .order('created_at', { ascending: true }),
     supabase.auth.getUser(),
@@ -90,18 +91,20 @@ export default async function TransportistasPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {transporters.map((t) => (
-              <TransporterCardWithModal
-                key={t.id}
-                transporter={{
-                  vehicle_type: t.vehicle_type,
-                  license_plate: t.license_plate,
-                  phone: t.phone,
-                  bio: t.bio,
-                  full_name: t.profiles?.full_name ?? null,
-                }}
-                access={access}
-              />
+            {transporters.map((t, i) => (
+              <Reveal key={t.id} delay={Math.min(i, 8) * 60}>
+                <TransporterCardWithModal
+                  transporter={{
+                    vehicle_type: t.vehicle_type,
+                    license_plate: t.license_plate,
+                    phone: t.phone,
+                    bio: t.bio,
+                    full_name: t.profiles?.full_name ?? null,
+                    avatar_url: t.profiles?.avatar_url ?? null,
+                  }}
+                  access={access}
+                />
+              </Reveal>
             ))}
           </div>
         )}

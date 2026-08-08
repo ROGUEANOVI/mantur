@@ -13,6 +13,7 @@ const TRANSPORTER = {
   phone: '3001234567',
   bio: 'Conozco todos los rincones de Manaure',
   full_name: 'Carlos Ruiz',
+  avatar_url: null,
 }
 
 beforeEach(() => {

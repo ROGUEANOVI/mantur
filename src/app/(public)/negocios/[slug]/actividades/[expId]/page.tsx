@@ -9,6 +9,7 @@ import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
+import Reveal from '@/components/shared/Reveal'
 
 const APP_URL = 'https://mantur.co'
 
@@ -151,7 +152,8 @@ export default async function ActividadDetailPage({
         </section>
 
         {/* Activity info */}
-        <section className="px-4 mt-4 space-y-3">
+        <section className="px-4 mt-4">
+        <Reveal className="space-y-3">
           {exp.description && (
             <p className="text-sm text-foreground/80 leading-relaxed">{exp.description}</p>
           )}
@@ -184,18 +186,19 @@ export default async function ActividadDetailPage({
           {isTourist ? (
             <Link
               href={`/reservas/nueva?exp=${exp.id}`}
-              className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
+              className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 active:scale-[0.98] transition-all"
             >
               {copy.book}
             </Link>
           ) : isGuest ? (
             <Link
               href="/login"
-              className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 transition-colors"
+              className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 active:scale-[0.98] transition-all"
             >
               {copy.bookGuest}
             </Link>
           ) : null}
+        </Reveal>
         </section>
       </div>
     </main>

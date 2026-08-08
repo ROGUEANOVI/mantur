@@ -8,6 +8,7 @@ import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
+import Reveal from '@/components/shared/Reveal'
 
 const APP_URL = 'https://mantur.co'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -141,21 +142,23 @@ export default async function LugarDetailPage({
         </section>
 
         {/* Place info */}
-        <section className="px-4 mt-4 space-y-3">
-          {p.description && (
-            <p className="text-sm text-foreground/80 leading-relaxed">{p.description}</p>
-          )}
-          {p.lat != null && p.lng != null && (
-            <a
-              href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-            >
-              <MapPin className="size-4 shrink-0" aria-hidden="true" />
-              {copy.viewMap}
-            </a>
-          )}
+        <section className="px-4 mt-4">
+          <Reveal className="space-y-3">
+            {p.description && (
+              <p className="text-sm text-foreground/80 leading-relaxed">{p.description}</p>
+            )}
+            {p.lat != null && p.lng != null && (
+              <a
+                href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline active:scale-95 transition-transform"
+              >
+                <MapPin className="size-4 shrink-0" aria-hidden="true" />
+                {copy.viewMap}
+              </a>
+            )}
+          </Reveal>
         </section>
       </div>
     </main>

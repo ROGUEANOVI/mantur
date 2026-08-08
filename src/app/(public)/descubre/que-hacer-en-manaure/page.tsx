@@ -5,6 +5,7 @@ import { descubreCopy } from '@/lib/copy/descubre'
 import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
+import Reveal from '@/components/shared/Reveal'
 
 const APP_URL = 'https://mantur.co'
 const PAGE_URL = `${APP_URL}/descubre/que-hacer-en-manaure`
@@ -52,18 +53,20 @@ export default function QueHacerPage() {
         </section>
 
         <section className="px-4 mt-6 space-y-3">
-          {copy.sections.map((s) => (
-            <div key={s.linkHref} className="rounded-2xl border border-border bg-card p-4">
-              <h2 className="text-base font-semibold text-foreground">{s.title}</h2>
-              <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">{s.body}</p>
-              <Link
-                href={s.linkHref}
-                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-              >
-                {s.linkLabel}
-                <ChevronRight className="size-3.5" aria-hidden="true" />
-              </Link>
-            </div>
+          {copy.sections.map((s, i) => (
+            <Reveal key={s.linkHref} delay={i * 60}>
+              <div className="rounded-2xl border border-border bg-card p-4 hover:shadow-sm hover:-translate-y-0.5 transition-all">
+                <h2 className="text-base font-semibold text-foreground">{s.title}</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">{s.body}</p>
+                <Link
+                  href={s.linkHref}
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline active:scale-95 transition-transform"
+                >
+                  {s.linkLabel}
+                  <ChevronRight className="size-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            </Reveal>
           ))}
         </section>
       </div>

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import BusinessImageCarousel from './BusinessImageCarousel'
 
@@ -72,6 +72,173 @@ describe('BusinessImageCarousel — multiple images', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Imagen anterior' }))
 
     expect(scrollToSpy).toHaveBeenCalledWith({ left: 300, behavior: 'smooth' })
+  })
+})
+
+describe('BusinessImageCarousel — autoplay', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function mockReducedMotion(matches: boolean) {
+    window.matchMedia = vi.fn().mockReturnValue({ matches }) as unknown as typeof window.matchMedia
+  }
+
+  it('auto-advances to the next slide after the autoplay interval', () => {
+    mockReducedMotion(false)
+    const { container } = render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    const scrollEl = container.querySelector('.overflow-x-auto') as HTMLDivElement
+    Object.defineProperty(scrollEl, 'offsetWidth', { value: 300, configurable: true })
+    const scrollToSpy = vi.fn()
+    scrollEl.scrollTo = scrollToSpy
+
+    vi.advanceTimersByTime(5000)
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ left: 300, behavior: 'smooth' })
+  })
+
+  it('does not auto-advance when the visitor prefers reduced motion', () => {
+    mockReducedMotion(true)
+    const { container } = render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    const scrollEl = container.querySelector('.overflow-x-auto') as HTMLDivElement
+    Object.defineProperty(scrollEl, 'offsetWidth', { value: 300, configurable: true })
+    const scrollToSpy = vi.fn()
+    scrollEl.scrollTo = scrollToSpy
+
+    vi.advanceTimersByTime(5000)
+
+    expect(scrollToSpy).not.toHaveBeenCalled()
+  })
+
+  it('pauses on hover and resumes on mouse leave', () => {
+    mockReducedMotion(false)
+    const { container } = render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    const outer = container.firstChild as HTMLElement
+    const scrollEl = container.querySelector('.overflow-x-auto') as HTMLDivElement
+    Object.defineProperty(scrollEl, 'offsetWidth', { value: 300, configurable: true })
+    const scrollToSpy = vi.fn()
+    scrollEl.scrollTo = scrollToSpy
+
+    fireEvent.mouseEnter(outer)
+    vi.advanceTimersByTime(5000)
+    expect(scrollToSpy).not.toHaveBeenCalled()
+
+    fireEvent.mouseLeave(outer)
+    vi.advanceTimersByTime(5000)
+    expect(scrollToSpy).toHaveBeenCalledWith({ left: 300, behavior: 'smooth' })
+  })
+
+  it('pauses permanently on touch', () => {
+    mockReducedMotion(false)
+    const { container } = render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    const outer = container.firstChild as HTMLElement
+    const scrollEl = container.querySelector('.overflow-x-auto') as HTMLDivElement
+    Object.defineProperty(scrollEl, 'offsetWidth', { value: 300, configurable: true })
+    const scrollToSpy = vi.fn()
+    scrollEl.scrollTo = scrollToSpy
+
+    fireEvent.touchStart(outer)
+    vi.advanceTimersByTime(10000)
+
+    expect(scrollToSpy).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-advance for a single slide', () => {
+    mockReducedMotion(false)
+    const { container } = render(<BusinessImageCarousel images={['https://x/a.webp']} name="Finca X" />)
+    const scrollEl = container.querySelector('.overflow-x-auto') as HTMLDivElement
+    Object.defineProperty(scrollEl, 'offsetWidth', { value: 300, configurable: true })
+    const scrollToSpy = vi.fn()
+    scrollEl.scrollTo = scrollToSpy
+
+    vi.advanceTimersByTime(10000)
+
+    expect(scrollToSpy).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-advance while the current slide is a video', () => {
+    mockReducedMotion(false)
+    const { container } = render(
+      <BusinessImageCarousel images={['https://x/a.webp']} videos={['https://x/clip.mp4']} name="Finca X" />,
+    )
+    const scrollEl = container.querySelector('.overflow-x-auto') as HTMLDivElement
+    Object.defineProperty(scrollEl, 'offsetWidth', { value: 300, configurable: true })
+    Object.defineProperty(scrollEl, 'scrollLeft', { value: 300, configurable: true })
+    fireEvent.scroll(scrollEl)
+
+    const scrollToSpy = vi.fn()
+    scrollEl.scrollTo = scrollToSpy
+    vi.advanceTimersByTime(10000)
+
+    expect(scrollToSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('BusinessImageCarousel — lightbox', () => {
+  afterEach(() => {
+    document.body.classList.remove('overflow-hidden')
+  })
+
+  it('opens the lightbox with the full image when a slide is clicked', async () => {
+    render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Finca X en tamaño completo' }))
+
+    expect(screen.getByRole('dialog', { name: 'Finca X — foto ampliada' })).toBeInTheDocument()
+    expect(document.body).toHaveClass('overflow-hidden')
+  })
+
+  it('closes when the close button is clicked', () => {
+    render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Finca X en tamaño completo' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveClass('overflow-hidden')
+  })
+
+  it('closes when Escape is pressed', () => {
+    render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Finca X en tamaño completo' }))
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('closes when the backdrop is clicked, but not when the image area is clicked', () => {
+    render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Finca X en tamaño completo' }))
+
+    fireEvent.click(screen.getByRole('dialog'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('starts on the clicked slide and only shows a "next" arrow', () => {
+    render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Finca X en tamaño completo' }))
+
+    expect(screen.queryByRole('button', { name: 'Ver foto anterior' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver foto siguiente' })).toBeInTheDocument()
+  })
+
+  it('navigates to the next image within the lightbox', () => {
+    render(<BusinessImageCarousel images={IMAGES} name="Finca X" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Finca X en tamaño completo' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver foto siguiente' }))
+
+    expect(screen.getByRole('button', { name: 'Ver foto anterior' })).toBeInTheDocument()
+  })
+
+  it('does not open a lightbox for video slides', () => {
+    render(<BusinessImageCarousel images={[]} videos={['https://x/clip.mp4']} name="Finca X" />)
+    expect(screen.queryByRole('button', { name: /en tamaño completo/ })).not.toBeInTheDocument()
   })
 })
 

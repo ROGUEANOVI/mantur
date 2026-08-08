@@ -6,7 +6,6 @@ export const guidesCopy = {
     empty: 'No hay guías disponibles en este momento.',
     specialtiesLabel: 'Especialidades',
     languagesLabel: 'Idiomas',
-    viewProfile: 'Ver perfil',
     tours: 'tours',
   },
 
