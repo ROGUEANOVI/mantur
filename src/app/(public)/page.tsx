@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { landingCopy } from '@/lib/copy/landing'
 import { cn } from '@/lib/utils'
 import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
+import Reveal from '@/components/shared/Reveal'
 
 export const metadata: Metadata = {
   title: 'ManTur — Turismo con alma local',
@@ -83,25 +84,25 @@ export default async function LandingPage() {
         <div className="pointer-events-none absolute -bottom-10 -left-10 size-48 rounded-full bg-white/5" />
 
         <div className="relative mx-auto max-w-lg text-center">
-          <p className="mb-3 inline-block rounded-full border border-white/30 bg-white/10 px-4 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+          <p className="animate-fade-up mb-3 inline-block rounded-full border border-white/30 bg-white/10 px-4 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
             {copy.hero.eyebrow}
           </p>
-          <h1 className="text-3xl font-extrabold leading-tight text-white sm:text-4xl">
+          <h1 className="animate-fade-up [animation-delay:100ms] text-3xl font-extrabold leading-tight text-white sm:text-4xl">
             {copy.hero.title}
           </h1>
-          <p className="mx-auto mt-4 max-w-sm text-base text-white/80">
+          <p className="animate-fade-up [animation-delay:200ms] mx-auto mt-4 max-w-sm text-base text-white/80">
             {copy.hero.subtitle}
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="animate-fade-up [animation-delay:300ms] mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/negocios"
-              className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-white px-6 text-sm font-bold text-[#0e7a54] shadow-lg hover:bg-white/90 transition-colors"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-white px-6 text-sm font-bold text-[#0e7a54] shadow-lg hover:bg-white/90 hover:-translate-y-0.5 transition-all"
             >
               {copy.hero.ctaPrimary}
             </Link>
             <Link
               href="/lugares"
-              className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-white/40 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/20 transition-colors"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-white/40 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/20 hover:-translate-y-0.5 transition-all"
             >
               {copy.hero.ctaSecondary}
             </Link>
@@ -113,12 +114,12 @@ export default async function LandingPage() {
       {featuredList.length > 0 && (
         <section className="py-10">
           <div className="mx-auto max-w-5xl">
-            <div className="flex items-center gap-2 px-4 mb-5">
+            <Reveal className="flex items-center gap-2 px-4 mb-5">
               <Star className="size-5 text-amber-500 fill-amber-500" aria-hidden="true" />
               <h2 className="text-lg font-bold text-foreground">
                 {copy.featured.title}
               </h2>
-            </div>
+            </Reveal>
             <FeaturedCarousel>
               {featuredList.map((b) => (
                 <FeaturedCard key={b.id} business={b} />
@@ -131,25 +132,28 @@ export default async function LandingPage() {
       {/* ── Categorías ───────────────────────────────────────── */}
       <section className="py-10 bg-muted/30">
         <div className="mx-auto max-w-5xl px-4">
-          <h2 className="text-lg font-bold text-foreground mb-5">
-            {copy.categories.title}
-          </h2>
+          <Reveal>
+            <h2 className="text-lg font-bold text-foreground mb-5">
+              {copy.categories.title}
+            </h2>
+          </Reveal>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {categories.map(({ key, label }) => {
+            {categories.map(({ key, label }, i) => {
               const Icon = CATEGORY_ICONS[key] ?? Store
               return (
-                <Link
-                  key={key}
-                  href={`/negocios?type=${key}`}
-                  className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 text-center hover:border-primary/40 hover:shadow-sm transition-all group"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Icon className="size-5 text-primary" aria-hidden="true" strokeWidth={1.5} />
-                  </div>
-                  <span className="text-xs font-medium text-foreground leading-tight">
-                    {label}
-                  </span>
-                </Link>
+                <Reveal key={key} delay={i * 60}>
+                  <Link
+                    href={`/negocios?type=${key}`}
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 text-center hover:border-primary/40 hover:shadow-sm hover:-translate-y-0.5 transition-all group"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                      <Icon className="size-5 text-primary" aria-hidden="true" strokeWidth={1.5} />
+                    </div>
+                    <span className="text-xs font-medium text-foreground leading-tight">
+                      {label}
+                    </span>
+                  </Link>
+                </Reveal>
               )
             })}
           </div>
@@ -160,7 +164,7 @@ export default async function LandingPage() {
       {placesList.length > 0 && (
         <section className="py-10">
           <div className="mx-auto max-w-5xl px-4">
-            <div className="flex items-center justify-between mb-5">
+            <Reveal className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="text-lg font-bold text-foreground">
                   {copy.placesPreview.title}
@@ -175,10 +179,12 @@ export default async function LandingPage() {
               >
                 {copy.placesPreview.viewAll}
               </Link>
-            </div>
+            </Reveal>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {placesList.map((place) => (
-                <PlaceCard key={place.id} place={place} />
+              {placesList.map((place, i) => (
+                <Reveal key={place.id} delay={i * 80}>
+                  <PlaceCard place={place} />
+                </Reveal>
               ))}
             </div>
           </div>
@@ -195,7 +201,7 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
   return (
     <div
       data-carousel-item
-      className="snap-start shrink-0 w-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border border-border"
+      className="snap-start shrink-0 w-64 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all bg-card border border-border"
     >
       <div className="relative aspect-[4/3]">
         {imageUrl ? (
@@ -241,7 +247,7 @@ function PlaceCard({ place }: { place: PlacePreview }) {
   return (
     <Link
       href={`/lugares/${place.slug}`}
-      className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 hover:shadow-sm transition-shadow"
+      className="h-full flex items-start gap-3 rounded-2xl border border-border bg-card p-4 hover:shadow-sm hover:-translate-y-0.5 hover:border-primary/30 transition-all"
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
         <MapPin className="size-5 text-primary" aria-hidden="true" strokeWidth={1.5} />

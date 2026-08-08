@@ -66,7 +66,7 @@ export default function LoginForm() {
       )}
 
       {/* Submit */}
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
         {pending ? 'Iniciando sesión...' : copy.submit}
       </Button>
 
