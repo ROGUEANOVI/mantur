@@ -32,11 +32,13 @@ export default function UserMenu({
   fullName,
   email,
   role,
+  avatarUrl,
   links,
 }: {
   fullName: string | null
   email: string | null
   role: string | null
+  avatarUrl?: string | null
   links: UserMenuLink[]
 }) {
   const copy = landingCopy.nav
@@ -48,11 +50,16 @@ export default function UserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger className="group flex items-center gap-2 px-2 min-h-11 rounded-lg text-sm text-foreground hover:bg-muted/50 transition-colors">
         <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold select-none"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold select-none overflow-hidden"
           aria-hidden="true"
           title={displayName}
         >
-          {initials || '?'}
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            initials || '?'
+          )}
         </span>
         <span className="max-w-40 truncate font-medium">{displayName}</span>
         <ChevronDown

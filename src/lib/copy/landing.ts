@@ -9,6 +9,7 @@ export const landingCopy = {
     signup: 'Registrarse',
     signout: 'Cerrar sesión',
     admin: 'Admin',
+    myProfile: 'Mi perfil',
     myBookings: 'Mis reservas',
     myTrips: 'Mis traslados',
     myBusiness: 'Mis negocios',
