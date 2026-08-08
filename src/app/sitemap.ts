@@ -15,6 +15,9 @@ const STATIC_ROUTES: Array<{ path: string; priority: number; changeFrequency: Me
   { path: '/descubre/donde-comer-en-manaure', priority: 0.7, changeFrequency: 'weekly' },
   { path: '/descubre/como-llegar-a-manaure', priority: 0.7, changeFrequency: 'monthly' },
   { path: '/descubre/mejor-epoca-para-visitar-manaure', priority: 0.7, changeFrequency: 'monthly' },
+  { path: '/acerca-de-nosotros', priority: 0.5, changeFrequency: 'monthly' },
+  { path: '/terminos-y-condiciones', priority: 0.3, changeFrequency: 'monthly' },
+  { path: '/politica-de-privacidad', priority: 0.3, changeFrequency: 'monthly' },
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
