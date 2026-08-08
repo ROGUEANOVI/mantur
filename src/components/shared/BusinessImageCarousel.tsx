@@ -112,7 +112,7 @@ export default function BusinessImageCarousel({
           ) : (
             <video
               key={slide.url}
-              className="w-full h-full shrink-0 snap-start object-cover bg-black"
+              className="w-full h-full shrink-0 snap-start object-contain bg-black"
               src={slide.url}
               controls
               playsInline
