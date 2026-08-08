@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 }
 import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
+import Reveal from '@/components/shared/Reveal'
 import PaginationNav from '@/components/shared/PaginationNav'
 
 const PAGE_SIZE = 12
@@ -133,7 +134,7 @@ export default async function NegociosPage({
             <Link
               href={search ? `/negocios?q=${encodeURIComponent(search)}` : '/negocios'}
               className={cn(
-                'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
+                'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
                 !activeCategory
                   ? 'border-white bg-white text-primary'
                   : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
@@ -150,7 +151,7 @@ export default async function NegociosPage({
                   key={cat.slug}
                   href={href}
                   className={cn(
-                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
+                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
                     activeCategory?.slug === cat.slug
                       ? 'border-white bg-white text-primary'
                       : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
@@ -173,8 +174,10 @@ export default async function NegociosPage({
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(businesses as unknown as BusinessRow[]).map((business) => (
-                  <BusinessCard key={business.id} business={business} />
+                {(businesses as unknown as BusinessRow[]).map((business, i) => (
+                  <Reveal key={business.id} delay={Math.min(i, 8) * 50}>
+                    <BusinessCard business={business} />
+                  </Reveal>
                 ))}
               </div>
               <PaginationNav
@@ -203,7 +206,7 @@ function BusinessCard({ business }: { business: BusinessRow }) {
   return (
     <Link
       href={`/negocios/${business.slug}`}
-      className="group rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-shadow
+      className="group h-full rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all
                  flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
     >
       {/* Image — compact square on mobile, wide top image on sm+ */}

@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
 import PaginationNav from '@/components/shared/PaginationNav'
+import Reveal from '@/components/shared/Reveal'
 
 const PAGE_SIZE = 15
 
@@ -119,7 +120,7 @@ export default async function LugaresPage({
             <Link
               href={search ? `/lugares?q=${encodeURIComponent(search)}` : '/lugares'}
               className={cn(
-                'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
+                'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
                 !typeFilter
                   ? 'border-white bg-white text-primary'
                   : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
@@ -136,7 +137,7 @@ export default async function LugaresPage({
                   key={t}
                   href={href}
                   className={cn(
-                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
+                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
                     typeFilter === t
                       ? 'border-white bg-white text-primary'
                       : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
@@ -159,8 +160,10 @@ export default async function LugaresPage({
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(places as PlaceRow[]).map((place) => (
-                  <PlaceCard key={place.id} place={place} />
+                {(places as PlaceRow[]).map((place, i) => (
+                  <Reveal key={place.id} delay={Math.min(i, 8) * 50}>
+                    <PlaceCard place={place} />
+                  </Reveal>
                 ))}
               </div>
               <PaginationNav
@@ -188,7 +191,7 @@ function PlaceCard({ place }: { place: PlaceRow }) {
   return (
     <Link
       href={`/lugares/${place.slug}`}
-      className="group rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-shadow
+      className="group h-full rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all
                     flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
     >
       {/* Image */}
