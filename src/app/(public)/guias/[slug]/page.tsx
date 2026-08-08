@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { Clock, Users, Phone } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -14,36 +14,36 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const { id } = await params
-  if (!UUID_RE.test(id)) return {}
+  const { slug } = await params
 
-  const { data } = await createAdminClient()
-    .from('tourist_guides')
-    .select('bio, profiles(full_name)')
-    .eq('id', id)
-    .single()
+  const query = createAdminClient().from('tourist_guides').select('slug, bio, profiles(full_name)')
+  const { data } = UUID_RE.test(slug)
+    ? await query.eq('id', slug).single()
+    : await query.eq('slug', slug).single()
 
   if (!data) return {}
 
   const name = (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? 'Guía turístico'
   const description = data.bio ?? `Conoce a ${name}, guía turístico local en Manaure Balcón del Cesar.`
+  const url = `https://mantur.co/guias/${data.slug}`
 
   return {
     title: name,
     description,
-    alternates: { canonical: `https://mantur.co/guias/${id}` },
+    alternates: { canonical: url },
     openGraph: {
       title: `${name} — Guía turístico | ManTur`,
       description,
-      url: `https://mantur.co/guias/${id}`,
+      url,
     },
   }
 }
 
 type Guide = {
   id: string
+  slug: string
   is_available: boolean
   bio: string | null
   phone: string
@@ -65,10 +65,10 @@ type Tour = {
 export default async function GuideProfilePage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }) {
-  const { id } = await params
-  if (!UUID_RE.test(id)) notFound()
+  const { slug } = await params
+  const isLegacyId = UUID_RE.test(slug)
 
   const admin = createAdminClient()
   const supabase = await createClient()
@@ -76,8 +76,8 @@ export default async function GuideProfilePage({
   const [guideResult, userResult] = await Promise.all([
     admin
       .from('tourist_guides')
-      .select('id, is_available, bio, phone, specialties, languages, profiles(full_name)')
-      .eq('id', id)
+      .select('id, slug, is_available, bio, phone, specialties, languages, profiles(full_name)')
+      .eq(isLegacyId ? 'id' : 'slug', slug)
       .single(),
     supabase.auth.getUser(),
   ])
@@ -86,10 +86,12 @@ export default async function GuideProfilePage({
 
   const guide = guideResult.data as unknown as Guide
 
+  if (isLegacyId) permanentRedirect(`/guias/${guide.slug}`)
+
   const { data: toursData } = await admin
     .from('guide_tours')
     .select('id, name, description, price, capacity, duration_minutes, images')
-    .eq('guide_id', id)
+    .eq('guide_id', guide.id)
     .eq('status', 'active')
     .order('created_at', { ascending: true })
 

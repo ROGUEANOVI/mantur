@@ -308,7 +308,7 @@ export async function uploadBusinessImage(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id, images, videos')
+    .select('id, images, videos, slug')
     .eq('id', businessId)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -346,7 +346,7 @@ export async function uploadBusinessImage(
   }
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${businessId}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }
 
 type SignedUploadResult = { token: string; path: string; publicUrl: string } | { error: string }
@@ -403,7 +403,7 @@ export async function confirmBusinessVideoUpload(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id, images, videos')
+    .select('id, images, videos, slug')
     .eq('id', businessId)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -426,7 +426,7 @@ export async function confirmBusinessVideoUpload(
   if (updateError) return { error: 'No se pudo guardar el video.' }
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${businessId}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }
 
 export async function deleteBusinessVideo(
@@ -438,7 +438,7 @@ export async function deleteBusinessVideo(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id, videos')
+    .select('id, videos, slug')
     .eq('id', businessId)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -455,7 +455,7 @@ export async function deleteBusinessVideo(
   await admin.from('businesses').update({ videos: newVideos }).eq('id', businessId)
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${businessId}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }
 
 export async function uploadExperienceImage(
@@ -476,7 +476,7 @@ export async function uploadExperienceImage(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id')
+    .select('id, slug')
     .eq('id', exp.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -514,7 +514,7 @@ export async function uploadExperienceImage(
   }
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${exp.business_id}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }
 
 export async function deleteExperienceImage(
@@ -534,7 +534,7 @@ export async function deleteExperienceImage(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id')
+    .select('id, slug')
     .eq('id', exp.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -551,7 +551,7 @@ export async function deleteExperienceImage(
   await admin.from('experiences').update({ images: newImages }).eq('id', experienceId)
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${exp.business_id}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }
 
 export async function requestExperienceVideoUpload(
@@ -620,7 +620,7 @@ export async function confirmExperienceVideoUpload(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id')
+    .select('id, slug')
     .eq('id', exp.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -643,7 +643,7 @@ export async function confirmExperienceVideoUpload(
   if (updateError) return { error: 'No se pudo guardar el video.' }
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${exp.business_id}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }
 
 export async function deleteExperienceVideo(
@@ -663,7 +663,7 @@ export async function deleteExperienceVideo(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id')
+    .select('id, slug')
     .eq('id', exp.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -680,7 +680,7 @@ export async function deleteExperienceVideo(
   await admin.from('experiences').update({ videos: newVideos }).eq('id', experienceId)
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${exp.business_id}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }
 
 export async function deleteBusinessImage(
@@ -692,7 +692,7 @@ export async function deleteBusinessImage(
 
   const { data: owned } = await supabase
     .from('businesses')
-    .select('id, images')
+    .select('id, images, slug')
     .eq('id', businessId)
     .eq('owner_id', userId)
     .maybeSingle()
@@ -709,5 +709,5 @@ export async function deleteBusinessImage(
   await admin.from('businesses').update({ images: newImages }).eq('id', businessId)
 
   revalidatePath('/mi-negocio', 'layout')
-  revalidatePath(`/negocios/${businessId}`)
+  revalidatePath(`/negocios/${owned.slug}`)
 }

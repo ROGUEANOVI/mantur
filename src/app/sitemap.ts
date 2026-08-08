@@ -15,9 +15,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createAdminClient()
 
   const [businesses, places, guides] = await Promise.all([
-    supabase.from('businesses').select('id, updated_at').eq('verified', true).eq('status', 'active'),
-    supabase.from('places').select('id, updated_at'),
-    supabase.from('tourist_guides').select('id, updated_at'),
+    supabase.from('businesses').select('slug, updated_at').eq('verified', true).eq('status', 'active'),
+    supabase.from('places').select('slug, updated_at'),
+    supabase.from('tourist_guides').select('slug, updated_at'),
   ])
 
   const staticEntries: MetadataRoute.Sitemap = STATIC_ROUTES.map(({ path, priority, changeFrequency }) => ({
@@ -28,21 +28,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   const businessEntries: MetadataRoute.Sitemap = (businesses.data ?? []).map((b) => ({
-    url: `${APP_URL}/negocios/${b.id}`,
+    url: `${APP_URL}/negocios/${b.slug}`,
     lastModified: new Date(b.updated_at),
     changeFrequency: 'weekly',
     priority: 0.7,
   }))
 
   const placeEntries: MetadataRoute.Sitemap = (places.data ?? []).map((p) => ({
-    url: `${APP_URL}/lugares/${p.id}`,
+    url: `${APP_URL}/lugares/${p.slug}`,
     lastModified: new Date(p.updated_at),
     changeFrequency: 'monthly',
     priority: 0.7,
   }))
 
   const guideEntries: MetadataRoute.Sitemap = (guides.data ?? []).map((g) => ({
-    url: `${APP_URL}/guias/${g.id}`,
+    url: `${APP_URL}/guias/${g.slug}`,
     lastModified: new Date(g.updated_at),
     changeFrequency: 'weekly',
     priority: 0.6,

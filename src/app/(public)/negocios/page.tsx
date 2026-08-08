@@ -28,6 +28,7 @@ type CategoryLink = {
 
 type BusinessRow = {
   id: string
+  slug: string
   name: string
   description: string | null
   images: string[] | null
@@ -65,8 +66,8 @@ export default async function NegociosPage({
 
   // Use !inner join when filtering by category so only matching businesses are returned
   const selectClause = activeCategory
-    ? 'id, name, description, images, address, business_category_links!inner(business_categories(name, slug))'
-    : 'id, name, description, images, address, business_category_links(business_categories(name, slug))'
+    ? 'id, slug, name, description, images, address, business_category_links!inner(business_categories(name, slug))'
+    : 'id, slug, name, description, images, address, business_category_links(business_categories(name, slug))'
 
   let query = supabase
     .from('businesses')
@@ -201,7 +202,7 @@ function BusinessCard({ business }: { business: BusinessRow }) {
 
   return (
     <Link
-      href={`/negocios/${business.id}`}
+      href={`/negocios/${business.slug}`}
       className="group rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-shadow
                  flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
     >

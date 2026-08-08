@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 
 type FeaturedBusiness = {
   id: string
+  slug: string
   name: string
   description: string | null
   type: string
@@ -29,6 +30,7 @@ type FeaturedBusiness = {
 
 type PlacePreview = {
   id: string
+  slug: string
   name: string
   description: string | null
   type: string
@@ -49,14 +51,14 @@ export default async function LandingPage() {
   const [{ data: featured }, { data: places }] = await Promise.all([
     admin
       .from('businesses')
-      .select('id, name, description, type, images, address')
+      .select('id, slug, name, description, type, images, address')
       .eq('is_featured', true)
       .eq('status', 'active')
       .eq('verified', true)
       .order('name'),
     admin
       .from('places')
-      .select('id, name, description, type')
+      .select('id, slug, name, description, type')
       .order('created_at', { ascending: false })
       .limit(3),
   ])
@@ -220,7 +222,7 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
           </p>
         )}
         <Link
-          href={`/negocios/${business.id}`}
+          href={`/negocios/${business.slug}`}
           className={cn(
             'flex items-center justify-center w-full min-h-[40px]',
             'rounded-xl bg-primary text-primary-foreground',
@@ -238,7 +240,7 @@ function FeaturedCard({ business }: { business: FeaturedBusiness }) {
 function PlaceCard({ place }: { place: PlacePreview }) {
   return (
     <Link
-      href={`/lugares/${place.id}`}
+      href={`/lugares/${place.slug}`}
       className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 hover:shadow-sm transition-shadow"
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
