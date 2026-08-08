@@ -25,15 +25,17 @@ export default async function PublicNav() {
 
   let role: string | null = null
   let fullName: string | null = null
+  let avatarUrl: string | null = null
 
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, full_name')
+      .select('role, full_name, avatar_url')
       .eq('id', user.id)
       .single()
     role = profile?.role ?? null
     fullName = profile?.full_name ?? null
+    avatarUrl = profile?.avatar_url ?? null
   }
 
   const copy = landingCopy.nav
@@ -54,21 +56,26 @@ export default async function PublicNav() {
     case 'tourist':
       primaryLink = { label: copy.myBookings, href: '/mis-reservas' }
       secondaryLinks = [
+        { label: copy.myProfile, href: '/mi-perfil' },
         { label: copy.myTrips, href: '/mis-viajes' },
         { label: copy.joinMantur, href: '/solicitar-rol', accent: true },
       ]
       break
     case 'transporter':
       primaryLink = { label: copy.myTransport, href: '/mi-perfil-transporte' }
+      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
       break
     case 'tourist_guide':
       primaryLink = { label: copy.myGuidePanel, href: '/mi-perfil-guia' }
+      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
       break
     case 'business_owner':
       primaryLink = { label: copy.myBusiness, href: '/mi-negocio' }
+      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
       break
     case 'admin':
       primaryLink = { label: copy.admin, href: '/admin', isAdmin: true }
+      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
       break
     default:
       break
@@ -110,7 +117,7 @@ export default async function PublicNav() {
   const desktopAuthContent = user ? (
     <div className="flex items-center gap-1">
       {primaryLinkEl}
-      <UserMenu fullName={fullName} email={user.email ?? null} role={role} links={secondaryLinks} />
+      <UserMenu fullName={fullName} email={user.email ?? null} role={role} avatarUrl={avatarUrl} links={secondaryLinks} />
     </div>
   ) : (
     <GuestActions copy={copy} />

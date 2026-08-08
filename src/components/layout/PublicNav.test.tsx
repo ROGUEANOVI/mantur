@@ -77,7 +77,7 @@ describe('PublicNav — guest (no session)', () => {
 })
 
 describe('PublicNav — tourist', () => {
-  it('shows Mis reservas inline, and Mis traslados + Únete + Cerrar sesión inside the avatar menu', async () => {
+  it('shows Mis reservas inline, and Mi perfil + Mis traslados + Únete + Cerrar sesión inside the avatar menu', async () => {
     const user = userEvent.setup()
     authGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'ana@example.com' } } })
     profileSingle.mockResolvedValue({ data: { role: 'tourist', full_name: 'Ana Pérez' } })
@@ -86,12 +86,14 @@ describe('PublicNav — tourist', () => {
     expect(screen.getByRole('link', { name: 'Mis reservas' })).toHaveAttribute('href', '/mis-reservas')
 
     // Not visible until the dropdown is opened.
+    expect(screen.queryByRole('menuitem', { name: 'Mi perfil' })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Mis traslados' })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Únete' })).not.toBeInTheDocument()
 
     await openUserMenu(user, 'Ana Pérez')
 
-    expect(await screen.findByRole('menuitem', { name: 'Mis traslados' })).toHaveAttribute('href', '/mis-viajes')
+    expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('menuitem', { name: 'Mis traslados' })).toHaveAttribute('href', '/mis-viajes')
     const join = screen.getByRole('menuitem', { name: 'Únete' })
     expect(join).toHaveAttribute('href', '/solicitar-rol')
     expect(join.className).toMatch(/text-accent/)
@@ -119,6 +121,7 @@ describe('PublicNav — tourist', () => {
 
     const drawerLinks = await screen.findAllByRole('link', { name: 'Mis reservas' })
     expect(drawerLinks.length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('link', { name: 'Mi perfil' }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('link', { name: 'Mis traslados' }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('link', { name: 'Únete' }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: 'Cerrar sesión' }).length).toBeGreaterThan(0)
@@ -137,7 +140,8 @@ describe('PublicNav — transporter', () => {
 
     await openUserMenu(user, 'Carlos Ruiz')
 
-    expect(await screen.findByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Transportador')).toBeInTheDocument()
   })
 })
@@ -153,7 +157,8 @@ describe('PublicNav — tourist_guide', () => {
 
     await openUserMenu(user, 'Guía Local')
 
-    expect(await screen.findByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Guía turístico')).toBeInTheDocument()
   })
 })
@@ -169,7 +174,8 @@ describe('PublicNav — business_owner', () => {
 
     await openUserMenu(user, 'Dueño Negocio')
 
-    expect(await screen.findByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Dueño de negocio')).toBeInTheDocument()
   })
 })
@@ -185,7 +191,8 @@ describe('PublicNav — admin', () => {
 
     await openUserMenu(user, 'Admin User')
 
-    expect(await screen.findByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Administrador')).toBeInTheDocument()
   })
 })
@@ -213,6 +220,18 @@ describe('PublicNav — user avatar initials', () => {
 
     const avatar = container.querySelector('[title="Ana María Pérez"]')
     expect(avatar).toHaveTextContent('AM')
+  })
+
+  it('shows the uploaded avatar photo instead of initials when avatar_url is set', async () => {
+    authGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'ana@example.com' } } })
+    profileSingle.mockResolvedValue({
+      data: { role: 'tourist', full_name: 'Ana Pérez', avatar_url: 'https://x/a.webp' },
+    })
+    const { container } = await renderPublicNav()
+
+    const avatar = container.querySelector('[title="Ana Pérez"]')
+    expect(avatar).not.toHaveTextContent('AP')
+    expect(container.querySelector('img[src="https://x/a.webp"]')).toBeInTheDocument()
   })
 
   it('falls back to the email when full_name is null', async () => {

@@ -81,4 +81,24 @@ describe('UserMenu', () => {
     const trigger = screen.getByRole('button')
     expect(trigger).toHaveTextContent('?')
   })
+
+  it('shows the avatar photo instead of initials when avatarUrl is set', () => {
+    const { container } = render(
+      <UserMenu fullName="Ana Pérez" email="ana@example.com" role="tourist" avatarUrl="https://x/a.webp" links={[]} />,
+    )
+
+    const trigger = screen.getByRole('button', { name: /Ana Pérez/ })
+    expect(trigger).not.toHaveTextContent('AP')
+    const img = container.querySelector('img')
+    expect(img).toHaveAttribute('src', 'https://x/a.webp')
+  })
+
+  it('falls back to initials when avatarUrl is null', () => {
+    const { container } = render(
+      <UserMenu fullName="Ana Pérez" email="ana@example.com" role="tourist" avatarUrl={null} links={[]} />,
+    )
+
+    expect(screen.getByRole('button', { name: /Ana Pérez/ })).toHaveTextContent('AP')
+    expect(container.querySelector('img')).not.toBeInTheDocument()
+  })
 })
