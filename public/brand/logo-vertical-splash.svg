@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" width="400" height="520">
+  <defs>
+    <clipPath id="mantur-v-clip"><circle cx="28" cy="28" r="21"/></clipPath>
+  </defs>
+  <rect width="400" height="520" fill="#0a2b1e"/>
+  <svg x="122.2" y="100" width="155.6" height="200" viewBox="0 0 56 72">
+    <path d="M28,69 C20,58 7,47 7,28 A21,21 0 0 1 49,28 C49,47 36,58 28,69 Z" fill="#17a370"/>
+    <path d="M10,36 L18,14 L25,28 L28,8 L36,24 L44,36"
+      fill="none" stroke="rgba(255,255,255,.85)" stroke-width="2.4"
+      stroke-linecap="round" stroke-linejoin="round" clip-path="url(#mantur-v-clip)"/>
+    <circle cx="38" cy="11" r="4.5" fill="#f5b93a"/>
+  </svg>
+  <text x="200" y="368" text-anchor="middle" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" font-weight="900" font-size="52" letter-spacing="-1.5">
+    <tspan fill="#17a370">Man</tspan><tspan fill="#f5b93a">Tur</tspan>
+  </text>
+  <text x="200" y="404" text-anchor="middle" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" font-size="14" letter-spacing="4" fill="rgba(255,255,255,.35)">TURISMO CON ALMA LOCAL</text>
+</svg>
