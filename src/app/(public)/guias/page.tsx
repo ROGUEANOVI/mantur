@@ -43,16 +43,24 @@ export default async function GuiasPage() {
   return (
     <main className="min-h-screen bg-background pb-10">
       <section className="relative overflow-hidden bg-linear-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
+        {/* Compass rose — same motif as /solicitar-rol's tourist_guide step,
+            so the hero already speaks the language of "local knowledge". */}
         <svg
-          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.13]"
-          viewBox="0 0 1200 60"
-          preserveAspectRatio="none"
           aria-hidden="true"
+          className="pointer-events-none absolute -right-6 -bottom-6 w-48 opacity-[0.12]"
+          viewBox="0 0 100 100"
+          fill="none"
+          stroke="white"
+          strokeWidth="1.5"
         >
-          <path
-            d="M0,60 L0,40 L150,15 L300,35 L450,5 L600,30 L750,10 L900,28 L1050,8 L1200,22 L1200,60 Z"
-            fill="white"
-          />
+          <circle cx="50" cy="50" r="40" />
+          <circle cx="50" cy="50" r="28" />
+          <line x1="50" y1="10" x2="50" y2="20" />
+          <line x1="50" y1="80" x2="50" y2="90" />
+          <line x1="10" y1="50" x2="20" y2="50" />
+          <line x1="80" y1="50" x2="90" y2="50" />
+          <polygon points="50,26 54,44 50,48 46,44" fill="white" stroke="none" opacity="0.6" />
+          <polygon points="50,72 46,54 50,50 54,54" fill="white" stroke="none" opacity="0.3" />
         </svg>
         <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-8 text-center">
           <Compass

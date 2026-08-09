@@ -99,10 +99,13 @@ export default async function LugaresPage({
             fill="white"
           />
         </svg>
-        {/* Faint nature icon top-right */}
-        <div className="pointer-events-none absolute -top-4 right-4 opacity-[0.10]">
-          <TreePine className="size-44 text-white" strokeWidth={0.75} />
+        {/* Faint place-marker watermark — "lugares" is about points on the map */}
+        <div className="pointer-events-none absolute -top-6 right-6 opacity-[0.10]">
+          <MapPin className="size-44 text-white" strokeWidth={0.75} />
         </div>
+        {/* Sunrise-over-the-viewpoint accent */}
+        <div className="pointer-events-none absolute top-6 left-8 size-3 rounded-full bg-accent/70 blur-[1px]" />
+        <div className="pointer-events-none absolute top-10 left-14 size-1.5 rounded-full bg-accent/50" />
         {/* Título y buscador */}
         <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-5 text-center space-y-4">
           <div>

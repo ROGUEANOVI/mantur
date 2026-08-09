@@ -97,11 +97,12 @@ export default async function NegociosPage({
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      {/* Hero + search + pills — zona oscura unificada */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
-        {/* Town/building silhouette */}
+      {/* Hero + search + pills — franja ámbar, mismo lenguaje de la sección "Únete" */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-accent via-accent to-[#c9860f]">
+        <div className="pointer-events-none absolute -top-16 -right-10 size-64 rounded-full bg-white/20 blur-2xl" />
+        {/* Town/building silhouette — tone-on-tone against the amber, not white */}
         <svg
-          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.13]"
+          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.10]"
           viewBox="0 0 1200 80"
           preserveAspectRatio="none"
           aria-hidden="true"
@@ -114,30 +115,30 @@ export default async function NegociosPage({
                L720,55 L720,45 L750,45 L750,55 L800,55 L800,35 L820,35 L820,22 L840,22 L840,35 L870,35 L870,55
                L930,55 L930,42 L950,42 L950,55 L1000,55 L1000,40 L1020,40 L1020,28 L1045,28 L1045,40 L1070,40 L1070,55
                L1140,55 L1140,45 L1165,45 L1165,55 L1200,55 L1200,80 Z"
-            fill="white"
+            fill="#0a2b1e"
           />
         </svg>
         {/* Título y buscador */}
         <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-5 text-center space-y-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
-            <p className="mt-1 text-sm text-white/70">{copy.pageSubtitle}</p>
+            <h1 className="text-2xl font-bold text-[#0a2b1e]">{copy.pageTitle}</h1>
+            <p className="mt-1 text-sm text-[#0a2b1e]/70">{copy.pageSubtitle}</p>
           </div>
-          <Suspense fallback={<div className="h-10 w-full rounded-xl bg-white/20 animate-pulse" />}>
-            <SearchInput placeholder="Buscar negocio..." dark />
+          <Suspense fallback={<div className="h-10 w-full rounded-xl bg-white/50 animate-pulse" />}>
+            <SearchInput placeholder="Buscar negocio..." />
           </Suspense>
         </div>
 
         {/* Pills de tipo — driven by business_categories table */}
-        <div className="border-t border-white/10 py-3">
+        <div className="border-t border-[#0a2b1e]/10 py-3">
           <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
             <Link
               href={search ? `/negocios?q=${encodeURIComponent(search)}` : '/negocios'}
               className={cn(
                 'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
                 !activeCategory
-                  ? 'border-white bg-white text-primary'
-                  : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
+                  ? 'border-[#0a2b1e] bg-[#0a2b1e] text-white'
+                  : 'border-[#0a2b1e]/25 bg-white/40 text-[#0a2b1e] hover:bg-white/60',
               )}
             >
               Todos
@@ -153,8 +154,8 @@ export default async function NegociosPage({
                   className={cn(
                     'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
                     activeCategory?.slug === cat.slug
-                      ? 'border-white bg-white text-primary'
-                      : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
+                      ? 'border-[#0a2b1e] bg-[#0a2b1e] text-white'
+                      : 'border-[#0a2b1e]/25 bg-white/40 text-[#0a2b1e] hover:bg-white/60',
                   )}
                 >
                   {cat.name}

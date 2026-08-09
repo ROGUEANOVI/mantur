@@ -1,9 +1,9 @@
 export default function NegociosLoading() {
   return (
     <main className="min-h-screen bg-background pb-10">
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
+      <section className="relative overflow-hidden bg-gradient-to-br from-accent via-accent to-[#c9860f]">
         <svg
-          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.13]"
+          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.10]"
           viewBox="0 0 1200 80"
           preserveAspectRatio="none"
           aria-hidden="true"
@@ -16,20 +16,20 @@ export default function NegociosLoading() {
                L720,55 L720,45 L750,45 L750,55 L800,55 L800,35 L820,35 L820,22 L840,22 L840,35 L870,35 L870,55
                L930,55 L930,42 L950,42 L950,55 L1000,55 L1000,40 L1020,40 L1020,28 L1045,28 L1045,40 L1070,40 L1070,55
                L1140,55 L1140,45 L1165,45 L1165,55 L1200,55 L1200,80 Z"
-            fill="white"
+            fill="#0a2b1e"
           />
         </svg>
         <div className="max-w-2xl mx-auto px-4 pt-10 pb-5 text-center space-y-4">
           <div className="space-y-2">
-            <div className="h-7 w-48 rounded-lg bg-white/20 animate-pulse mx-auto" />
-            <div className="h-4 w-64 rounded-lg bg-white/10 animate-pulse mx-auto" />
+            <div className="h-7 w-48 rounded-lg bg-[#0a2b1e]/15 animate-pulse mx-auto" />
+            <div className="h-4 w-64 rounded-lg bg-[#0a2b1e]/10 animate-pulse mx-auto" />
           </div>
-          <div className="h-10 w-full rounded-xl bg-white/15 animate-pulse" />
+          <div className="h-10 w-full rounded-xl bg-white/50 animate-pulse" />
         </div>
-        <div className="border-t border-white/10 py-3">
+        <div className="border-t border-[#0a2b1e]/10 py-3">
           <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-8 w-20 rounded-full bg-white/15 animate-pulse" />
+              <div key={i} className="h-8 w-20 rounded-full bg-[#0a2b1e]/10 animate-pulse" />
             ))}
           </div>
         </div>
