@@ -150,7 +150,7 @@ export default async function LandingPage() {
 
   const featuredList = (featured ?? []) as FeaturedBusiness[]
   const allPlaces = (places ?? []) as PlacePreview[]
-  const placesList = allPlaces.slice(0, 3)
+  const placesList = allPlaces.slice(0, 6)
 
   // Show only the categories with actual listings — an active-but-empty
   // category (e.g. Estanco today) is a dead end as a landing shortcut, even
