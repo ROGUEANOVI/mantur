@@ -27,9 +27,9 @@ export const landingCopy = {
 
   hero: {
     eyebrow: 'Manaure Balcón del Cesar',
-    title: 'Descubre el paraíso escondido de Colombia',
+    title: 'Naturaleza, sabor y calidez local',
     subtitle:
-      'Balnearios, fincas, restaurantes y experiencias únicas te esperan en Manaure.',
+      'Balnearios, miradores, restaurantes y guías locales que conocen cada rincón de Manaure.',
     ctaPrimary: 'Explorar Manaure',
     ctaSecondary: 'Imperdibles',
   },

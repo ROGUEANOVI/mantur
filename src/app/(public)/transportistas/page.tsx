@@ -59,27 +59,32 @@ export default async function TransportistasPage() {
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      <section className="relative overflow-hidden bg-linear-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
-        {/* Mountain silhouette */}
+      <section className="relative overflow-hidden bg-linear-to-tr from-accent via-accent to-[#d6960f]">
+        <div className="pointer-events-none absolute -bottom-10 -left-10 size-56 rounded-full bg-white/20 blur-2xl" />
+        {/* Winding road — a route through the mountains, not the generic skyline */}
         <svg
-          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.13]"
+          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.16]"
           viewBox="0 0 1200 60"
           preserveAspectRatio="none"
           aria-hidden="true"
         >
           <path
-            d="M0,60 L0,40 L150,15 L300,35 L450,5 L600,30 L750,10 L900,28 L1050,8 L1200,22 L1200,60 Z"
-            fill="white"
+            d="M0,38 C150,10 200,55 350,32 S550,8 700,34 S900,55 1050,26 S1150,12 1200,30"
+            fill="none"
+            stroke="#0a2b1e"
+            strokeWidth="4"
+            strokeDasharray="2 14"
+            strokeLinecap="round"
           />
         </svg>
         <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-8 text-center">
           <Car
-            className="mx-auto mb-3 size-10 text-white/80"
+            className="mx-auto mb-3 size-10 text-[#0a2b1e]/80"
             strokeWidth={1.5}
             aria-hidden="true"
           />
-          <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
-          <p className="mt-2 text-sm text-white/70">{copy.pageSubtitle}</p>
+          <h1 className="text-2xl font-bold text-[#0a2b1e]">{copy.pageTitle}</h1>
+          <p className="mt-2 text-sm text-[#0a2b1e]/70">{copy.pageSubtitle}</p>
         </div>
       </section>
 
