@@ -113,14 +113,19 @@ export default async function ActividadDetailPage({
 
   const experienceJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Product',
+    '@type': 'TouristTrip',
     name: exp.name,
     description: exp.description ?? undefined,
-    image: exp.images?.[0] ? [exp.images[0]] : undefined,
+    image: [exp.images?.[0] ?? `${APP_URL}/opengraph-image`],
+    provider: {
+      '@type': 'LocalBusiness',
+      name: exp.businesses.name,
+    },
     offers: {
       '@type': 'Offer',
       price: String(exp.price),
       priceCurrency: 'COP',
+      availability: 'https://schema.org/InStock',
     },
   }
 
