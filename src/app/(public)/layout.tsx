@@ -2,6 +2,7 @@ import Link from 'next/link'
 import PublicNav from '@/components/layout/PublicNav'
 import { landingCopy } from '@/lib/copy/landing'
 import ManturLogo from '@/components/shared/ManturLogo'
+import SocialLinks from '@/components/shared/SocialLinks'
 
 export default function PublicLayout({
   children,
@@ -19,6 +20,7 @@ export default function PublicLayout({
             <div>
               <ManturLogo size="md" />
               <p className="mt-3 max-w-xs text-sm text-white/60">{footer.tagline}</p>
+              <SocialLinks className="mt-5" />
             </div>
 
             <nav aria-label="Explora ManTur">
