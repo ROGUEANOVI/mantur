@@ -41,9 +41,9 @@ describe('SignupForm', () => {
 
     // 8+ lowercase letters: meets minLength, fails uppercase/digit/special
     expect(screen.getByText('Mínimo 8 caracteres').closest('div')).toHaveClass('bg-primary/10')
-    expect(screen.getByText('Una letra mayúscula').closest('div')).toHaveClass('bg-muted')
-    expect(screen.getByText('Un número').closest('div')).toHaveClass('bg-muted')
-    expect(screen.getByText('Un carácter especial').closest('div')).toHaveClass('bg-muted')
+    expect(screen.getByText('Una letra mayúscula').closest('div')).toHaveClass('bg-destructive/10')
+    expect(screen.getByText('Un número').closest('div')).toHaveClass('bg-destructive/10')
+    expect(screen.getByText('Un carácter especial').closest('div')).toHaveClass('bg-destructive/10')
   })
 
   it('marks every rule as met once a fully compliant password is typed', async () => {
@@ -192,5 +192,20 @@ describe('SignupForm', () => {
   it('renders the Google sign-in button alongside the form', () => {
     render(<SignupForm />)
     expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeInTheDocument()
+  })
+
+  it('shows the "check your email" message instead of the form when signUp returns pendingConfirmation', async () => {
+    signUpMock.mockResolvedValue({ error: null, pendingConfirmation: true })
+    const user = userEvent.setup()
+    render(<SignupForm />)
+
+    await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
+    await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
+    await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
+    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
+    await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
+
+    expect(await screen.findByText('Revisa tu correo')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Correo electrónico')).not.toBeInTheDocument()
   })
 })

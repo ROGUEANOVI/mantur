@@ -18,6 +18,7 @@ export const authCopy = {
       invalidCredentials: 'Correo o contraseña incorrectos',
       generic: 'Ocurrió un error. Intenta de nuevo.',
       oauthFailed: 'No se pudo iniciar sesión con Google. Intenta de nuevo.',
+      confirmFailed: 'El enlace de confirmación no es válido o ya expiró. Intenta registrarte de nuevo.',
     },
   },
   signup: {
@@ -35,6 +36,10 @@ export const authCopy = {
     submit: 'Crear cuenta',
     hasAccount: '¿Ya tienes cuenta?',
     loginLink: 'Inicia sesión',
+    confirmationSent: {
+      title: 'Revisa tu correo',
+      body: 'Te enviamos un enlace para confirmar tu cuenta. Ábrelo desde tu correo para poder iniciar sesión.',
+    },
     passwordRules: {
       minLength: 'Mínimo 8 caracteres',
       uppercase: 'Una letra mayúscula',

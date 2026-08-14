@@ -138,7 +138,7 @@ describe('signUp password policy', () => {
   })
 
   it('accepts a password with 8+ chars, an uppercase letter, a number, and a special character', async () => {
-    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-1' } }, error: null })
+    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-1' }, session: {} }, error: null })
     profilesUpsert.mockResolvedValue({ error: null })
 
     const fd = formData({ email: validEmail, password: 'Correct1!', full_name: validFullName })
@@ -147,7 +147,7 @@ describe('signUp password policy', () => {
   })
 
   it('accepts a password at exactly the 8-character minimum', async () => {
-    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-1b' } }, error: null })
+    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-1b' }, session: {} }, error: null })
     profilesUpsert.mockResolvedValue({ error: null })
 
     const eightChars = 'Abcdef1!'
@@ -185,7 +185,7 @@ describe('signUp', () => {
   })
 
   it('always creates the profile with role="tourist", ignoring any role the client might send', async () => {
-    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-2' } }, error: null })
+    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-2' }, session: {} }, error: null })
     profilesUpsert.mockResolvedValue({ error: null })
 
     // The real signup form never sends a "role" field, but the action
@@ -201,7 +201,7 @@ describe('signUp', () => {
   })
 
   it('stores full_name as null when it is not provided', async () => {
-    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-3' } }, error: null })
+    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-3' }, session: {} }, error: null })
     profilesUpsert.mockResolvedValue({ error: null })
 
     const fd = formData({ email: 'x@example.com', password: 'Correct1!' })
@@ -223,7 +223,7 @@ describe('signUp', () => {
   })
 
   it('returns a generic error if the profile upsert fails after the auth user was created', async () => {
-    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-4' } }, error: null })
+    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-4' }, session: {} }, error: null })
     profilesUpsert.mockResolvedValue({ error: { message: 'db error' } })
 
     const fd = formData({ email: 'x@example.com', password: 'Correct1!', full_name: 'X' })
@@ -231,6 +231,22 @@ describe('signUp', () => {
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
     expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it('returns pendingConfirmation instead of redirecting when Supabase returns a user but no session', async () => {
+    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-5' }, session: null }, error: null })
+    profilesUpsert.mockResolvedValue({ error: null })
+
+    const fd = formData({ email: 'x@example.com', password: 'Correct1!', full_name: 'X' })
+    const result = await signUp(fd)
+
+    expect(result).toEqual({ error: null, pendingConfirmation: true })
+    expect(redirectMock).not.toHaveBeenCalled()
+    // The profile row is still created even though confirmation is pending.
+    expect(profilesUpsert).toHaveBeenCalledWith(
+      { id: 'new-user-5', full_name: 'X', role: 'tourist' },
+      { onConflict: 'id' },
+    )
   })
 })
 

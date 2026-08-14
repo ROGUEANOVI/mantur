@@ -12,6 +12,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>
 }) {
   const { error } = await searchParams
+  const authError = error === 'oauth' || error === 'confirm' ? error : undefined
 
   return (
     <div className="space-y-6">
@@ -22,7 +23,7 @@ export default async function LoginPage({
         <p className="text-sm text-muted-foreground">{authCopy.login.subtitle}</p>
       </div>
 
-      <LoginForm oauthError={error === 'oauth'} />
+      <LoginForm authError={authError} />
     </div>
   )
 }
