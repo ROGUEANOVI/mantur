@@ -70,6 +70,13 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
+const checkRateLimitMock = vi.fn()
+
+vi.mock('@/lib/rate-limit', () => ({
+  bookingRateLimit: {},
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
 const { createBooking, createGuideTourBooking } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
@@ -86,6 +93,30 @@ beforeEach(() => {
   vi.clearAllMocks()
   authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+  checkRateLimitMock.mockResolvedValue(true)
+})
+
+describe('rate limiting (shared by both booking actions)', () => {
+  it('createBooking returns a rate-limit error and never queries the experience when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+
+    const result = await createBooking(fd)
+
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(checkRateLimitMock).toHaveBeenCalledWith({}, 'user-1')
+    expect(experienceSingle).not.toHaveBeenCalled()
+  })
+
+  it('createGuideTourBooking returns a rate-limit error and never queries the tour when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+
+    const result = await createGuideTourBooking(fd)
+
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(guideTourSingle).not.toHaveBeenCalled()
+  })
 })
 
 describe('getAuthenticatedTourist guard (shared by both booking actions)', () => {

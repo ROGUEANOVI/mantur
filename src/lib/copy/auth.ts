@@ -19,6 +19,7 @@ export const authCopy = {
       generic: 'Ocurrió un error. Intenta de nuevo.',
       oauthFailed: 'No se pudo iniciar sesión con Google. Intenta de nuevo.',
       confirmFailed: 'El enlace de confirmación no es válido o ya expiró. Intenta registrarte de nuevo.',
+      rateLimited: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
     },
   },
   signup: {
@@ -51,6 +52,7 @@ export const authCopy = {
       weakPassword: 'La contraseña no cumple los requisitos de seguridad',
       passwordMismatch: 'Las contraseñas no coinciden',
       generic: 'Ocurrió un error. Intenta de nuevo.',
+      rateLimited: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
     },
   },
 } as const

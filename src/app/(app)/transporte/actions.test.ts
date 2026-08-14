@@ -69,6 +69,13 @@ vi.mock('@/lib/supabase/admin', () => ({
   }),
 }))
 
+const checkRateLimitMock = vi.fn()
+
+vi.mock('@/lib/rate-limit', () => ({
+  transportRequestRateLimit: {},
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
 const { createTransportRequest, cancelTransportRequest } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
@@ -85,6 +92,20 @@ beforeEach(() => {
   vi.clearAllMocks()
   authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+  checkRateLimitMock.mockResolvedValue(true)
+})
+
+describe('rate limiting', () => {
+  it('createTransportRequest returns a rate-limit error and never inserts when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ origin: 'A', destination: 'B', requested_datetime: futureDatetime(), people_count: '1' })
+
+    const result = await createTransportRequest(undefined, fd)
+
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(checkRateLimitMock).toHaveBeenCalledWith({}, 'user-1')
+    expect(transportRequestsInsert).not.toHaveBeenCalled()
+  })
 })
 
 describe('getAuthenticatedTourist guard', () => {
@@ -192,6 +213,7 @@ describe('createTransportRequest success path', () => {
     vi.clearAllMocks()
     authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
     profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    checkRateLimitMock.mockResolvedValue(true)
     transportRequestsInsert.mockResolvedValue({ error: null })
 
     const fdBlankNotes = formData({

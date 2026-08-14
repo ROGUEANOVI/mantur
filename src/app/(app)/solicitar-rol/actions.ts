@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
+import { roleRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
 
 type ActionResult = { error?: string; success?: boolean }
 
@@ -20,6 +21,9 @@ async function getAuthenticatedUser() {
 export async function submitRoleRequest(formData: FormData): Promise<ActionResult> {
   const { supabase, user } = await getAuthenticatedUser()
   const copy = roleRequestsCopy.errors
+
+  const allowed = await checkRateLimit(roleRequestRateLimit, user.id)
+  if (!allowed) return { error: copy.rateLimited }
 
   const rawRole = formData.get('requested_role') as string
   if (!(REQUESTABLE_ROLES as readonly string[]).includes(rawRole)) {
