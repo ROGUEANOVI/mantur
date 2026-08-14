@@ -51,12 +51,19 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
 
   if (!fullName) return { error: errors.nameRequired }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ full_name: fullName, phone })
-    .eq('id', userId)
-
+  const { error } = await supabase.from('profiles').update({ full_name: fullName }).eq('id', userId)
   if (error) return { error: errors.generic }
+
+  // phone lives in profile_contact_details (see
+  // 20260814000000_move_profiles_phone_to_contact_details) — a table with
+  // owner/admin-only RLS, separate from the broadly-readable profiles table.
+  // upsert because a user may not have a row here yet (phone is optional and
+  // there is no auto-create trigger for this table, unlike profiles).
+  const { error: contactError } = await supabase
+    .from('profile_contact_details')
+    .upsert({ profile_id: userId, phone }, { onConflict: 'profile_id' })
+
+  if (contactError) return { error: errors.generic }
 
   revalidatePath('/mi-perfil')
 }

@@ -11,11 +11,14 @@ export default async function MiPerfilPage() {
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, phone, avatar_url')
-    .eq('id', user.id)
-    .single()
+  // phone lives in profile_contact_details, not profiles — see migration
+  // 20260814000000_move_profiles_phone_to_contact_details for why (RLS on
+  // profiles is broad/USING(true) for authenticated so joins keep working;
+  // the sensitive column was moved out to a table with owner/admin-only RLS).
+  const [{ data: profile }, { data: contact }] = await Promise.all([
+    supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single(),
+    supabase.from('profile_contact_details').select('phone').eq('profile_id', user.id).maybeSingle(),
+  ])
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -25,7 +28,7 @@ export default async function MiPerfilPage() {
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
           <EditProfileForm
             fullName={profile?.full_name ?? ''}
-            phone={profile?.phone ?? ''}
+            phone={contact?.phone ?? ''}
             email={user.email ?? ''}
             avatarUrl={profile?.avatar_url ?? null}
           />

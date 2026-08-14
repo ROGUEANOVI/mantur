@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// The main invariant worth protecting here: profile text fields (full_name,
-// phone) are updated through the RLS-scoped user client — profiles RLS
-// already restricts UPDATE to the caller's own row, so there's no ownership
-// chain to verify like businesses/experiences. Storage operations go through
-// the admin client (matching uploadBusinessImage/uploadExperienceImage), but
-// the profiles.avatar_url write itself still goes through the user client.
+// The main invariant worth protecting here: full_name/avatar_url are updated
+// on profiles, while phone is upserted into profile_contact_details — a
+// separate table (see migration 20260814000000_move_profiles_phone_to_
+// contact_details) with owner/admin-only RLS, kept apart from profiles
+// because profiles has a broad USING(true) SELECT policy for PostgREST
+// embeds. Both go through the RLS-scoped user client — their respective RLS
+// policies already restrict writes to the caller's own row, so there's no
+// ownership chain to verify like businesses/experiences. Storage operations
+// go through the admin client (matching uploadBusinessImage/
+// uploadExperienceImage), but the profiles.avatar_url write itself still
+// goes through the user client.
 
 class RedirectSignal extends Error {
   constructor(public url: string) {
@@ -28,6 +33,7 @@ vi.mock('next/cache', () => ({
 const authGetUser = vi.fn()
 const profileSelectSingle = vi.fn()
 const profileUpdateMock = vi.fn()
+const contactUpsertMock = vi.fn()
 
 function profilesUserTable() {
   return {
@@ -36,11 +42,18 @@ function profilesUserTable() {
   }
 }
 
+function profileContactDetailsUserTable() {
+  return {
+    upsert: (payload: unknown, opts: unknown) => contactUpsertMock(payload, opts),
+  }
+}
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: authGetUser },
     from: (table: string) => {
       if (table === 'profiles') return profilesUserTable()
+      if (table === 'profile_contact_details') return profileContactDetailsUserTable()
       throw new Error(`unexpected table on user client: ${table}`)
     },
   })),
@@ -99,39 +112,52 @@ describe('updateProfile', () => {
     const result = await updateProfile(formData({ full_name: '   ', phone: '3001234567' }))
     expect(result).toEqual({ error: 'El nombre es obligatorio.' })
     expect(profileUpdateMock).not.toHaveBeenCalled()
+    expect(contactUpsertMock).not.toHaveBeenCalled()
   })
 
-  it('trims the name and updates the caller\'s own row', async () => {
+  it('trims the name, updates profiles, and upserts phone into profile_contact_details', async () => {
     profileUpdateMock.mockResolvedValue({ error: null })
+    contactUpsertMock.mockResolvedValue({ error: null })
 
     await updateProfile(formData({ full_name: '  Ana Pérez  ', phone: '3001234567' }))
 
-    expect(profileUpdateMock).toHaveBeenCalledWith(
-      { full_name: 'Ana Pérez', phone: '3001234567' },
-      'id',
-      USER_ID,
+    expect(profileUpdateMock).toHaveBeenCalledWith({ full_name: 'Ana Pérez' }, 'id', USER_ID)
+    expect(contactUpsertMock).toHaveBeenCalledWith(
+      { profile_id: USER_ID, phone: '3001234567' },
+      { onConflict: 'profile_id' },
     )
     expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil')
   })
 
   it('stores a null phone when left blank', async () => {
     profileUpdateMock.mockResolvedValue({ error: null })
+    contactUpsertMock.mockResolvedValue({ error: null })
 
     await updateProfile(formData({ full_name: 'Ana Pérez', phone: '' }))
 
-    expect(profileUpdateMock).toHaveBeenCalledWith(
-      { full_name: 'Ana Pérez', phone: null },
-      'id',
-      USER_ID,
+    expect(contactUpsertMock).toHaveBeenCalledWith(
+      { profile_id: USER_ID, phone: null },
+      { onConflict: 'profile_id' },
     )
   })
 
-  it('returns a generic error when the update fails', async () => {
+  it('returns a generic error when the profiles update fails, without touching profile_contact_details', async () => {
     profileUpdateMock.mockResolvedValue({ error: { message: 'db error' } })
 
     const result = await updateProfile(formData({ full_name: 'Ana Pérez' }))
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(contactUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when the profile_contact_details upsert fails', async () => {
+    profileUpdateMock.mockResolvedValue({ error: null })
+    contactUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await updateProfile(formData({ full_name: 'Ana Pérez', phone: '3001234567' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 })
 
