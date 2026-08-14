@@ -112,4 +112,32 @@ describe('LoginForm', () => {
     render(<LoginForm />)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  it('toggles the password field between hidden and visible', async () => {
+    const user = userEvent.setup()
+    render(<LoginForm />)
+
+    const passwordInput = screen.getByLabelText('Contraseña') as HTMLInputElement
+    expect(passwordInput).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByLabelText(/mostrar contraseña/i))
+    expect(passwordInput).toHaveAttribute('type', 'text')
+
+    await user.click(screen.getByLabelText(/ocultar contraseña/i))
+    expect(passwordInput).toHaveAttribute('type', 'password')
+  })
+
+  it('preserves the entered email and password after a failed login, instead of clearing them', async () => {
+    signInMock.mockResolvedValue({ error: 'Correo o contraseña incorrectos' })
+    const user = userEvent.setup()
+    render(<LoginForm />)
+
+    await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
+    await user.type(screen.getByLabelText('Contraseña'), 'wrong-pass')
+    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+
+    await screen.findByRole('alert')
+    expect(screen.getByLabelText('Correo electrónico')).toHaveValue('ana@example.com')
+    expect(screen.getByLabelText('Contraseña')).toHaveValue('wrong-pass')
+  })
 })
