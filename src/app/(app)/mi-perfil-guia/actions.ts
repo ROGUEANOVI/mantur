@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
+import { normalizeColombianPhone } from '@/lib/phone'
 
 type ActionResult = { error: string } | void
 
@@ -48,12 +49,14 @@ const VALID_LANGUAGES = new Set(['spanish','english','french','portuguese','indi
 export async function updateGuideProfile(formData: FormData): Promise<ActionResult> {
   const { supabase, userId } = await getAuthenticatedGuide()
 
-  const phone = ((formData.get('phone') as string | null) ?? '').trim()
+  const rawPhone = ((formData.get('phone') as string | null) ?? '').trim()
   const bio = (formData.get('bio') as string | null)?.trim() || null
   const specialties = (formData.getAll('specialties') as string[]).filter((s) => VALID_SPECIALTIES.has(s))
   const languages = (formData.getAll('languages') as string[]).filter((l) => VALID_LANGUAGES.has(l))
 
-  if (!phone) return { error: guidesCopy.editProfile.phone + ' es obligatorio.' }
+  if (!rawPhone) return { error: guidesCopy.editProfile.phone + ' es obligatorio.' }
+  const phone = normalizeColombianPhone(rawPhone)
+  if (!phone) return { error: guidesCopy.errors.invalidPhone }
 
   const { error } = await supabase
     .from('tourist_guides')

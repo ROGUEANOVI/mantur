@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
+import { normalizeColombianPhone } from '@/lib/phone'
 
 type ActionResult = { error: string } | { success: true }
 
@@ -556,11 +557,15 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
   // Auto-create transporter profile so the driver doesn't need to re-enter their vehicle info
   if (request.requested_role === 'transporter') {
     const meta = (request.metadata ?? {}) as Record<string, unknown>
+    // submitRoleRequest already normalizes phone before it ever reaches
+    // metadata, but re-normalize defensively here too — this also covers
+    // any request submitted before that validation existed.
+    const rawPhone = (meta.phone as string | undefined) ?? ''
     await admin.from('transporters').insert({
       profile_id: request.user_id,
       vehicle_type: (meta.vehicle_type as string | undefined) ?? 'otro',
       license_plate: ((meta.license_plate as string | undefined) ?? '').toUpperCase().trim(),
-      phone: (meta.phone as string | undefined) ?? '',
+      phone: normalizeColombianPhone(rawPhone) ?? rawPhone,
       is_available: false,
     })
   }
@@ -568,12 +573,13 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
   // Auto-create tourist guide profile from the metadata captured at application time
   if (request.requested_role === 'tourist_guide') {
     const meta = (request.metadata ?? {}) as Record<string, unknown>
+    const rawPhone = (meta.phone as string | undefined)?.trim() || ''
     await admin.from('tourist_guides').insert({
       profile_id: request.user_id,
       specialties: Array.isArray(meta.specialties) ? meta.specialties : [],
       languages: Array.isArray(meta.languages) ? meta.languages : [],
       bio: (meta.bio as string | undefined)?.trim() || null,
-      phone: (meta.phone as string | undefined)?.trim() || '',
+      phone: normalizeColombianPhone(rawPhone) ?? rawPhone,
       is_available: false,
     })
   }

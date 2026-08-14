@@ -194,11 +194,27 @@ describe('transporter metadata', () => {
       metadata: { license_plate: 'ABC-123', vehicle_type: 'motocarro', phone: '3001234567' },
     }))
   })
+
+  it('normalizes a phone with country code and formatting noise before storing it', async () => {
+    roleRequestInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ requested_role: 'transporter', license_plate: 'ABC-123', vehicle_type: 'moto', phone: '+57 300 123 4567' })
+    await submitRoleRequest(fd)
+    expect(roleRequestInsertMock).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ phone: '3001234567' }),
+    }))
+  })
+
+  it('rejects an invalid phone without inserting', async () => {
+    const fd = formData({ requested_role: 'transporter', license_plate: 'ABC-123', vehicle_type: 'moto', phone: '123' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('tourist_guide metadata', () => {
-  it('requires specialties, languages, a numeric experience_years, and bio', async () => {
-    const fd = formData({ requested_role: 'tourist_guide', specialties: [], languages: [], experience_years: '', bio: '' })
+  it('requires specialties, languages, a numeric experience_years, bio, and phone', async () => {
+    const fd = formData({ requested_role: 'tourist_guide', specialties: [], languages: [], experience_years: '', bio: '', phone: '' })
     const result = await submitRoleRequest(fd)
     expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
   })
@@ -206,21 +222,34 @@ describe('tourist_guide metadata', () => {
   it('rejects a non-numeric experience_years', async () => {
     const fd = formData({
       requested_role: 'tourist_guide', specialties: ['ecotourism'], languages: ['spanish'],
-      experience_years: 'muchos', bio: 'Guía local con experiencia',
+      experience_years: 'muchos', bio: 'Guía local con experiencia', phone: '3001234567',
     })
     const result = await submitRoleRequest(fd)
     expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
   })
 
-  it('builds the metadata correctly on success', async () => {
+  it('rejects an invalid phone without inserting', async () => {
+    const fd = formData({
+      requested_role: 'tourist_guide', specialties: ['ecotourism'], languages: ['spanish'],
+      experience_years: '5', bio: 'Guía local con experiencia', phone: '123',
+    })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('builds the metadata correctly on success, including the normalized phone', async () => {
     roleRequestInsertMock.mockResolvedValue({ error: null })
     const fd = formData({
       requested_role: 'tourist_guide', specialties: ['ecotourism', 'history_culture'], languages: ['spanish', 'english'],
-      experience_years: '5', bio: 'Guía local con experiencia',
+      experience_years: '5', bio: 'Guía local con experiencia', phone: '300 123 4567',
     })
     await submitRoleRequest(fd)
     expect(roleRequestInsertMock).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: { specialties: ['ecotourism', 'history_culture'], languages: ['spanish', 'english'], experience_years: 5, bio: 'Guía local con experiencia' },
+      metadata: {
+        specialties: ['ecotourism', 'history_culture'], languages: ['spanish', 'english'],
+        experience_years: 5, bio: 'Guía local con experiencia', phone: '3001234567',
+      },
     }))
   })
 
@@ -233,7 +262,7 @@ describe('tourist_guide metadata', () => {
     roleRequestInsertMock.mockResolvedValue({ error: null })
     const fd = formData({
       requested_role: 'tourist_guide', specialties: ['ecotourism'], languages: ['spanish'],
-      experience_years: '5abc', bio: 'Guía local con experiencia',
+      experience_years: '5abc', bio: 'Guía local con experiencia', phone: '3001234567',
     })
     await submitRoleRequest(fd)
     expect(roleRequestInsertMock).toHaveBeenCalledWith(expect.objectContaining({

@@ -107,5 +107,6 @@ export const guidesCopy = {
     invalidPeople: 'El número de personas no es válido.',
     capacityExceeded: 'No hay suficiente capacidad en este tour.',
     invalidDate: 'La fecha debe ser hoy o en el futuro.',
+    invalidPhone: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
   },
 } as const
