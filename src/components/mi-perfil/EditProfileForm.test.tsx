@@ -1,16 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import EditProfileForm from './EditProfileForm'
 
 const updateProfileMock = vi.fn()
 const uploadAvatarMock = vi.fn()
 const removeAvatarMock = vi.fn()
+const toastSuccessMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil/actions', () => ({
   updateProfile: (formData: FormData) => updateProfileMock(formData),
   uploadAvatar: (formData: FormData) => uploadAvatarMock(formData),
   removeAvatar: () => removeAvatarMock(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { success: (...args: unknown[]) => toastSuccessMock(...args) },
 }))
 
 const DEFAULT_PROPS = {
@@ -53,15 +58,28 @@ describe('EditProfileForm', () => {
     expect(fd.get('phone')).toBe('3001234567')
   })
 
-  it('shows a saved message after a successful save', async () => {
+  it('shows a saved toast after a successful save', async () => {
     updateProfileMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<EditProfileForm {...DEFAULT_PROPS} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByText('¡Perfil actualizado!')).toBeInTheDocument()
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('¡Perfil actualizado!'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows a saved toast on every consecutive successful save', async () => {
+    updateProfileMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<EditProfileForm {...DEFAULT_PROPS} />)
+
+    const button = screen.getByRole('button', { name: 'Guardar cambios' })
+    await user.click(button)
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(1))
+
+    await user.click(button)
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(2))
   })
 
   it('shows the error message when the save fails', async () => {

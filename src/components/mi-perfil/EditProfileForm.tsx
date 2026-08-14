@@ -2,12 +2,13 @@
 
 import { useActionState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { Lock } from 'lucide-react'
 import { updateProfile, uploadAvatar, removeAvatar } from '@/app/(app)/mi-perfil/actions'
 import { profileCopy } from '@/lib/copy/profile'
 import AvatarUploader from '@/components/shared/AvatarUploader'
 
-type FormState = { error: string | null; saved: boolean }
+type FormState = { error: string | null }
 
 type Props = {
   fullName: string
@@ -23,10 +24,11 @@ export default function EditProfileForm({ fullName, phone, email, avatarUrl }: P
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => {
       const result = await updateProfile(formData)
-      if (result && 'error' in result) return { error: result.error, saved: false }
-      return { error: null, saved: true }
+      if (result && 'error' in result) return { error: result.error }
+      toast.success(copy.saved)
+      return { error: null }
     },
-    { error: null, saved: false },
+    { error: null },
   )
 
   return (
@@ -90,14 +92,9 @@ export default function EditProfileForm({ fullName, phone, email, avatarUrl }: P
           <p className="text-xs text-muted-foreground">{copy.emailHint}</p>
         </div>
 
-        <div aria-live="polite">
-          {state.error && (
-            <p role="alert" className="text-sm text-destructive">{state.error}</p>
-          )}
-          {state.saved && (
-            <p className="text-sm text-primary font-medium">{copy.saved}</p>
-          )}
-        </div>
+        {state.error && (
+          <p role="alert" className="text-sm text-destructive">{state.error}</p>
+        )}
 
         <div className="flex gap-3 pt-1">
           <Link

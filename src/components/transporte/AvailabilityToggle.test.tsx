@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AvailabilityToggle from './AvailabilityToggle'
 
 const toggleAvailabilityMock = vi.fn()
+const toastErrorMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil-transporte/actions', () => ({
   toggleAvailability: (...args: unknown[]) => toggleAvailabilityMock(...args),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: (...args: unknown[]) => toastErrorMock(...args) },
 }))
 
 beforeEach(() => {
@@ -48,5 +53,17 @@ describe('AvailabilityToggle', () => {
     expect(button).toBeDisabled()
 
     resolveAction(undefined)
+  })
+
+  it('shows an error toast when the action fails', async () => {
+    toggleAvailabilityMock.mockResolvedValue({ error: 'No se pudo actualizar la disponibilidad.' })
+    const user = userEvent.setup()
+    render(<AvailabilityToggle isAvailable={true} />)
+
+    await user.click(screen.getByRole('button', { name: 'Marcar como no disponible' }))
+
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith('No se pudo actualizar la disponibilidad.'),
+    )
   })
 })

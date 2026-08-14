@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Inter } from "next/font/google";
+import { Toaster } from 'sonner'
 import { cn } from "@/lib/utils";
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 
@@ -63,6 +64,16 @@ export default function RootLayout({
       <body>
         <script {...jsonLdScriptProps(organizationJsonLd)} />
         {children}
+        <Toaster
+          position="top-center"
+          theme="system"
+          richColors
+          toastOptions={{
+            classNames: {
+              toast: 'font-sans',
+            },
+          }}
+        />
       </body>
     </html>
   )

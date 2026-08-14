@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { toggleAvailability } from '@/app/(app)/mi-perfil-transporte/actions'
 import { cn } from '@/lib/utils'
 
@@ -11,10 +12,14 @@ export default function AvailabilityToggle({
 }: {
   isAvailable: boolean
 }) {
-  const [, formAction, isPending] = useActionState<State, FormData>(
+  const [state, formAction, isPending] = useActionState<State, FormData>(
     toggleAvailability,
     undefined,
   )
+
+  useEffect(() => {
+    if (state && 'error' in state) toast.error(state.error)
+  }, [state])
 
   return (
     <form action={formAction}>
