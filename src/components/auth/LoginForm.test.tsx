@@ -9,6 +9,10 @@ vi.mock('@/app/(auth)/actions', () => ({
   signIn: (formData: FormData) => signInMock(formData),
 }))
 
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: vi.fn(() => ({ auth: { signInWithOAuth: vi.fn() } })),
+}))
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -83,5 +87,22 @@ describe('LoginForm', () => {
   it('renders a link to the signup page', () => {
     render(<LoginForm />)
     expect(screen.getByRole('link', { name: 'Regístrate' })).toHaveAttribute('href', '/signup')
+  })
+
+  it('renders the Google sign-in button', () => {
+    render(<LoginForm />)
+    expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeInTheDocument()
+  })
+
+  it('shows the oauth error message when oauthError is true', () => {
+    render(<LoginForm oauthError />)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'No se pudo iniciar sesión con Google. Intenta de nuevo.',
+    )
+  })
+
+  it('does not show the oauth error message by default', () => {
+    render(<LoginForm />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

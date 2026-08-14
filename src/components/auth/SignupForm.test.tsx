@@ -9,6 +9,10 @@ vi.mock('@/app/(auth)/actions', () => ({
   signUp: (formData: FormData) => signUpMock(formData),
 }))
 
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: vi.fn(() => ({ auth: { signInWithOAuth: vi.fn() } })),
+}))
+
 const STRONG_PASSWORD = 'Correcta1!'
 
 beforeEach(() => {
@@ -183,5 +187,10 @@ describe('SignupForm', () => {
   it('renders a link to the login page', () => {
     render(<SignupForm />)
     expect(screen.getByRole('link', { name: 'Inicia sesión' })).toHaveAttribute('href', '/login')
+  })
+
+  it('renders the Google sign-in button alongside the form', () => {
+    render(<SignupForm />)
+    expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeInTheDocument()
   })
 })

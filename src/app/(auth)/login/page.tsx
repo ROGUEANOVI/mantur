@@ -6,7 +6,13 @@ export const metadata = {
   robots: { index: false, follow: true },
 }
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  const { error } = await searchParams
+
   return (
     <div className="space-y-6">
       <div className="text-center space-y-1">
@@ -16,7 +22,7 @@ export default function LoginPage() {
         <p className="text-sm text-muted-foreground">{authCopy.login.subtitle}</p>
       </div>
 
-      <LoginForm />
+      <LoginForm oauthError={error === 'oauth'} />
     </div>
   )
 }
