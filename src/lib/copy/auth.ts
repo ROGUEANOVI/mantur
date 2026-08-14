@@ -2,6 +2,10 @@ export const authCopy = {
   brand: {
     tagline: 'Turismo con alma local',
   },
+  oauth: {
+    google: 'Continuar con Google',
+    divider: 'o continúa con',
+  },
   login: {
     title: 'Bienvenido de nuevo',
     subtitle: 'Inicia sesión para explorar Manaure',
@@ -13,6 +17,7 @@ export const authCopy = {
     errors: {
       invalidCredentials: 'Correo o contraseña incorrectos',
       generic: 'Ocurrió un error. Intenta de nuevo.',
+      oauthFailed: 'No se pudo iniciar sesión con Google. Intenta de nuevo.',
     },
   },
   signup: {

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 
 type FormState = { error: string | null }
 
@@ -49,111 +50,125 @@ export default function SignupForm() {
   )
 
   return (
-    <form action={formAction} className="space-y-5" noValidate>
-      {/* Name */}
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-name">{copy.fullName}</Label>
-        <Input
-          id="signup-name"
-          type="text"
-          name="full_name"
-          required
-          autoComplete="name"
-          placeholder="Tu nombre completo"
-        />
-      </div>
+    <div className="space-y-5">
+      <form action={formAction} className="space-y-5" noValidate>
+        {/* Name */}
+        <div className="space-y-1.5">
+          <Label htmlFor="signup-name">{copy.fullName}</Label>
+          <Input
+            id="signup-name"
+            type="text"
+            name="full_name"
+            required
+            autoComplete="name"
+            placeholder="Tu nombre completo"
+          />
+        </div>
 
-      {/* Email */}
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-email">{copy.email}</Label>
-        <Input
-          id="signup-email"
-          type="email"
-          name="email"
-          required
-          autoComplete="email"
-          placeholder="tu@correo.com"
-        />
-      </div>
+        {/* Email */}
+        <div className="space-y-1.5">
+          <Label htmlFor="signup-email">{copy.email}</Label>
+          <Input
+            id="signup-email"
+            type="email"
+            name="email"
+            required
+            autoComplete="email"
+            placeholder="tu@correo.com"
+          />
+        </div>
 
-      {/* Password */}
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-password">{copy.password}</Label>
-        <PasswordInput
-          id="signup-password"
-          name="password"
-          show={showPassword}
-          onToggle={() => setShowPassword((v) => !v)}
-          autoComplete="new-password"
-          placeholder="Tu contraseña"
-          value={password}
-          onChange={(v) => { setPassword(v); setPwTouched(true) }}
-        />
+        {/* Password */}
+        <div className="space-y-1.5">
+          <Label htmlFor="signup-password">{copy.password}</Label>
+          <PasswordInput
+            id="signup-password"
+            name="password"
+            show={showPassword}
+            onToggle={() => setShowPassword((v) => !v)}
+            autoComplete="new-password"
+            placeholder="Tu contraseña"
+            value={password}
+            onChange={(v) => { setPassword(v); setPwTouched(true) }}
+          />
 
-        {/* Requirements — shown once user starts typing */}
-        {pwTouched && (
-          <div className="grid grid-cols-2 gap-1.5 pt-1">
-            {RULES.map(({ key, label, test }) => {
-              const met = test(password)
-              return (
-                <div
-                  key={key}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
-                    met
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-muted text-muted-foreground',
-                  )}
-                >
-                  {met
-                    ? <Check className="size-3 shrink-0" aria-hidden="true" />
-                    : <X     className="size-3 shrink-0" aria-hidden="true" />
-                  }
-                  {label}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+          {/* Requirements — shown once user starts typing */}
+          {pwTouched && (
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              {RULES.map(({ key, label, test }) => {
+                const met = test(password)
+                return (
+                  <div
+                    key={key}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
+                      met
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {met
+                      ? <Check className="size-3 shrink-0" aria-hidden="true" />
+                      : <X     className="size-3 shrink-0" aria-hidden="true" />
+                    }
+                    {label}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
-      {/* Confirm password */}
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-confirm">{copy.confirmPassword}</Label>
-        <PasswordInput
-          id="signup-confirm"
-          name="confirm_password"
-          show={showConfirm}
-          onToggle={() => setShowConfirm((v) => !v)}
-          autoComplete="new-password"
-          placeholder="Repite tu contraseña"
-          value={confirm}
-          onChange={setConfirm}
-        />
-        {/* Real-time match feedback */}
-        {passwordsMatch && (
-          <p className="flex items-center gap-1 text-xs text-primary">
-            <Check className="size-3" aria-hidden="true" />
-            Las contraseñas coinciden
+        {/* Confirm password */}
+        <div className="space-y-1.5">
+          <Label htmlFor="signup-confirm">{copy.confirmPassword}</Label>
+          <PasswordInput
+            id="signup-confirm"
+            name="confirm_password"
+            show={showConfirm}
+            onToggle={() => setShowConfirm((v) => !v)}
+            autoComplete="new-password"
+            placeholder="Repite tu contraseña"
+            value={confirm}
+            onChange={setConfirm}
+          />
+          {/* Real-time match feedback */}
+          {passwordsMatch && (
+            <p className="flex items-center gap-1 text-xs text-primary">
+              <Check className="size-3" aria-hidden="true" />
+              Las contraseñas coinciden
+            </p>
+          )}
+          {passwordsMismatch && (
+            <p className="flex items-center gap-1 text-xs text-destructive">
+              <X className="size-3" aria-hidden="true" />
+              Las contraseñas no coinciden
+            </p>
+          )}
+        </div>
+
+        {state.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {state.error}
           </p>
         )}
-        {passwordsMismatch && (
-          <p className="flex items-center gap-1 text-xs text-destructive">
-            <X className="size-3" aria-hidden="true" />
-            Las contraseñas no coinciden
-          </p>
-        )}
+
+        <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
+          {pending ? 'Creando cuenta...' : copy.submit}
+        </Button>
+      </form>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-card px-2 text-muted-foreground">{authCopy.oauth.divider}</span>
+        </div>
       </div>
 
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
-
-      <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
-        {pending ? 'Creando cuenta...' : copy.submit}
-      </Button>
+      <GoogleSignInButton />
 
       <p className="text-center text-sm text-muted-foreground">
         {copy.hasAccount}{' '}
@@ -161,7 +176,7 @@ export default function SignupForm() {
           {copy.loginLink}
         </Link>
       </p>
-    </form>
+    </div>
   )
 }
 
