@@ -4,10 +4,14 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authCopy } from '@/lib/copy/auth'
+import { authRateLimit, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 type AuthResult = { error: string } | never
 
 export async function signIn(formData: FormData): Promise<AuthResult> {
+  const allowed = await checkRateLimit(authRateLimit, await getClientIp())
+  if (!allowed) return { error: authCopy.login.errors.rateLimited }
+
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
@@ -39,6 +43,9 @@ const PASSWORD_RE = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/
 type SignUpResult = { error: string | null; pendingConfirmation?: boolean }
 
 export async function signUp(formData: FormData): Promise<SignUpResult> {
+  const allowed = await checkRateLimit(authRateLimit, await getClientIp())
+  if (!allowed) return { error: authCopy.signup.errors.rateLimited }
+
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const fullName = formData.get('full_name') as string

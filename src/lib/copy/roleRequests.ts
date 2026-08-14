@@ -110,5 +110,6 @@ export const roleRequestsCopy = {
     alreadyHasRole: 'Tu cuenta ya tiene este rol.',
     missingFields:  'Completa todos los campos requeridos.',
     generic:        'Ocurrió un error. Intenta de nuevo.',
+    rateLimited:    'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
   },
 } as const

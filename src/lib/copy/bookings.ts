@@ -64,5 +64,6 @@ export const bookingsCopy = {
     invalidDate: 'La fecha debe ser hoy o en el futuro.',
     generic: 'Ocurrió un error. Intenta de nuevo.',
     unauthorized: 'Debes iniciar sesión como turista para reservar.',
+    rateLimited: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
   },
 }

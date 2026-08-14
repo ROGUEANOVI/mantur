@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
+import { transportRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
 
 type ActionResult = { error: string } | void
 
@@ -33,6 +34,9 @@ export async function createTransportRequest(
   formData: FormData,
 ): Promise<ActionResult> {
   const { supabase, userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(transportRequestRateLimit, userId)
+  if (!allowed) return { error: transportCopy.errors.rateLimited }
 
   const origin = (formData.get('origin') as string)?.trim()
   const destination = (formData.get('destination') as string)?.trim()

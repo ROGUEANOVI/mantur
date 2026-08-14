@@ -54,6 +54,14 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
+const checkRateLimitMock = vi.fn()
+
+vi.mock('@/lib/rate-limit', () => ({
+  authRateLimit: {},
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+  getClientIp: vi.fn(async () => '203.0.113.1'),
+}))
+
 const { signIn, signUp, signOut } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
@@ -64,6 +72,30 @@ function formData(fields: Record<string, string>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  checkRateLimitMock.mockResolvedValue(true)
+})
+
+describe('rate limiting', () => {
+  it('signIn returns a rate-limit error and never calls Supabase when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ email: 'user@example.com', password: 'Correct1!' })
+
+    const result = await signIn(fd)
+
+    expect(result).toEqual({ error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' })
+    expect(checkRateLimitMock).toHaveBeenCalledWith({}, '203.0.113.1')
+    expect(signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('signUp returns a rate-limit error and never calls Supabase when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ email: 'new@example.com', password: 'Correct1!', full_name: 'X' })
+
+    const result = await signUp(fd)
+
+    expect(result).toEqual({ error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' })
+    expect(authSignUp).not.toHaveBeenCalled()
+  })
 })
 
 describe('signIn', () => {

@@ -125,5 +125,6 @@ export const transportCopy = {
     generic: 'Ocurrió un error. Intenta de nuevo.',
     unauthorized: 'Debes iniciar sesión como turista para solicitar transporte.',
     requestNotFound: 'Solicitud no encontrada.',
+    rateLimited: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
   },
 } as const

@@ -46,6 +46,13 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }))
 
+const checkRateLimitMock = vi.fn()
+
+vi.mock('@/lib/rate-limit', () => ({
+  roleRequestRateLimit: {},
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
 const { submitRoleRequest } = await import('./actions')
 
 function formData(fields: Record<string, string | string[]>) {
@@ -64,6 +71,21 @@ beforeEach(() => {
   authGetUser.mockResolvedValue({ data: { user: { id: USER_ID } } })
   profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
   existingRequestMaybeSingle.mockResolvedValue({ data: null })
+  checkRateLimitMock.mockResolvedValue(true)
+})
+
+describe('rate limiting', () => {
+  it('returns a rate-limit error and never checks the current role when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ requested_role: 'transporter', license_plate: 'ABC-123', vehicle_type: 'moto', phone: '3001234567' })
+
+    const result = await submitRoleRequest(fd)
+
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(checkRateLimitMock).toHaveBeenCalledWith({}, USER_ID)
+    expect(profileSingle).not.toHaveBeenCalled()
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('auth guard', () => {

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
+import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
 
 type BookingResult = { error: string } | void
 
@@ -31,6 +32,9 @@ async function getAuthenticatedTourist() {
 
 export async function createBooking(formData: FormData): Promise<BookingResult> {
   const { supabase, userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(bookingRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
 
   const experienceId = formData.get('experience_id') as string
   if (!UUID_RE.test(experienceId)) return { error: bookingsCopy.errors.notFound }
@@ -116,6 +120,9 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
 
 export async function createGuideTourBooking(formData: FormData): Promise<BookingResult> {
   const { supabase, userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(bookingRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
 
   const guideTourId = formData.get('guide_tour_id') as string
   if (!UUID_RE.test(guideTourId)) return { error: bookingsCopy.errors.notFound }
