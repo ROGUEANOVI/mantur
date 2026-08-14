@@ -111,5 +111,6 @@ export const roleRequestsCopy = {
     missingFields:  'Completa todos los campos requeridos.',
     generic:        'Ocurrió un error. Intenta de nuevo.',
     rateLimited:    'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
+    invalidPhone:   'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
   },
 } as const

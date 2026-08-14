@@ -206,6 +206,25 @@ describe('updateGuideProfile', () => {
     )
   })
 
+  it('normalizes a phone with country code and formatting noise before storing it', async () => {
+    touristGuidesUpdateMock.mockResolvedValue({ error: null })
+    const fd = formData({ phone: '+57 300 123 4567' })
+
+    await expect(updateGuideProfile(fd)).rejects.toThrow('redirect:/mi-perfil-guia')
+
+    expect(touristGuidesUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: '3001234567' }),
+      'profile_id', USER_ID,
+    )
+  })
+
+  it('rejects an invalid phone without updating', async () => {
+    const fd = formData({ phone: '123' })
+    const result = await updateGuideProfile(fd)
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(touristGuidesUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('returns a generic error when the update fails', async () => {
     touristGuidesUpdateMock.mockResolvedValue({ error: { message: 'db error' } })
     const fd = formData({ phone: '3001234567' })

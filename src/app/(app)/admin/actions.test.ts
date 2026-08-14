@@ -528,6 +528,36 @@ describe('approveRoleRequest', () => {
     expect(transportersInsert).toHaveBeenCalledWith(expect.objectContaining({ vehicle_type: 'otro' }))
   })
 
+  it('transporter: defensively normalizes a phone stored with formatting noise/country code (e.g. from a request submitted before phone validation existed)', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'transporter',
+        metadata: { vehicle_type: 'moto', license_plate: 'XYZ-999', phone: '+57 300 987 6543' },
+      },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(transportersInsert).toHaveBeenCalledWith(expect.objectContaining({ phone: '3009876543' }))
+  })
+
+  it('transporter: falls back to the raw metadata phone, rather than blocking approval, when it cannot be normalized', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'transporter',
+        metadata: { vehicle_type: 'moto', license_plate: 'XYZ-999', phone: 'no-es-un-telefono' },
+      },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(transportersInsert).toHaveBeenCalledWith(expect.objectContaining({ phone: 'no-es-un-telefono' }))
+  })
+
   it('transporter: is_available is hardcoded to false even if metadata claims otherwise', async () => {
     roleRequestSingle.mockResolvedValue({
       data: {
@@ -563,6 +593,21 @@ describe('approveRoleRequest', () => {
       phone: '3005551234',
       is_available: false,
     })
+  })
+
+  it('tourist_guide: defensively normalizes a phone stored with formatting noise/country code', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'tourist_guide',
+        metadata: { specialties: ['ecoturismo'], languages: ['es'], bio: 'Guía local', phone: '+57 300 555 1234' },
+      },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(touristGuidesInsert).toHaveBeenCalledWith(expect.objectContaining({ phone: '3005551234' }))
   })
 
   it('tourist_guide: falls back to defaults when metadata omits specialties/languages/bio/phone', async () => {

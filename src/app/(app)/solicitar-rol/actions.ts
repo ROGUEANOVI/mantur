@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { roleRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
+import { normalizeColombianPhone } from '@/lib/phone'
 
 type ActionResult = { error?: string; success?: boolean }
 
@@ -65,8 +66,10 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
   if (requestedRole === 'transporter') {
     const licensePlate = (formData.get('license_plate') as string | null)?.trim().toUpperCase()
     const vehicleType = (formData.get('vehicle_type') as string | null)?.trim()
-    const phone = (formData.get('phone') as string | null)?.trim()
-    if (!licensePlate || !vehicleType || !phone) return { error: copy.missingFields }
+    const rawPhone = (formData.get('phone') as string | null)?.trim()
+    if (!licensePlate || !vehicleType || !rawPhone) return { error: copy.missingFields }
+    const phone = normalizeColombianPhone(rawPhone)
+    if (!phone) return { error: copy.invalidPhone }
     metadata = { license_plate: licensePlate, vehicle_type: vehicleType, phone }
   }
 
@@ -75,10 +78,13 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
     const languages = formData.getAll('languages') as string[]
     const experienceYears = parseInt(formData.get('experience_years') as string, 10)
     const bio = (formData.get('bio') as string | null)?.trim()
-    if (!specialties.length || !languages.length || !Number.isFinite(experienceYears) || !bio) {
+    const rawPhone = (formData.get('phone') as string | null)?.trim()
+    if (!specialties.length || !languages.length || !Number.isFinite(experienceYears) || !bio || !rawPhone) {
       return { error: copy.missingFields }
     }
-    metadata = { specialties, languages, experience_years: experienceYears, bio }
+    const phone = normalizeColombianPhone(rawPhone)
+    if (!phone) return { error: copy.invalidPhone }
+    metadata = { specialties, languages, experience_years: experienceYears, bio, phone }
   }
 
   const notes = (formData.get('notes') as string | null)?.trim() || null
