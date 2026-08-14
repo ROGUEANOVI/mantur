@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { Lock } from 'lucide-react'
 import { updateProfile, uploadAvatar, removeAvatar } from '@/app/(app)/mi-perfil/actions'
 import { profileCopy } from '@/lib/copy/profile'
@@ -28,6 +29,10 @@ export default function EditProfileForm({ fullName, phone, email, avatarUrl }: P
     },
     { error: null, saved: false },
   )
+
+  useEffect(() => {
+    if (state.saved) toast.success(copy.saved)
+  }, [state.saved])
 
   return (
     <div className="space-y-6">
@@ -90,14 +95,9 @@ export default function EditProfileForm({ fullName, phone, email, avatarUrl }: P
           <p className="text-xs text-muted-foreground">{copy.emailHint}</p>
         </div>
 
-        <div aria-live="polite">
-          {state.error && (
-            <p role="alert" className="text-sm text-destructive">{state.error}</p>
-          )}
-          {state.saved && (
-            <p className="text-sm text-primary font-medium">{copy.saved}</p>
-          )}
-        </div>
+        {state.error && (
+          <p role="alert" className="text-sm text-destructive">{state.error}</p>
+        )}
 
         <div className="flex gap-3 pt-1">
           <Link
