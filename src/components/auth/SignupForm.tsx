@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 
-type FormState = { error: string | null }
+type FormState = { error: string | null; pendingConfirmation?: boolean }
 
 const copy = authCopy.signup
 
@@ -48,6 +48,19 @@ export default function SignupForm() {
     },
     { error: null },
   )
+
+  if (state.pendingConfirmation) {
+    return (
+      <div className="space-y-2 text-center">
+        <h2 className="text-lg font-semibold text-foreground">
+          {authCopy.signup.confirmationSent.title}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {authCopy.signup.confirmationSent.body}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">

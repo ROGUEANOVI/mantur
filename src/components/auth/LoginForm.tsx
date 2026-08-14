@@ -25,17 +25,24 @@ async function loginAction(
 
 const copy = authCopy.login
 
-export default function LoginForm({ oauthError = false }: { oauthError?: boolean }) {
+export default function LoginForm({ authError }: { authError?: 'oauth' | 'confirm' }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     loginAction,
     { error: null },
   )
 
+  const authErrorMessage =
+    authError === 'oauth'
+      ? copy.errors.oauthFailed
+      : authError === 'confirm'
+        ? copy.errors.confirmFailed
+        : null
+
   return (
     <div className="space-y-5">
-      {oauthError && (
+      {authErrorMessage && (
         <p role="alert" className="text-sm text-destructive">
-          {copy.errors.oauthFailed}
+          {authErrorMessage}
         </p>
       )}
 

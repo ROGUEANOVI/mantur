@@ -193,4 +193,19 @@ describe('SignupForm', () => {
     render(<SignupForm />)
     expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeInTheDocument()
   })
+
+  it('shows the "check your email" message instead of the form when signUp returns pendingConfirmation', async () => {
+    signUpMock.mockResolvedValue({ error: null, pendingConfirmation: true })
+    const user = userEvent.setup()
+    render(<SignupForm />)
+
+    await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
+    await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
+    await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
+    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
+    await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
+
+    expect(await screen.findByText('Revisa tu correo')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Correo electrónico')).not.toBeInTheDocument()
+  })
 })

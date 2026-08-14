@@ -36,7 +36,9 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
 
 const PASSWORD_RE = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/
 
-export async function signUp(formData: FormData): Promise<AuthResult> {
+type SignUpResult = { error: string | null; pendingConfirmation?: boolean }
+
+export async function signUp(formData: FormData): Promise<SignUpResult> {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const fullName = formData.get('full_name') as string
@@ -74,6 +76,12 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
     if (profileError) {
       return { error: authCopy.signup.errors.generic }
     }
+  }
+
+  // Email confirmation enabled: Supabase returns the user but no session
+  // until they click the link in the confirmation email.
+  if (data.user && !data.session) {
+    return { error: null, pendingConfirmation: true }
   }
 
   redirect('/')

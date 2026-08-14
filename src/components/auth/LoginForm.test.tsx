@@ -94,14 +94,21 @@ describe('LoginForm', () => {
     expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeInTheDocument()
   })
 
-  it('shows the oauth error message when oauthError is true', () => {
-    render(<LoginForm oauthError />)
+  it('shows the oauth error message when authError is "oauth"', () => {
+    render(<LoginForm authError="oauth" />)
     expect(screen.getByRole('alert')).toHaveTextContent(
       'No se pudo iniciar sesión con Google. Intenta de nuevo.',
     )
   })
 
-  it('does not show the oauth error message by default', () => {
+  it('shows the confirmation-link error message when authError is "confirm"', () => {
+    render(<LoginForm authError="confirm" />)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'El enlace de confirmación no es válido o ya expiró. Intenta registrarte de nuevo.',
+    )
+  })
+
+  it('does not show an auth error message by default', () => {
     render(<LoginForm />)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
