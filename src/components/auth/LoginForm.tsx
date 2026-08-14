@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
 
 import { signIn } from '@/app/(auth)/actions'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
+import PasswordInput from '@/components/auth/PasswordInput'
 
 // useActionState expects the action to accept (prevState, formData).
 // We wrap signIn so the signature matches while keeping the Server Action pure.
@@ -30,6 +31,13 @@ export default function LoginForm({ authError }: { authError?: 'oauth' | 'confir
     loginAction,
     { error: null },
   )
+
+  // Controlled inputs: React's form actions reset uncontrolled fields after
+  // every submit (success or failure) — without this, a failed login wipes
+  // both the email and the password the user just typed.
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const authErrorMessage =
     authError === 'oauth'
@@ -57,19 +65,23 @@ export default function LoginForm({ authError }: { authError?: 'oauth' | 'confir
             required
             autoComplete="email"
             placeholder="tu@correo.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
 
         {/* Password */}
         <div className="space-y-1.5">
           <Label htmlFor="login-password">{copy.password}</Label>
-          <Input
+          <PasswordInput
             id="login-password"
-            type="password"
             name="password"
-            required
+            show={showPassword}
+            onToggle={() => setShowPassword((v) => !v)}
             autoComplete="current-password"
             placeholder="••••••••"
+            value={password}
+            onChange={setPassword}
           />
         </div>
 

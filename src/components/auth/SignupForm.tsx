@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
-import { Eye, EyeOff, Check, X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 
 import { signUp } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
+import PasswordInput from '@/components/auth/PasswordInput'
 
 type FormState = { error: string | null; pendingConfirmation?: boolean }
 
@@ -189,53 +190,6 @@ export default function SignupForm() {
           {copy.loginLink}
         </Link>
       </p>
-    </div>
-  )
-}
-
-function PasswordInput({
-  id,
-  name,
-  show,
-  onToggle,
-  autoComplete,
-  placeholder,
-  value,
-  onChange,
-}: {
-  id: string
-  name: string
-  show: boolean
-  onToggle: () => void
-  autoComplete?: string
-  placeholder?: string
-  value?: string
-  onChange?: (v: string) => void
-}) {
-  return (
-    <div className="relative">
-      <Input
-        id={id}
-        type={show ? 'text' : 'password'}
-        name={name}
-        required
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        className="pr-10"
-      />
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={show ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {show
-          ? <EyeOff className="size-4" aria-hidden="true" />
-          : <Eye    className="size-4" aria-hidden="true" />
-        }
-      </button>
     </div>
   )
 }
