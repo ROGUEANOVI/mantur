@@ -69,6 +69,19 @@ describe('EditProfileForm', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('shows a saved toast on every consecutive successful save', async () => {
+    updateProfileMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<EditProfileForm {...DEFAULT_PROPS} />)
+
+    const button = screen.getByRole('button', { name: 'Guardar cambios' })
+    await user.click(button)
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(1))
+
+    await user.click(button)
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(2))
+  })
+
   it('shows the error message when the save fails', async () => {
     updateProfileMock.mockResolvedValue({ error: 'El nombre es obligatorio.' })
     const user = userEvent.setup()
