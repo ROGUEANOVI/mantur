@@ -41,9 +41,9 @@ describe('SignupForm', () => {
 
     // 8+ lowercase letters: meets minLength, fails uppercase/digit/special
     expect(screen.getByText('Mínimo 8 caracteres').closest('div')).toHaveClass('bg-primary/10')
-    expect(screen.getByText('Una letra mayúscula').closest('div')).toHaveClass('bg-muted')
-    expect(screen.getByText('Un número').closest('div')).toHaveClass('bg-muted')
-    expect(screen.getByText('Un carácter especial').closest('div')).toHaveClass('bg-muted')
+    expect(screen.getByText('Una letra mayúscula').closest('div')).toHaveClass('bg-destructive/10')
+    expect(screen.getByText('Un número').closest('div')).toHaveClass('bg-destructive/10')
+    expect(screen.getByText('Un carácter especial').closest('div')).toHaveClass('bg-destructive/10')
   })
 
   it('marks every rule as met once a fully compliant password is typed', async () => {

@@ -117,7 +117,7 @@ export default function SignupForm() {
                       'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
                       met
                         ? 'bg-primary/10 text-primary'
-                        : 'bg-muted text-muted-foreground',
+                        : 'bg-destructive/10 text-destructive',
                     )}
                   >
                     {met
