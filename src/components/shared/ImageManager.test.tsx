@@ -28,7 +28,7 @@ describe('ImageManager — existing images', () => {
     expect(screen.getAllByText('Portada')).toHaveLength(1)
   })
 
-  it('calls deleteAction with the image url when its delete button is clicked', async () => {
+  it('does not delete immediately, and asks for confirmation first', async () => {
     const deleteAction = vi.fn().mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(
@@ -37,7 +37,35 @@ describe('ImageManager — existing images', () => {
 
     await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
 
+    expect(deleteAction).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('calls deleteAction with the image url once deletion is confirmed', async () => {
+    const deleteAction = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(
+      <ImageManager images={['https://x/a.webp']} uploadAction={vi.fn()} deleteAction={deleteAction} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
+    await user.click(screen.getByRole('button', { name: 'Sí, eliminar' }))
+
     expect(deleteAction).toHaveBeenCalledWith('https://x/a.webp')
+  })
+
+  it('does not call deleteAction when the confirmation dialog is cancelled', async () => {
+    const deleteAction = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(
+      <ImageManager images={['https://x/a.webp']} uploadAction={vi.fn()} deleteAction={deleteAction} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(deleteAction).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('shows the server-returned error when deletion fails', async () => {
@@ -48,6 +76,7 @@ describe('ImageManager — existing images', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
+    await user.click(screen.getByRole('button', { name: 'Sí, eliminar' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo eliminar la imagen.')
   })

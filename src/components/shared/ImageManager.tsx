@@ -3,6 +3,7 @@
 import { useTransition, useRef, useState } from 'react'
 import { Trash2, Upload, Loader2 } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
+import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import { cn } from '@/lib/utils'
 
 type ActionResult = { error: string } | void
@@ -78,19 +79,20 @@ export default function ImageManager({
               )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt="" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => handleDelete(url)}
+              <ConfirmDeleteButton
+                title="Eliminar imagen"
+                description="Esta acción no se puede deshacer."
+                confirmLabel="Sí, eliminar"
                 disabled={busy}
-                aria-label="Eliminar imagen"
-                className={cn(
+                triggerAriaLabel="Eliminar imagen"
+                triggerClassName={cn(
                   'absolute inset-0 flex items-center justify-center',
                   'bg-black/0 group-hover:bg-black/50 transition-colors',
                   'opacity-0 group-hover:opacity-100',
                 )}
-              >
-                <Trash2 className="size-5 text-white drop-shadow" aria-hidden="true" />
-              </button>
+                trigger={<Trash2 className="size-5 text-white drop-shadow" aria-hidden="true" />}
+                onConfirm={() => handleDelete(url)}
+              />
             </div>
           ))}
         </div>

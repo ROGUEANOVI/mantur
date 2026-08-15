@@ -146,6 +146,11 @@ export const adminCopy = {
     edit: 'Editar',
     delete: 'Eliminar',
     empty: 'Aún no hay lugares registrados.',
+    confirmDeleteTitle: 'Eliminar lugar',
+    confirmDeleteDescription:
+      'Esta acción no se puede deshacer. El lugar y sus fotos y videos se eliminarán permanentemente.',
+    confirmDeleteConfirm: 'Sí, eliminar',
+    confirmDeleteCancel: 'Cancelar',
     form: {
       name: 'Nombre',
       namePlaceholder: 'Ej: Balneario La Danta',

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { deletePlace } from '@/app/(app)/admin/actions'
+import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import { cn } from '@/lib/utils'
 
 type PlaceRow = {
@@ -95,19 +96,23 @@ export default async function AdminLugaresPage() {
                         <Pencil className="size-3.5" aria-hidden="true" />
                         {copy.edit}
                       </Link>
-                      <form action={deletePlace}>
+                      <form id={`delete-place-${place.id}`} action={deletePlace}>
                         <input type="hidden" name="placeId" value={place.id} />
-                        <button
-                          type="submit"
-                          className={cn(
-                            'inline-flex items-center rounded-lg border border-destructive/40',
-                            'text-xs font-medium text-destructive px-2.5 min-h-[36px]',
-                            'hover:bg-destructive/10 transition-colors',
-                          )}
-                        >
-                          {copy.delete}
-                        </button>
                       </form>
+                      <ConfirmDeleteButton
+                        formId={`delete-place-${place.id}`}
+                        title={`${copy.confirmDeleteTitle}: ${place.name}`}
+                        description={copy.confirmDeleteDescription}
+                        confirmLabel={copy.confirmDeleteConfirm}
+                        cancelLabel={copy.confirmDeleteCancel}
+                        trigger={copy.delete}
+                        triggerAriaLabel={`${copy.delete} ${place.name}`}
+                        triggerClassName={cn(
+                          'inline-flex items-center rounded-lg border border-destructive/40',
+                          'text-xs font-medium text-destructive px-2.5 min-h-[36px]',
+                          'hover:bg-destructive/10 transition-colors',
+                        )}
+                      />
                     </div>
                   </div>
 
