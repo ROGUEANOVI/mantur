@@ -61,24 +61,48 @@ describe('MediaManager — existing media', () => {
     expect(container.querySelector('video')).toBeInTheDocument()
   })
 
-  it('calls deleteImageAction when an image delete button is clicked', async () => {
+  it('does not delete immediately, and asks for confirmation first', async () => {
     const deleteImageAction = vi.fn().mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<MediaManager {...baseProps({ images: ['https://x/a.webp'], deleteImageAction })} />)
 
     await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
 
+    expect(deleteImageAction).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('calls deleteImageAction once deletion is confirmed', async () => {
+    const deleteImageAction = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<MediaManager {...baseProps({ images: ['https://x/a.webp'], deleteImageAction })} />)
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
+    await user.click(screen.getByRole('button', { name: 'Sí, eliminar' }))
+
     expect(deleteImageAction).toHaveBeenCalledWith('https://x/a.webp')
   })
 
-  it('calls deleteVideoAction when a video delete button is clicked', async () => {
+  it('calls deleteVideoAction once deletion is confirmed', async () => {
     const deleteVideoAction = vi.fn().mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<MediaManager {...baseProps({ videos: ['https://x/clip.mp4'], deleteVideoAction })} />)
 
     await user.click(screen.getByRole('button', { name: 'Eliminar video' }))
+    await user.click(screen.getByRole('button', { name: 'Sí, eliminar' }))
 
     expect(deleteVideoAction).toHaveBeenCalledWith('https://x/clip.mp4')
+  })
+
+  it('does not call deleteImageAction when the confirmation dialog is cancelled', async () => {
+    const deleteImageAction = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<MediaManager {...baseProps({ images: ['https://x/a.webp'], deleteImageAction })} />)
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(deleteImageAction).not.toHaveBeenCalled()
   })
 
   it('shows the server-returned error when deletion fails', async () => {
@@ -87,6 +111,7 @@ describe('MediaManager — existing media', () => {
     render(<MediaManager {...baseProps({ images: ['https://x/a.webp'], deleteImageAction })} />)
 
     await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
+    await user.click(screen.getByRole('button', { name: 'Sí, eliminar' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo eliminar.')
   })

@@ -4,6 +4,7 @@ import { useTransition, useRef, useState } from 'react'
 import { Trash2, Upload, Loader2, Play } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 import { createClient } from '@/lib/supabase/client'
+import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import { cn } from '@/lib/utils'
 
 type ActionResult = { error: string } | void
@@ -162,19 +163,20 @@ export default function MediaManager({
                   </span>
                 </>
               )}
-              <button
-                type="button"
-                onClick={() => handleDelete(item)}
+              <ConfirmDeleteButton
+                title={item.type === 'image' ? 'Eliminar imagen' : 'Eliminar video'}
+                description="Esta acción no se puede deshacer."
+                confirmLabel="Sí, eliminar"
                 disabled={busy}
-                aria-label={item.type === 'image' ? 'Eliminar imagen' : 'Eliminar video'}
-                className={cn(
+                triggerAriaLabel={item.type === 'image' ? 'Eliminar imagen' : 'Eliminar video'}
+                triggerClassName={cn(
                   'absolute inset-0 flex items-center justify-center',
                   'bg-black/0 group-hover:bg-black/50 transition-colors',
                   'opacity-0 group-hover:opacity-100',
                 )}
-              >
-                <Trash2 className="size-5 text-white drop-shadow" aria-hidden="true" />
-              </button>
+                trigger={<Trash2 className="size-5 text-white drop-shadow" aria-hidden="true" />}
+                onConfirm={() => handleDelete(item)}
+              />
             </div>
           ))}
         </div>
