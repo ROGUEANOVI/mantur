@@ -52,6 +52,18 @@ const organizationJsonLd = {
   url: APP_URL,
   logo: `${APP_URL}/icons/512`,
   description: DESCRIPTION,
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: 'Manaure Balcón del Cesar',
+    addressRegion: 'Cesar',
+    addressCountry: 'CO',
+  },
+  areaServed: {
+    '@type': 'City',
+    name: 'Manaure Balcón del Cesar',
+    containedInPlace: { '@type': 'AdministrativeArea', name: 'Cesar' },
+    geo: { '@type': 'GeoCoordinates', latitude: 10.4, longitude: -73.1667 },
+  },
 }
 
 export default function RootLayout({
