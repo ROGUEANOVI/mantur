@@ -6,6 +6,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { normalizeColombianPhone } from '@/lib/phone'
+import {
+  sendRoleRequestApprovedEmail,
+  sendRoleRequestRejectedEmail,
+  type RequestableRole,
+} from '@/lib/email/roleRequestEmails'
 
 type ActionResult = { error: string } | { success: true }
 
@@ -592,6 +597,11 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     .eq('status', 'pending')
     .neq('id', requestId)
 
+  const { data: authUser } = await admin.auth.admin.getUserById(request.user_id)
+  if (authUser?.user?.email) {
+    await sendRoleRequestApprovedEmail(authUser.user.email, request.requested_role as RequestableRole)
+  }
+
   revalidatePath('/admin/solicitudes')
   revalidatePath('/solicitar-rol')
   revalidatePath('/negocios')
@@ -605,7 +615,7 @@ export async function rejectRoleRequest(formData: FormData): Promise<void> {
   const reason = (formData.get('rejection_reason') as string | null)?.trim()
   if (!UUID_RE.test(requestId) || !reason) redirect('/admin/solicitudes')
 
-  await admin
+  const { data: updated } = await admin
     .from('role_requests')
     .update({
       status: 'rejected',
@@ -614,6 +624,15 @@ export async function rejectRoleRequest(formData: FormData): Promise<void> {
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', requestId)
+    .select('user_id, requested_role')
+    .single()
+
+  if (updated) {
+    const { data: authUser } = await admin.auth.admin.getUserById(updated.user_id)
+    if (authUser?.user?.email) {
+      await sendRoleRequestRejectedEmail(authUser.user.email, updated.requested_role as RequestableRole, reason)
+    }
+  }
 
   revalidatePath('/admin/solicitudes')
   revalidatePath('/solicitar-rol')

@@ -112,47 +112,57 @@ export default async function SolicitarRolPage() {
             </div>
           )}
 
-          {/* Pending banner */}
-          {!hasApproved && pendingRequest && (
-            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-5 flex gap-3">
-              <Clock className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" strokeWidth={1.5} />
-              <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                  {copy.status.pending.title}
-                </p>
-                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                  {copy.roles[pendingRequest.requested_role as keyof typeof copy.roles]}
-                  {' · '}
-                  {copy.status.pending.description}
-                </p>
-              </div>
-            </div>
-          )}
+          {/* Status of a request already submitted — grouped under its own
+              label so it doesn't read as one more role-selection card. */}
+          {!hasApproved && (pendingRequest || lastRejected) && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+                {copy.status.lastRequestLabel}
+              </p>
 
-          {/* Rejection feedback */}
-          {!hasApproved && lastRejected && (
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 space-y-2">
-              <div className="flex gap-3">
-                <XCircle className="size-5 text-destructive shrink-0 mt-0.5" strokeWidth={1.5} />
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{copy.status.rejected.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {copy.roles[lastRejected.requested_role as keyof typeof copy.roles]}
-                  </p>
+              {pendingRequest && (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-5 flex gap-3">
+                  <Clock className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" strokeWidth={1.5} />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                      {copy.status.pending.title}
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                      {copy.roles[pendingRequest.requested_role as keyof typeof copy.roles]}
+                      {' · '}
+                      {copy.status.pending.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              {lastRejected.rejection_reason && (
-                <p className="text-sm text-foreground ml-8">
-                  <span className="text-muted-foreground">{copy.status.rejected.descriptionPrefix} </span>
-                  {lastRejected.rejection_reason}
-                </p>
+              )}
+
+              {lastRejected && (
+                <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 space-y-2">
+                  <div className="flex gap-3">
+                    <XCircle className="size-5 text-destructive shrink-0 mt-0.5" strokeWidth={1.5} />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{copy.status.rejected.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {copy.roles[lastRejected.requested_role as keyof typeof copy.roles]}
+                      </p>
+                    </div>
+                  </div>
+                  {lastRejected.rejection_reason && (
+                    <p className="text-sm text-foreground ml-8">
+                      <span className="text-muted-foreground">{copy.status.rejected.descriptionPrefix} </span>
+                      {lastRejected.rejection_reason}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
 
           {/* Role selection / form */}
           {!hasApproved && !pendingRequest && (
-            <RoleRequestForm categories={categories} />
+            <div className={lastRejected ? 'pt-2' : undefined}>
+              <RoleRequestForm categories={categories} />
+            </div>
           )}
 
         </div>

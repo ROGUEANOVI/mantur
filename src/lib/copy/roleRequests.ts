@@ -86,6 +86,7 @@ export const roleRequestsCopy = {
   },
 
   status: {
+    lastRequestLabel: 'Tu última solicitud',
     pending: {
       title:       'Solicitud en revisión',
       description: 'Tu solicitud fue recibida. El equipo de ManTur la revisará pronto y te notificaremos.',
