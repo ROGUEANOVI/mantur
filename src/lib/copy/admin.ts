@@ -103,6 +103,7 @@ export const adminCopy = {
         nameRequired: 'El nombre es obligatorio.',
         typeRequired: 'Selecciona un tipo.',
         ownerRequired: 'Selecciona un propietario.',
+        invalidPhone: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
         generic: 'Error al crear el negocio. Intenta de nuevo.',
       },
     },

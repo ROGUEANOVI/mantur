@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { profileCopy } from '@/lib/copy/profile'
+import { normalizeColombianPhone } from '@/lib/phone'
 
 type ActionResult = { error: string } | void
 
@@ -47,9 +48,12 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
   const { supabase, userId } = await getAuthenticatedUser()
 
   const fullName = (formData.get('full_name') as string | null)?.trim() || ''
-  const phone = (formData.get('phone') as string | null)?.trim() || null
+  const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
 
   if (!fullName) return { error: errors.nameRequired }
+
+  const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
+  if (rawPhone && !phone) return { error: errors.invalidPhone }
 
   const { error } = await supabase.from('profiles').update({ full_name: fullName }).eq('id', userId)
   if (error) return { error: errors.generic }

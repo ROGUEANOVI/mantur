@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePrice, parsePositiveInt } from './parsers'
+import { normalizeColombianPhone } from '@/lib/phone'
 
 type ActionResult = { error: string } | void
 
@@ -35,11 +36,14 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
   const address = (formData.get('address') as string | null)?.trim() || null
-  const phone = (formData.get('phone') as string | null)?.trim() || null
+  const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
   if (!name) return { error: 'El nombre del negocio es obligatorio.' }
   if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
+
+  const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
+  if (rawPhone && !phone) return { error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' }
 
   const { data: newBusiness, error } = await supabase
     .from('businesses')
@@ -73,11 +77,14 @@ export async function updateBusiness(
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
   const address = (formData.get('address') as string | null)?.trim() || null
-  const phone = (formData.get('phone') as string | null)?.trim() || null
+  const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
   if (!name) return { error: 'El nombre del negocio es obligatorio.' }
   if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
+
+  const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
+  if (rawPhone && !phone) return { error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' }
 
   const { error } = await supabase
     .from('businesses')

@@ -171,6 +171,22 @@ describe('business_owner metadata', () => {
     const insertPayload = roleRequestInsertMock.mock.calls[0][0] as { metadata: unknown }
     expect(insertPayload.metadata).toEqual({ business_name: 'Finca X', category_slugs: ['finca', 'balneario'], phone: '3001234567' })
   })
+
+  it('normalizes a formatted phone number in the stored metadata', async () => {
+    roleRequestInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ requested_role: 'business_owner', ...validFields, phone: '+57 300 123 4567' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ success: true })
+    const insertPayload = roleRequestInsertMock.mock.calls[0][0] as { metadata: { phone: string } }
+    expect(insertPayload.metadata.phone).toBe('3001234567')
+  })
+
+  it('rejects an invalid phone without inserting', async () => {
+    const fd = formData({ requested_role: 'business_owner', ...validFields, phone: '123' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('transporter metadata', () => {

@@ -32,5 +32,6 @@ export const profileCopy = {
     saveFailed: 'No se pudo guardar la foto.',
     generic: 'Ocurrió un error. Intenta de nuevo.',
     compressionFailed: 'Error al procesar la imagen. Intenta de nuevo.',
+    invalidPhone: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
   },
 } as const

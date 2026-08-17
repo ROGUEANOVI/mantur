@@ -58,8 +58,10 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
   if (requestedRole === 'business_owner') {
     const businessName = (formData.get('business_name') as string | null)?.trim()
     const categorySlugs = formData.getAll('category_slugs') as string[]
-    const phone = (formData.get('phone') as string | null)?.trim()
-    if (!businessName || !categorySlugs.length || !phone) return { error: copy.missingFields }
+    const rawPhone = (formData.get('phone') as string | null)?.trim()
+    if (!businessName || !categorySlugs.length || !rawPhone) return { error: copy.missingFields }
+    const phone = normalizeColombianPhone(rawPhone)
+    if (!phone) return { error: copy.invalidPhone }
     metadata = { business_name: businessName, category_slugs: categorySlugs, phone }
   }
 
