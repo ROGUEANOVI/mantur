@@ -8,12 +8,45 @@ vi.mock('browser-image-compression', () => ({
   default: (...args: unknown[]) => compressMock(...args),
 }))
 
+vi.mock('./AvatarCropDialog', () => ({
+  default: ({
+    imageSrc,
+    open,
+    onCancel,
+    onConfirm,
+  }: {
+    imageSrc: string | null
+    open: boolean
+    onCancel: () => void
+    onConfirm: (blob: Blob) => void
+  }) =>
+    open ? (
+      <div data-testid="crop-dialog-mock" data-image-src={imageSrc ?? ''}>
+        <button type="button" onClick={onCancel}>
+          cancel crop
+        </button>
+        <button
+          type="button"
+          onClick={() => onConfirm(new Blob(['cropped'], { type: 'image/png' }))}
+        >
+          confirm crop
+        </button>
+      </div>
+    ) : null,
+}))
+
 function fakeImageFile(type = 'image/jpeg') {
   return new File([new Uint8Array(10)], 'photo.jpg', { type })
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  if (!URL.createObjectURL) {
+    URL.createObjectURL = vi.fn()
+    URL.revokeObjectURL = vi.fn()
+  }
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake-url')
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
 })
 
 describe('AvatarUploader — fallback and current photo', () => {
@@ -75,7 +108,23 @@ describe('AvatarUploader — fallback and current photo', () => {
 })
 
 describe('AvatarUploader — upload flow', () => {
-  it('compresses the selected file to a 512px webp and calls uploadAction', async () => {
+  it('opens the crop dialog after selecting a valid file', async () => {
+    const { container } = render(
+      <AvatarUploader avatarUrl={null} name="Ana" uploadAction={vi.fn()} removeAction={vi.fn()} />,
+    )
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    const user = userEvent.setup()
+    await user.upload(fileInput, fakeImageFile())
+
+    expect(screen.getByTestId('crop-dialog-mock')).toHaveAttribute(
+      'data-image-src',
+      'blob:fake-url',
+    )
+    expect(compressMock).not.toHaveBeenCalled()
+  })
+
+  it('compresses the cropped blob to a 512px webp and calls uploadAction after confirming the crop', async () => {
     compressMock.mockResolvedValue(new Blob(['x'], { type: 'image/webp' }))
     const uploadAction = vi.fn().mockResolvedValue(undefined)
     const { container } = render(
@@ -85,6 +134,7 @@ describe('AvatarUploader — upload flow', () => {
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
     const user = userEvent.setup()
     await user.upload(fileInput, fakeImageFile())
+    await user.click(screen.getByRole('button', { name: 'confirm crop' }))
 
     expect(compressMock).toHaveBeenCalledWith(
       expect.any(File),
@@ -96,7 +146,26 @@ describe('AvatarUploader — upload flow', () => {
     expect(uploaded.type).toBe('image/webp')
   })
 
-  it('rejects an invalid file type before compressing', async () => {
+  it('leaves the avatar untouched and closes the dialog when the crop is cancelled', async () => {
+    const uploadAction = vi.fn()
+    const { container } = render(
+      <AvatarUploader avatarUrl={null} name="Ana" uploadAction={uploadAction} removeAction={vi.fn()} />,
+    )
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    const user = userEvent.setup()
+    await user.upload(fileInput, fakeImageFile())
+    await user.click(screen.getByRole('button', { name: 'cancel crop' }))
+
+    expect(screen.queryByTestId('crop-dialog-mock')).not.toBeInTheDocument()
+    expect(compressMock).not.toHaveBeenCalled()
+    expect(uploadAction).not.toHaveBeenCalled()
+
+    await user.upload(fileInput, fakeImageFile())
+    expect(screen.getByTestId('crop-dialog-mock')).toBeInTheDocument()
+  })
+
+  it('rejects an invalid file type before opening the crop dialog', async () => {
     // userEvent.upload enforces the input's `accept` attribute (a real
     // browser file picker would filter these out too), so this exercises
     // the belt-and-suspenders client-side check via a raw change event —
@@ -126,6 +195,7 @@ describe('AvatarUploader — upload flow', () => {
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
     const user = userEvent.setup()
     await user.upload(fileInput, fakeImageFile())
+    await user.click(screen.getByRole('button', { name: 'confirm crop' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo subir la foto. Intenta de nuevo.')
   })
@@ -140,6 +210,7 @@ describe('AvatarUploader — upload flow', () => {
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
     const user = userEvent.setup()
     await user.upload(fileInput, fakeImageFile())
+    await user.click(screen.getByRole('button', { name: 'confirm crop' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Error al procesar la imagen. Intenta de nuevo.')
     expect(uploadAction).not.toHaveBeenCalled()

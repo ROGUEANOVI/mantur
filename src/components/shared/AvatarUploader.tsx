@@ -4,6 +4,7 @@ import { useTransition, useState, useEffect } from 'react'
 import { Camera, Loader2, Upload, Trash2 } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 import { profileCopy } from '@/lib/copy/profile'
+import AvatarCropDialog from './AvatarCropDialog'
 
 type ActionResult = { error: string } | void
 
@@ -22,6 +23,7 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
   const [compressing, setCompressing] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [imgFailed, setImgFailed] = useState(false)
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null)
   const busy = compressing || isPending
   const initials = getInitials(name)
   const showImage = avatarUrl && !imgFailed
@@ -33,22 +35,42 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
     setImgFailed(false)
   }, [avatarUrl])
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  // Revoke the object URL created for whichever file was selected for
+  // cropping, whenever it's replaced or the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (cropImageSrc) URL.revokeObjectURL(cropImageSrc)
+    }
+  }, [cropImageSrc])
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const input = e.target
     const file = input.files?.[0]
     if (!file) return
     setError(null)
+    input.value = ''
 
     const valid = ['image/jpeg', 'image/png', 'image/webp']
     if (!valid.includes(file.type)) {
       setError(errors.invalidFormat)
-      input.value = ''
       return
     }
 
+    setCropImageSrc(URL.createObjectURL(file))
+  }
+
+  function handleCropCancel() {
+    setCropImageSrc(null)
+  }
+
+  async function handleCropConfirm(blob: Blob) {
+    setCropImageSrc(null)
     setCompressing(true)
     try {
-      const compressed = await imageCompression(file, {
+      const croppedFile = new File([blob], `avatar-source-${Date.now()}.png`, {
+        type: 'image/png',
+      })
+      const compressed = await imageCompression(croppedFile, {
         maxSizeMB: 0.5,
         maxWidthOrHeight: 512,
         useWebWorker: true,
@@ -67,7 +89,6 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
       setError(errors.compressionFailed)
     } finally {
       setCompressing(false)
-      input.value = ''
     }
   }
 
@@ -151,6 +172,13 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
           {error}
         </p>
       )}
+
+      <AvatarCropDialog
+        imageSrc={cropImageSrc}
+        open={!!cropImageSrc}
+        onCancel={handleCropCancel}
+        onConfirm={handleCropConfirm}
+      />
     </div>
   )
 }

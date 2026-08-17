@@ -9,6 +9,12 @@ export const profileCopy = {
     removePhoto: 'Quitar foto',
     uploading: 'Subiendo...',
     changePhotoAria: 'Cambiar foto de perfil',
+    cropTitle: 'Ajusta tu foto',
+    cropDescription: 'Arrastra y haz zoom para encuadrar tu foto de perfil.',
+    cropZoomLabel: 'Zoom',
+    cropCancel: 'Cancelar',
+    cropConfirm: 'Usar foto',
+    cropProcessing: 'Procesando...',
   },
 
   form: {
@@ -33,6 +39,7 @@ export const profileCopy = {
     saveFailed: 'No se pudo guardar la foto.',
     generic: 'Ocurrió un error. Intenta de nuevo.',
     compressionFailed: 'Error al procesar la imagen. Intenta de nuevo.',
+    cropFailed: 'No se pudo recortar la imagen. Intenta de nuevo.',
     invalidPhone: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
   },
 } as const
