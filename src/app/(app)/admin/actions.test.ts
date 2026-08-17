@@ -47,7 +47,9 @@ const businessInsertAwait = vi.fn()
 const commissionUpdateSelect = vi.fn()
 const roleRequestSingle = vi.fn()
 const roleRequestStatusUpdate = vi.fn()
+const roleRequestUpdateSingle = vi.fn() // .update(...).eq('id',...).select('user_id, requested_role').single() — rejectRoleRequest
 const cancelOtherPending = vi.fn()
+const getUserByIdMock = vi.fn()
 const profileRoleUpdate = vi.fn()
 const categoriesSelect = vi.fn()
 const categoryLinksInsert = vi.fn()
@@ -111,7 +113,10 @@ vi.mock('@/lib/supabase/admin', () => ({
               eq: (col: string, val: string) => {
                 if (col === 'id') {
                   roleRequestStatusUpdate(payload, val)
-                  return Promise.resolve({ error: null })
+                  return {
+                    select: () => ({ single: () => roleRequestUpdateSingle(payload, val) }),
+                    then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve({ error: null })),
+                  }
                 }
                 // cancel-other-pending: .eq('user_id', ...).eq('status', 'pending').neq('id', ...)
                 return {
@@ -158,7 +163,18 @@ vi.mock('@/lib/supabase/admin', () => ({
         createSignedUploadUrl: (path: string) => storageCreateSignedUploadUrl(bucket, path),
       }),
     },
+    auth: {
+      admin: { getUserById: (id: string) => getUserByIdMock(id) },
+    },
   })),
+}))
+
+const sendRoleRequestApprovedEmailMock = vi.fn()
+const sendRoleRequestRejectedEmailMock = vi.fn()
+
+vi.mock('@/lib/email/roleRequestEmails', () => ({
+  sendRoleRequestApprovedEmail: (...args: unknown[]) => sendRoleRequestApprovedEmailMock(...args),
+  sendRoleRequestRejectedEmail: (...args: unknown[]) => sendRoleRequestRejectedEmailMock(...args),
 }))
 
 const {
@@ -207,6 +223,8 @@ beforeEach(() => {
   authGetUser.mockResolvedValue({ data: { user: { id: ADMIN_ID } } })
   adminProfileSingle.mockResolvedValue({ data: { role: 'admin' } })
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
+  getUserByIdMock.mockResolvedValue({ data: { user: { email: 'applicant@example.com' } } })
+  roleRequestUpdateSingle.mockResolvedValue({ data: { user_id: USER_ID, requested_role: 'transporter' }, error: null })
 })
 
 describe('getAuthenticatedAdmin guard (shared by every action in this file)', () => {
@@ -409,6 +427,33 @@ describe('approveRoleRequest', () => {
     expect(businessInsertSingle).toHaveBeenCalledWith(
       expect.objectContaining({ lat: null, lng: null }),
     )
+  })
+
+  it('sends the approved email to the applicant using the requested role', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'business_owner', metadata: { business_name: 'Finca Y' } },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-5' } })
+    getUserByIdMock.mockResolvedValue({ data: { user: { email: 'owner@example.com' } } })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(getUserByIdMock).toHaveBeenCalledWith(USER_ID)
+    expect(sendRoleRequestApprovedEmailMock).toHaveBeenCalledWith('owner@example.com', 'business_owner')
+  })
+
+  it('does not send an approved email when the auth user has no email on file', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'business_owner', metadata: { business_name: 'Finca Z' } },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-6' } })
+    getUserByIdMock.mockResolvedValue({ data: { user: null } })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(sendRoleRequestApprovedEmailMock).not.toHaveBeenCalled()
   })
 
   it('business_owner: hardcodes status/verified regardless of conflicting applicant-supplied metadata', async () => {
@@ -751,6 +796,31 @@ describe('rejectRoleRequest', () => {
     const fd = formData({ requestId: REQUEST_ID, rejection_reason: 'No cumple los requisitos' })
     await expect(rejectRoleRequest(fd)).rejects.toThrow('redirect:/')
     expect(roleRequestStatusUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sends the rejected email to the applicant with the trimmed reason', async () => {
+    roleRequestUpdateSingle.mockResolvedValue({
+      data: { user_id: USER_ID, requested_role: 'tourist_guide' },
+      error: null,
+    })
+    getUserByIdMock.mockResolvedValue({ data: { user: { email: 'guide@example.com' } } })
+
+    const fd = formData({ requestId: REQUEST_ID, rejection_reason: '  Faltan referencias  ' })
+    await rejectRoleRequest(fd)
+
+    expect(getUserByIdMock).toHaveBeenCalledWith(USER_ID)
+    expect(sendRoleRequestRejectedEmailMock).toHaveBeenCalledWith(
+      'guide@example.com',
+      'tourist_guide',
+      'Faltan referencias',
+    )
+  })
+
+  it('does not send a rejected email when the update returns no row', async () => {
+    roleRequestUpdateSingle.mockResolvedValue({ data: null, error: { message: 'not found' } })
+    const fd = formData({ requestId: REQUEST_ID, rejection_reason: 'No cumple los requisitos' })
+    await rejectRoleRequest(fd)
+    expect(sendRoleRequestRejectedEmailMock).not.toHaveBeenCalled()
   })
 })
 
