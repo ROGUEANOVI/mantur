@@ -148,15 +148,26 @@ export default async function LugarDetailPage({
               <p className="text-sm text-foreground/80 leading-relaxed">{p.description}</p>
             )}
             {p.lat != null && p.lng != null && (
-              <a
-                href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline active:scale-95 transition-transform"
-              >
-                <MapPin className="size-4 shrink-0" aria-hidden="true" />
-                {copy.viewMap}
-              </a>
+              <>
+                <div className="rounded-2xl overflow-hidden h-48 md:h-64">
+                  <iframe
+                    src={`https://www.google.com/maps?q=${p.lat},${p.lng}&output=embed`}
+                    title={p.name}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    className="w-full h-full border-0"
+                  />
+                </div>
+                <a
+                  href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline active:scale-95 transition-transform"
+                >
+                  <MapPin className="size-4 shrink-0" aria-hidden="true" />
+                  {copy.viewMap}
+                </a>
+              </>
             )}
           </Reveal>
         </section>
