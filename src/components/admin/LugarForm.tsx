@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import type { createPlace, updatePlace } from '@/app/(app)/admin/actions'
+import LocationPicker from '@/components/shared/LocationPicker'
 
 type ActionFn = typeof createPlace | typeof updatePlace
 type FormState = { error: string } | { success: true } | undefined
@@ -104,36 +105,12 @@ export default function LugarForm({ action, place }: Props) {
       </div>
 
       {/* Coordinates */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label htmlFor="lat" className="block text-sm font-medium text-foreground">
-            {copy.lat}
-          </label>
-          <input
-            id="lat"
-            name="lat"
-            type="number"
-            step="any"
-            defaultValue={place?.lat ?? ''}
-            placeholder={copy.latPlaceholder}
-            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="lng" className="block text-sm font-medium text-foreground">
-            {copy.lng}
-          </label>
-          <input
-            id="lng"
-            name="lng"
-            type="number"
-            step="any"
-            defaultValue={place?.lng ?? ''}
-            placeholder={copy.lngPlaceholder}
-            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
-          />
-        </div>
-      </div>
+      <LocationPicker
+        defaultLat={place?.lat ?? null}
+        defaultLng={place?.lng ?? null}
+        label={copy.location}
+        hint={copy.locationHint}
+      />
 
       {/* Error */}
       {errorMsg && (

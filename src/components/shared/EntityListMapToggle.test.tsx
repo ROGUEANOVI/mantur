@@ -1,43 +1,43 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import PlacesListMapToggle from './PlacesListMapToggle'
+import EntityListMapToggle from './EntityListMapToggle'
 
 vi.mock('next/dynamic', () => ({
   default: () => {
-    function MockPlacesMap() {
-      return <div data-testid="places-map-mock" />
+    function MockEntityMap() {
+      return <div data-testid="entity-map-mock" />
     }
-    return MockPlacesMap
+    return MockEntityMap
   },
 }))
 
-describe('PlacesListMapToggle', () => {
+describe('EntityListMapToggle', () => {
   it('shows the list (children) by default', () => {
     render(
-      <PlacesListMapToggle mapPlaces={[]}>
+      <EntityListMapToggle mapItems={[]} basePath="/lugares" listLabel="Lista" mapLabel="Mapa">
         <div data-testid="list-content">Grid</div>
-      </PlacesListMapToggle>,
+      </EntityListMapToggle>,
     )
 
     expect(screen.getByTestId('list-content')).toBeInTheDocument()
-    expect(screen.queryByTestId('places-map-mock')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('entity-map-mock')).not.toBeInTheDocument()
   })
 
   it('switches to the map view and back when toggling pills', async () => {
     const user = userEvent.setup()
     render(
-      <PlacesListMapToggle mapPlaces={[]}>
+      <EntityListMapToggle mapItems={[]} basePath="/lugares" listLabel="Lista" mapLabel="Mapa">
         <div data-testid="list-content">Grid</div>
-      </PlacesListMapToggle>,
+      </EntityListMapToggle>,
     )
 
     await user.click(screen.getByRole('tab', { name: 'Mapa' }))
     expect(screen.queryByTestId('list-content')).not.toBeInTheDocument()
-    expect(screen.getByTestId('places-map-mock')).toBeInTheDocument()
+    expect(screen.getByTestId('entity-map-mock')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'Lista' }))
     expect(screen.getByTestId('list-content')).toBeInTheDocument()
-    expect(screen.queryByTestId('places-map-mock')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('entity-map-mock')).not.toBeInTheDocument()
   })
 })

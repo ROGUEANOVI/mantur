@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
+import LocationPicker from '@/components/shared/LocationPicker'
 
 type ActionResult = { error: string } | { success: true }
 type FormState = ActionResult | undefined
@@ -147,6 +148,13 @@ export default function AdminBusinessForm({ action, owners }: Props) {
           className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
+
+      <LocationPicker
+        defaultLat={null}
+        defaultLng={null}
+        label={copy.location}
+        hint={copy.locationHint}
+      />
 
       <div className="flex gap-3 pt-2">
         <Link

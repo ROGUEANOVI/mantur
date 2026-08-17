@@ -38,12 +38,20 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
   const phone = (formData.get('phone') as string | null)?.trim() || null
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: 'Las coordenadas deben ser números válidos.' }
+  }
+
   if (!name) return { error: 'El nombre del negocio es obligatorio.' }
   if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
 
   const { data: newBusiness, error } = await supabase
     .from('businesses')
-    .insert({ owner_id: userId, name, description, type: 'other', address, phone, verified: false, status: 'pending' })
+    .insert({ owner_id: userId, name, description, type: 'other', address, phone, lat, lng, verified: false, status: 'pending' })
     .select('id')
     .single()
 
@@ -76,12 +84,20 @@ export async function updateBusiness(
   const phone = (formData.get('phone') as string | null)?.trim() || null
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: 'Las coordenadas deben ser números válidos.' }
+  }
+
   if (!name) return { error: 'El nombre del negocio es obligatorio.' }
   if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
 
   const { error } = await supabase
     .from('businesses')
-    .update({ name, description, address, phone })
+    .update({ name, description, address, phone, lat, lng })
     .eq('id', businessId)
     .eq('owner_id', userId)
 
