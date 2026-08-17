@@ -297,6 +297,19 @@ describe('createGuideTour', () => {
     expect(tourInsertMock).toHaveBeenCalledWith(expect.objectContaining({ price: 0 }))
   })
 
+  it('rejects a price above the 100,000,000 cap', async () => {
+    const fd = formData({ name: 'Tour', price: '100000001' })
+    const result = await createGuideTour(fd)
+    expect(result).toEqual({ error: 'El precio debe ser un número mayor o igual a 0.' })
+  })
+
+  it('accepts a price of exactly the 100,000,000 cap', async () => {
+    tourInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Tour caro', price: '100000000' })
+    await expect(createGuideTour(fd)).rejects.toThrow('redirect:/mi-perfil-guia')
+    expect(tourInsertMock).toHaveBeenCalledWith(expect.objectContaining({ price: 100_000_000 }))
+  })
+
   it('defaults capacity to 1 when not provided, and rejects an invalid one when provided', async () => {
     tourInsertMock.mockResolvedValue({ error: null })
     const fd = formData({ name: 'Tour', price: '10000' })

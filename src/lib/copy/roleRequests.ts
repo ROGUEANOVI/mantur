@@ -116,5 +116,8 @@ export const roleRequestsCopy = {
     rateLimited:    'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
     invalidPhone:   'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
     invalidCoords:  'Las coordenadas deben ser números válidos.',
+    invalidLicensePlate: 'Escribe una placa colombiana válida (ej: ABC123).',
+    invalidVehicleType: 'Selecciona un tipo de vehículo válido.',
+    invalidExperienceYears: 'Los años de experiencia deben estar entre 0 y 60.',
   },
 } as const

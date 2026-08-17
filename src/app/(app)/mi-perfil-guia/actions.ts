@@ -91,9 +91,13 @@ export async function toggleGuideAvailability(): Promise<ActionResult> {
   revalidatePath('/guias')
 }
 
+// Same bound as src/app/(app)/mi-negocio/parsers.ts's parsePrice — kept
+// local (not imported) since this file's guide-tour price is a distinct
+// domain concept, but the two "set a price for a bookable thing" flows
+// should reject the same unreasonable values.
 function parsePrice(raw: string): number | null {
   const n = Number(raw)
-  return Number.isFinite(n) && n >= 0 ? n : null
+  return Number.isFinite(n) && n >= 0 && n <= 100_000_000 ? n : null
 }
 
 export async function createGuideTour(formData: FormData): Promise<ActionResult> {

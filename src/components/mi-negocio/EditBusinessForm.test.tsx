@@ -145,4 +145,28 @@ describe('EditBusinessForm', () => {
 
     resolveAction(undefined)
   })
+
+  it('shows an inline error on blur for an invalid phone, without submitting', async () => {
+    const user = userEvent.setup()
+    render(
+      <EditBusinessForm
+        businessId={BIZ_ID}
+        defaultValues={DEFAULT_VALUES}
+        categories={CATEGORIES}
+        selectedCategoryIds={['cat-1']}
+      />,
+    )
+
+    const phoneInput = screen.getByLabelText('Teléfono de contacto')
+    await user.clear(phoneInput)
+    await user.type(phoneInput, 'abcdefgh')
+    await user.tab()
+
+    expect(
+      await screen.findByText('Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    expect(updateBusinessMock).not.toHaveBeenCalled()
+  })
 })

@@ -232,17 +232,20 @@ describe('signUp', () => {
     )
   })
 
-  it('stores full_name as null when it is not provided', async () => {
-    authSignUp.mockResolvedValue({ data: { user: { id: 'new-user-3' }, session: {} }, error: null })
-    profilesUpsert.mockResolvedValue({ error: null })
-
+  it('rejects a missing full_name without calling Supabase', async () => {
     const fd = formData({ email: 'x@example.com', password: 'Correct1!' })
-    await expect(signUp(fd)).rejects.toThrow('redirect:/')
+    const result = await signUp(fd)
 
-    expect(profilesUpsert).toHaveBeenCalledWith(
-      { id: 'new-user-3', full_name: null, role: 'tourist' },
-      { onConflict: 'id' },
-    )
+    expect(result).toEqual({ error: 'El nombre es obligatorio.' })
+    expect(authSignUp).not.toHaveBeenCalled()
+  })
+
+  it('rejects a full_name containing digits or symbols, without calling Supabase', async () => {
+    const fd = formData({ email: 'x@example.com', password: 'Correct1!', full_name: 'Ana123' })
+    const result = await signUp(fd)
+
+    expect(result).toEqual({ error: 'El nombre solo puede contener letras y espacios.' })
+    expect(authSignUp).not.toHaveBeenCalled()
   })
 
   it('redirects without touching the profile when Supabase returns no user (e.g. email confirmation pending)', async () => {

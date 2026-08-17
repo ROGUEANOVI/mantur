@@ -6,8 +6,12 @@ import { createClient } from '@/lib/supabase/server'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { roleRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { normalizeLicensePlate } from '@/lib/licensePlate'
 
 type ActionResult = { error?: string; success?: boolean }
+
+const VALID_VEHICLE_TYPES = new Set(['motocarro', 'moto', 'camioneta', 'otro'])
+const MAX_EXPERIENCE_YEARS = 60
 
 const REQUESTABLE_ROLES = ['business_owner', 'transporter', 'tourist_guide'] as const
 type RequestableRole = (typeof REQUESTABLE_ROLES)[number]
@@ -58,8 +62,10 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
   if (requestedRole === 'business_owner') {
     const businessName = (formData.get('business_name') as string | null)?.trim()
     const categorySlugs = formData.getAll('category_slugs') as string[]
-    const phone = (formData.get('phone') as string | null)?.trim()
-    if (!businessName || !categorySlugs.length || !phone) return { error: copy.missingFields }
+    const rawPhone = (formData.get('phone') as string | null)?.trim()
+    if (!businessName || !categorySlugs.length || !rawPhone) return { error: copy.missingFields }
+    const phone = normalizeColombianPhone(rawPhone)
+    if (!phone) return { error: copy.invalidPhone }
 
     const rawLat = (formData.get('lat') as string | null) ?? ''
     const rawLng = (formData.get('lng') as string | null) ?? ''
@@ -73,10 +79,16 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
   }
 
   if (requestedRole === 'transporter') {
-    const licensePlate = (formData.get('license_plate') as string | null)?.trim().toUpperCase()
+    const rawLicensePlate = (formData.get('license_plate') as string | null)?.trim()
     const vehicleType = (formData.get('vehicle_type') as string | null)?.trim()
     const rawPhone = (formData.get('phone') as string | null)?.trim()
-    if (!licensePlate || !vehicleType || !rawPhone) return { error: copy.missingFields }
+    if (!rawLicensePlate || !vehicleType || !rawPhone) return { error: copy.missingFields }
+
+    const licensePlate = normalizeLicensePlate(rawLicensePlate)
+    if (!licensePlate) return { error: copy.invalidLicensePlate }
+
+    if (!VALID_VEHICLE_TYPES.has(vehicleType)) return { error: copy.invalidVehicleType }
+
     const phone = normalizeColombianPhone(rawPhone)
     if (!phone) return { error: copy.invalidPhone }
     metadata = { license_plate: licensePlate, vehicle_type: vehicleType, phone }
@@ -90,6 +102,9 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
     const rawPhone = (formData.get('phone') as string | null)?.trim()
     if (!specialties.length || !languages.length || !Number.isFinite(experienceYears) || !bio || !rawPhone) {
       return { error: copy.missingFields }
+    }
+    if (experienceYears < 0 || experienceYears > MAX_EXPERIENCE_YEARS) {
+      return { error: copy.invalidExperienceYears }
     }
     const phone = normalizeColombianPhone(rawPhone)
     if (!phone) return { error: copy.invalidPhone }

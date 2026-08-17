@@ -138,7 +138,10 @@ export async function createBusinessAsAdmin(
 
   const description = (formData.get('description') as string | null)?.trim() || null
   const address = (formData.get('address') as string | null)?.trim() || null
-  const phone = (formData.get('phone') as string | null)?.trim() || null
+  const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
+
+  const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
+  if (rawPhone && !phone) return { error: adminCopy.negocios.form.errors.invalidPhone }
 
   const rawLat = formData.get('lat') as string
   const rawLng = formData.get('lng') as string

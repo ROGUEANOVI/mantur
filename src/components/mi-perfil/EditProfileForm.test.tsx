@@ -110,6 +110,40 @@ describe('EditProfileForm', () => {
     resolveAction(undefined)
   })
 
+  it('shows an inline error on blur for an invalid phone, without submitting', async () => {
+    const user = userEvent.setup()
+    render(<EditProfileForm {...DEFAULT_PROPS} />)
+
+    const phoneInput = screen.getByLabelText('Teléfono')
+    await user.clear(phoneInput)
+    await user.type(phoneInput, 'abcdefgh')
+    await user.tab()
+
+    expect(
+      await screen.findByText('Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    expect(updateProfileMock).not.toHaveBeenCalled()
+  })
+
+  it('shows an inline error on blur for a name with digits/symbols, without submitting', async () => {
+    const user = userEvent.setup()
+    render(<EditProfileForm {...DEFAULT_PROPS} />)
+
+    const nameInput = screen.getByLabelText('Nombre completo')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Ana123')
+    await user.tab()
+
+    expect(
+      await screen.findByText('El nombre solo puede contener letras y espacios.'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    expect(updateProfileMock).not.toHaveBeenCalled()
+  })
+
   it('passes the avatar props through to the avatar uploader', () => {
     render(<EditProfileForm {...DEFAULT_PROPS} avatarUrl="https://x/a.webp" />)
     expect(screen.getByRole('img', { name: 'Ana Pérez' })).toHaveAttribute('src', 'https://x/a.webp')

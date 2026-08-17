@@ -963,6 +963,23 @@ describe('createBusinessAsAdmin', () => {
     expect(result).toEqual({ error: 'Error al crear el negocio. Intenta de nuevo.' })
   })
 
+  it('normalizes a formatted phone number before storing it', async () => {
+    businessInsertAwait.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID, phone: '+57 300 123 4567' })
+    const result = await createBusinessAsAdmin(fd)
+
+    expect(result).toEqual({ success: true })
+    expect(businessInsertAwait).toHaveBeenCalledWith(expect.objectContaining({ phone: '3001234567' }))
+  })
+
+  it('rejects a phone number that is not a valid Colombian mobile, without inserting', async () => {
+    const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID, phone: 'not-a-phone' })
+    const result = await createBusinessAsAdmin(fd)
+
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(businessInsertAwait).not.toHaveBeenCalled()
+  })
+
   it('redirects to / when a non-admin calls createBusinessAsAdmin', async () => {
     adminProfileSingle.mockResolvedValue({ data: { role: 'business_owner' } })
     const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID })

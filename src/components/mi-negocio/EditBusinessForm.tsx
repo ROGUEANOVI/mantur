@@ -1,14 +1,17 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 
 import { updateBusiness } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
+import { normalizeColombianPhone } from '@/lib/phone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import LocationPicker from '@/components/shared/LocationPicker'
+
+const INVALID_PHONE = 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'
 
 type FormState = { error: string | null }
 type Category = { id: string; name: string }
@@ -33,9 +36,21 @@ export default function EditBusinessForm({
   categories,
   selectedCategoryIds,
 }: Props) {
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+
+  function handlePhoneBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const raw = e.target.value.trim()
+    setPhoneError(raw && !normalizeColombianPhone(raw) ? INVALID_PHONE : null)
+  }
+
   const boundAction = updateBusiness.bind(null, businessId)
 
   async function editAction(_prev: FormState, formData: FormData): Promise<FormState> {
+    const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
+    if (rawPhone && !normalizeColombianPhone(rawPhone)) {
+      setPhoneError(INVALID_PHONE)
+      return { error: null }
+    }
     const result = await boundAction(formData)
     return result ?? { error: null }
   }
@@ -136,8 +151,15 @@ export default function EditBusinessForm({
           name="phone"
           autoComplete="tel"
           defaultValue={defaultValues.phone ?? ''}
+          onBlur={handlePhoneBlur}
+          onChange={() => phoneError && setPhoneError(null)}
+          aria-invalid={phoneError ? true : undefined}
           placeholder={copy.form.phonePlaceholder}
+          className="aria-invalid:border-destructive"
         />
+        {phoneError && (
+          <p role="alert" className="text-sm text-destructive">{phoneError}</p>
+        )}
       </div>
 
       {/* Location */}

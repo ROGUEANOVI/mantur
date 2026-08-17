@@ -5,6 +5,7 @@ import { Store, Car, Compass, ChevronRight, ArrowLeft } from 'lucide-react'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { submitRoleRequest } from './actions'
 import { cn } from '@/lib/utils'
+import { normalizeColombianPhone } from '@/lib/phone'
 import LocationPicker from '@/components/shared/LocationPicker'
 
 type RequestableRole = 'business_owner' | 'transporter' | 'tourist_guide'
@@ -26,8 +27,27 @@ const ROLE_CARDS: {
 
 export default function RoleRequestForm({ categories }: { categories: Category[] }) {
   const [selected, setSelected] = useState<RequestableRole | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+
+  function selectRole(role: RequestableRole | null) {
+    setPhoneError(null)
+    setSelected(role)
+  }
+
+  function handlePhoneBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const raw = e.target.value.trim()
+    setPhoneError(raw && !normalizeColombianPhone(raw) ? copy.errors.invalidPhone : null)
+  }
+
   const [state, action, pending] = useActionState<ActionResult, FormData>(
-    async (_prev, formData) => submitRoleRequest(formData),
+    async (_prev, formData) => {
+      const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
+      if (rawPhone && !normalizeColombianPhone(rawPhone)) {
+        setPhoneError(copy.errors.invalidPhone)
+        return {}
+      }
+      return submitRoleRequest(formData)
+    },
     {},
   )
 
@@ -50,7 +70,7 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
             <button
               key={value}
               type="button"
-              onClick={() => setSelected(value)}
+              onClick={() => selectRole(value)}
               className="w-full flex items-start gap-4 rounded-2xl border border-border bg-card shadow-sm p-5 text-left hover:border-primary/50 hover:shadow-md transition-all group"
             >
               <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', bg)}>
@@ -88,7 +108,7 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
         </div>
         <button
           type="button"
-          onClick={() => setSelected(null)}
+          onClick={() => selectRole(null)}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
@@ -115,7 +135,7 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
               ))}
             </div>
           </div>
-          <Field label={copy.form.businessOwner.phone} name="phone" placeholder={copy.form.businessOwner.phonePlaceholder} type="tel" />
+          <Field label={copy.form.businessOwner.phone} name="phone" placeholder={copy.form.businessOwner.phonePlaceholder} type="tel" onBlur={handlePhoneBlur} error={phoneError} />
           <LocationPicker
             defaultLat={null}
             defaultLng={null}
@@ -141,7 +161,7 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
               ))}
             </select>
           </div>
-          <Field label={copy.form.transporter.phone} name="phone" placeholder={copy.form.transporter.phonePlaceholder} type="tel" />
+          <Field label={copy.form.transporter.phone} name="phone" placeholder={copy.form.transporter.phonePlaceholder} type="tel" onBlur={handlePhoneBlur} error={phoneError} />
         </fieldset>
       )}
 
@@ -171,7 +191,7 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
             </div>
           </div>
 
-          <Field label={copy.form.touristGuide.phone} name="phone" placeholder={copy.form.touristGuide.phonePlaceholder} type="tel" />
+          <Field label={copy.form.touristGuide.phone} name="phone" placeholder={copy.form.touristGuide.phonePlaceholder} type="tel" onBlur={handlePhoneBlur} error={phoneError} />
 
           <Field label={copy.form.touristGuide.experienceYears} name="experience_years" placeholder={copy.form.touristGuide.experienceYearsPlaceholder} type="number" min={0} max={60} />
 
@@ -216,8 +236,9 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
   )
 }
 
-function Field({ label, name, placeholder, type = 'text', min, max }: {
+function Field({ label, name, placeholder, type = 'text', min, max, onBlur, error }: {
   label: string; name: string; placeholder?: string; type?: string; min?: number; max?: number
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; error?: string | null
 }) {
   return (
     <div className="space-y-1.5">
@@ -230,8 +251,11 @@ function Field({ label, name, placeholder, type = 'text', min, max }: {
         required
         min={min}
         max={max}
-        className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        onBlur={onBlur}
+        aria-invalid={error ? true : undefined}
+        className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 aria-invalid:border-destructive"
       />
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }

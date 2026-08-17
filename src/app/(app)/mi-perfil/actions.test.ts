@@ -115,6 +115,22 @@ describe('updateProfile', () => {
     expect(contactUpsertMock).not.toHaveBeenCalled()
   })
 
+  it('rejects a name containing digits or symbols, without touching the database', async () => {
+    const result = await updateProfile(formData({ full_name: 'Ana123', phone: '3001234567' }))
+    expect(result).toEqual({ error: 'El nombre solo puede contener letras y espacios.' })
+    expect(profileUpdateMock).not.toHaveBeenCalled()
+    expect(contactUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts accented letters, ñ, apostrophes, and hyphens in the name', async () => {
+    profileUpdateMock.mockResolvedValue({ error: null })
+    contactUpsertMock.mockResolvedValue({ error: null })
+
+    await updateProfile(formData({ full_name: "María José O'Connor-Peña", phone: '3001234567' }))
+
+    expect(profileUpdateMock).toHaveBeenCalledWith({ full_name: "María José O'Connor-Peña" }, 'id', USER_ID)
+  })
+
   it('trims the name, updates profiles, and upserts phone into profile_contact_details', async () => {
     profileUpdateMock.mockResolvedValue({ error: null })
     contactUpsertMock.mockResolvedValue({ error: null })
@@ -139,6 +155,25 @@ describe('updateProfile', () => {
       { profile_id: USER_ID, phone: null },
       { onConflict: 'profile_id' },
     )
+  })
+
+  it('normalizes a formatted phone number before storing it', async () => {
+    profileUpdateMock.mockResolvedValue({ error: null })
+    contactUpsertMock.mockResolvedValue({ error: null })
+
+    await updateProfile(formData({ full_name: 'Ana Pérez', phone: '+57 300 123 4567' }))
+
+    expect(contactUpsertMock).toHaveBeenCalledWith(
+      { profile_id: USER_ID, phone: '3001234567' },
+      { onConflict: 'profile_id' },
+    )
+  })
+
+  it('rejects a phone number that is not a valid Colombian mobile, without touching the database', async () => {
+    const result = await updateProfile(formData({ full_name: 'Ana Pérez', phone: 'not-a-phone' }))
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(profileUpdateMock).not.toHaveBeenCalled()
+    expect(contactUpsertMock).not.toHaveBeenCalled()
   })
 
   it('returns a generic error when the profiles update fails, without touching profile_contact_details', async () => {

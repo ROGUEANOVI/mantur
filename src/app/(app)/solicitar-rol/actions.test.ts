@@ -194,6 +194,22 @@ describe('business_owner metadata', () => {
     expect(result).toEqual({ error: 'Las coordenadas deben ser números válidos.' })
     expect(roleRequestInsertMock).not.toHaveBeenCalled()
   })
+
+  it('normalizes a formatted phone number in the stored metadata', async () => {
+    roleRequestInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ requested_role: 'business_owner', ...validFields, phone: '+57 300 123 4567' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ success: true })
+    const insertPayload = roleRequestInsertMock.mock.calls[0][0] as { metadata: { phone: string } }
+    expect(insertPayload.metadata.phone).toBe('3001234567')
+  })
+
+  it('rejects an invalid phone without inserting', async () => {
+    const fd = formData({ requested_role: 'business_owner', ...validFields, phone: '123' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('transporter metadata', () => {
@@ -209,13 +225,27 @@ describe('transporter metadata', () => {
     expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
   })
 
-  it('uppercases the license plate and builds the metadata on success', async () => {
+  it('normalizes (uppercases, strips spaces/hyphens) the license plate and builds the metadata on success', async () => {
     roleRequestInsertMock.mockResolvedValue({ error: null })
     const fd = formData({ requested_role: 'transporter', license_plate: '  abc-123  ', vehicle_type: 'motocarro', phone: '3001234567' })
     await submitRoleRequest(fd)
     expect(roleRequestInsertMock).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: { license_plate: 'ABC-123', vehicle_type: 'motocarro', phone: '3001234567' },
+      metadata: { license_plate: 'ABC123', vehicle_type: 'motocarro', phone: '3001234567' },
     }))
+  })
+
+  it('rejects a license plate that does not match a Colombian plate shape', async () => {
+    const fd = formData({ requested_role: 'transporter', license_plate: 'not-a-plate', vehicle_type: 'moto', phone: '3001234567' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Escribe una placa colombiana válida (ej: ABC123).' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a vehicle_type outside the known set, even if non-empty', async () => {
+    const fd = formData({ requested_role: 'transporter', license_plate: 'ABC123', vehicle_type: 'helicoptero', phone: '3001234567' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Selecciona un tipo de vehículo válido.' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
   })
 
   it('normalizes a phone with country code and formatting noise before storing it', async () => {
@@ -291,5 +321,31 @@ describe('tourist_guide metadata', () => {
     expect(roleRequestInsertMock).toHaveBeenCalledWith(expect.objectContaining({
       metadata: expect.objectContaining({ experience_years: 5 }),
     }))
+  })
+
+  it.each([
+    ['negative', '-1'],
+    ['over the 60-year cap', '61'],
+  ])('rejects experience_years that is %s', async (_label, years) => {
+    const fd = formData({
+      requested_role: 'tourist_guide', specialties: ['ecotourism'], languages: ['spanish'],
+      experience_years: years, bio: 'Guía local con experiencia', phone: '3001234567',
+    })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Los años de experiencia deben estar entre 0 y 60.' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts experience_years at the boundaries (0 and 60)', async () => {
+    roleRequestInsertMock.mockResolvedValue({ error: null })
+    for (const years of ['0', '60']) {
+      roleRequestInsertMock.mockClear()
+      const fd = formData({
+        requested_role: 'tourist_guide', specialties: ['ecotourism'], languages: ['spanish'],
+        experience_years: years, bio: 'Guía local con experiencia', phone: '3001234567',
+      })
+      const result = await submitRoleRequest(fd)
+      expect(result).toEqual({ success: true })
+    }
   })
 })

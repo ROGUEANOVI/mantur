@@ -166,6 +166,21 @@ describe('createTransportRequest validation', () => {
     const result = await createTransportRequest(undefined, fd)
     expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
   })
+
+  it('rejects a people_count above the 20-person cap the client already declares (max="20")', async () => {
+    const fd = formData({ origin: 'A', destination: 'B', requested_datetime: futureDatetime(), people_count: '21' })
+    const result = await createTransportRequest(undefined, fd)
+    expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
+  })
+
+  it('accepts a people_count of exactly the 20-person cap', async () => {
+    transportRequestsInsert.mockResolvedValue({ error: null })
+    const fd = formData({ origin: 'A', destination: 'B', requested_datetime: futureDatetime(), people_count: '20' })
+
+    await expect(createTransportRequest(undefined, fd)).rejects.toThrow('redirect:/mis-viajes')
+
+    expect(transportRequestsInsert).toHaveBeenCalledWith(expect.objectContaining({ people_count: 20 }))
+  })
 })
 
 describe('createTransportRequest success path', () => {

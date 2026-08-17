@@ -277,6 +277,24 @@ describe('createBusiness', () => {
     expect(result).toEqual({ error: 'No se pudo crear el negocio. Intenta de nuevo.' })
     expect(categoryLinksInsertMock).not.toHaveBeenCalled()
   })
+
+  it('normalizes a formatted phone number before storing it', async () => {
+    businessInsertSingle.mockResolvedValue({ data: { id: BIZ_ID }, error: null })
+    categoryLinksInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], phone: '+57 300 123 4567' })
+    await expect(createBusiness(fd)).rejects.toThrow('redirect:/mi-negocio')
+
+    expect(businessInsertSingle).toHaveBeenCalledWith(expect.objectContaining({ phone: '3001234567' }))
+  })
+
+  it('rejects a phone number that is not a valid Colombian mobile, without inserting', async () => {
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], phone: 'not-a-phone' })
+    const result = await createBusiness(fd)
+
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(businessInsertSingle).not.toHaveBeenCalled()
+  })
 })
 
 describe('updateBusiness', () => {
@@ -310,6 +328,28 @@ describe('updateBusiness', () => {
 
     expect(result).toEqual({ error: 'No se pudo actualizar el negocio. Intenta de nuevo.' })
     expect(categoryLinksDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('normalizes a formatted phone number before storing it', async () => {
+    businessUpdateMock.mockResolvedValue({ error: null })
+    categoryLinksDeleteMock.mockResolvedValue({ error: null })
+    categoryLinksInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({ name: 'Nuevo nombre', category_ids: [CAT_ID_1], phone: '+57 300 123 4567' })
+    await expect(updateBusiness(BIZ_ID, fd)).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}`)
+
+    expect(businessUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: '3001234567' }),
+      'id', BIZ_ID, 'owner_id', USER_ID,
+    )
+  })
+
+  it('rejects a phone number that is not a valid Colombian mobile, without updating', async () => {
+    const fd = formData({ name: 'Nuevo nombre', category_ids: [CAT_ID_1], phone: 'not-a-phone' })
+    const result = await updateBusiness(BIZ_ID, fd)
+
+    expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
+    expect(businessUpdateMock).not.toHaveBeenCalled()
   })
 
   it('rejects a missing name', async () => {

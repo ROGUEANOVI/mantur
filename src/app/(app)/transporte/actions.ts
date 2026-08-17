@@ -54,7 +54,7 @@ export async function createTransportRequest(
   }
 
   const peopleCount = parseInt(rawPeople, 10)
-  if (!Number.isInteger(peopleCount) || peopleCount < 1) {
+  if (!Number.isInteger(peopleCount) || peopleCount < 1 || peopleCount > 20) {
     return { error: copy.missingFields }
   }
 

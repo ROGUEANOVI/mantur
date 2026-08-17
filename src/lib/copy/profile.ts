@@ -25,6 +25,7 @@ export const profileCopy = {
 
   errors: {
     nameRequired: 'El nombre es obligatorio.',
+    invalidName: 'El nombre solo puede contener letras y espacios.',
     invalidFile: 'Selecciona una imagen.',
     invalidFormat: 'Formato no válido. Usa JPEG, PNG o WebP.',
     fileTooLarge: 'La imagen no puede superar 2 MB.',
@@ -32,5 +33,6 @@ export const profileCopy = {
     saveFailed: 'No se pudo guardar la foto.',
     generic: 'Ocurrió un error. Intenta de nuevo.',
     compressionFailed: 'Error al procesar la imagen. Intenta de nuevo.',
+    invalidPhone: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
   },
 } as const

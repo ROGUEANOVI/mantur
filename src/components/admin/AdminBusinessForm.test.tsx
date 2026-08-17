@@ -126,4 +126,24 @@ describe('AdminBusinessForm', () => {
 
     resolveAction({ success: true })
   })
+
+  it('shows an inline error on blur for an invalid phone, without calling the action', async () => {
+    const action = vi.fn()
+    const user = userEvent.setup()
+    render(<AdminBusinessForm action={action} owners={OWNERS} />)
+
+    await user.type(screen.getByLabelText('Teléfono'), 'abcdefgh')
+    await user.tab()
+
+    expect(
+      await screen.findByText('Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'),
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Nombre del negocio'), 'Finca X')
+    await user.selectOptions(screen.getByLabelText('Tipo'), 'farm')
+    await user.selectOptions(screen.getByLabelText('Propietario'), 'owner-1')
+    await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
+
+    expect(action).not.toHaveBeenCalled()
+  })
 })
