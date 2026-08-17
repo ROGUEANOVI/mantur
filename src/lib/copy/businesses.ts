@@ -96,6 +96,8 @@ export const businessesCopy = {
     pageSubtitle: 'Los lugares que todo visitante debe conocer en Manaure Balcón del Cesar',
     empty: 'Próximamente se publicarán los imperdibles de Manaure.',
     viewMap: 'Ver en el mapa',
+    listLabel: 'Lista',
+    mapLabel: 'Mapa',
     types: {
       waterfall: 'Cascada',
       river: 'Río',
