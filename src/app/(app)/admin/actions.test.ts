@@ -393,6 +393,42 @@ describe('approveRoleRequest', () => {
     expect(cancelOtherPending).toHaveBeenCalled()
   })
 
+  it('business_owner: passes lat/lng through when present in metadata', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'business_owner',
+        metadata: { business_name: 'Finca Con Ubicación', lat: 11.7808, lng: -72.9944 },
+      },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-3' } })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(businessInsertSingle).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: 11.7808, lng: -72.9944 }),
+    )
+  })
+
+  it('business_owner: stores lat/lng as null when metadata omits them or they are not numbers', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'business_owner',
+        metadata: { business_name: 'Finca Sin Ubicación', lat: 'not-a-number' },
+      },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-4' } })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(businessInsertSingle).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: null, lng: null }),
+    )
+  })
+
   it('sends the approved email to the applicant using the requested role', async () => {
     roleRequestSingle.mockResolvedValue({
       data: { user_id: USER_ID, requested_role: 'business_owner', metadata: { business_name: 'Finca Y' } },

@@ -12,6 +12,7 @@ import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
+import { MANAURE_CENTER } from '@/lib/geo'
 
 const APP_URL = 'https://mantur.co'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -82,6 +83,8 @@ type BusinessDetail = {
   phone: string | null
   images: string[] | null
   videos: string[] | null
+  lat: number | null
+  lng: number | null
   experiences: ExperienceRow[]
 }
 
@@ -109,7 +112,7 @@ export default async function NegocioDetailPage({
   const { data: business, error } = await supabase
     .from('businesses')
     .select(
-      'id, slug, name, description, type, address, phone, images, videos, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
+      'id, slug, name, description, type, address, phone, images, videos, lat, lng, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
     )
     .eq(isLegacyId ? 'id' : 'slug', slug)
     .eq('verified', true)
@@ -145,7 +148,10 @@ export default async function NegocioDetailPage({
           addressCountry: 'CO',
         }
       : undefined,
-    geo: { '@type': 'GeoCoordinates', latitude: 10.4, longitude: -73.1667 },
+    geo:
+      b.lat != null && b.lng != null
+        ? { '@type': 'GeoCoordinates', latitude: b.lat, longitude: b.lng }
+        : { '@type': 'GeoCoordinates', latitude: MANAURE_CENTER[0], longitude: MANAURE_CENTER[1] },
     url: `${APP_URL}/negocios/${b.slug}`,
   }
 
@@ -193,6 +199,17 @@ export default async function NegocioDetailPage({
               </div>
             )}
           </div>
+          {b.lat != null && b.lng != null && (
+            <div className="rounded-2xl overflow-hidden h-48 md:h-64">
+              <iframe
+                src={`https://www.google.com/maps?q=${b.lat},${b.lng}&output=embed`}
+                title={b.name}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="w-full h-full border-0"
+              />
+            </div>
+          )}
         </section>
 
         {/* Experiences */}

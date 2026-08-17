@@ -38,12 +38,20 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
   const phone = (formData.get('phone') as string | null)?.trim() || null
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: 'Las coordenadas deben ser números válidos.' }
+  }
+
   if (!name) return { error: 'El nombre del negocio es obligatorio.' }
   if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
 
   const { data: newBusiness, error } = await supabase
     .from('businesses')
-    .insert({ owner_id: userId, name, description, type: 'other', address, phone, verified: false, status: 'pending' })
+    .insert({ owner_id: userId, name, description, type: 'other', address, phone, lat, lng, verified: false, status: 'pending' })
     .select('id')
     .single()
 
@@ -76,12 +84,20 @@ export async function updateBusiness(
   const phone = (formData.get('phone') as string | null)?.trim() || null
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
 
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: 'Las coordenadas deben ser números válidos.' }
+  }
+
   if (!name) return { error: 'El nombre del negocio es obligatorio.' }
   if (!categoryIds.length) return { error: 'Selecciona al menos una categoría.' }
 
   const { error } = await supabase
     .from('businesses')
-    .update({ name, description, address, phone })
+    .update({ name, description, address, phone, lat, lng })
     .eq('id', businessId)
     .eq('owner_id', userId)
 
@@ -97,55 +113,63 @@ export async function updateBusiness(
   redirect(`/mi-negocio/${businessId}`)
 }
 
-export async function deactivateBusiness(businessId: string, _formData: FormData): Promise<void> {
-  if (!UUID_RE.test(businessId)) return
+// Flips a business between 'active' and 'inactive' in place — no redirect,
+// so it can be driven by a toggle switch instead of a full-page action.
+// Deliberately does not accept 'pending' as a starting state: a business
+// awaiting its first admin approval has nothing meaningful to toggle yet.
+export async function toggleBusinessStatus(
+  businessId: string,
+  currentStatus: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(businessId)) return { error: 'Negocio no encontrado.' }
 
   const { supabase, userId } = await getAuthenticatedOwner()
 
-  const { error } = await supabase
-    .from('businesses')
-    .update({ status: 'inactive' })
-    .eq('id', businessId)
-    .eq('owner_id', userId)
+  if (currentStatus === 'active') {
+    const { error } = await supabase
+      .from('businesses')
+      .update({ status: 'inactive' })
+      .eq('id', businessId)
+      .eq('owner_id', userId)
 
-  if (error) return
+    if (error) return { error: 'No se pudo desactivar el negocio. Intenta de nuevo.' }
 
-  revalidatePath('/mi-negocio', 'layout')
-  revalidatePath('/negocios')
-  redirect('/mi-negocio')
-}
+    revalidatePath('/mi-negocio', 'layout')
+    revalidatePath('/negocios')
+    return
+  }
 
-export async function reactivateBusiness(businessId: string, _formData: FormData): Promise<void> {
-  if (!UUID_RE.test(businessId)) return
+  if (currentStatus === 'inactive') {
+    // Verify ownership with the user client before escalating to admin.
+    const { data: owned } = await supabase
+      .from('businesses')
+      .select('id, verified')
+      .eq('id', businessId)
+      .eq('owner_id', userId)
+      .eq('status', 'inactive')
+      .maybeSingle()
 
-  // Verify ownership with the user client before escalating to admin.
-  const { supabase, userId } = await getAuthenticatedOwner()
-  const { data: owned } = await supabase
-    .from('businesses')
-    .select('id, verified')
-    .eq('id', businessId)
-    .eq('owner_id', userId)
-    .eq('status', 'inactive')
-    .maybeSingle()
+    if (!owned) return { error: 'No se pudo activar el negocio. Intenta de nuevo.' }
 
-  if (!owned) return
+    // Verified businesses restore directly to active — no re-approval needed.
+    // Unverified ones go back to pending for admin review.
+    // RLS only allows owners to set status='inactive', so we use the admin
+    // client here after verifying ownership above.
+    const targetStatus = owned.verified ? 'active' : 'pending'
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from('businesses')
+      .update({ status: targetStatus })
+      .eq('id', businessId)
 
-  // Verified businesses restore directly to active — no re-approval needed.
-  // Unverified ones go back to pending for admin review.
-  // RLS only allows owners to set status='inactive', so we use the admin
-  // client here after verifying ownership above.
-  const targetStatus = owned.verified ? 'active' : 'pending'
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('businesses')
-    .update({ status: targetStatus })
-    .eq('id', businessId)
+    if (error) return { error: 'No se pudo activar el negocio. Intenta de nuevo.' }
 
-  if (error) return
+    revalidatePath('/mi-negocio', 'layout')
+    revalidatePath('/negocios')
+    return
+  }
 
-  revalidatePath('/mi-negocio', 'layout')
-  revalidatePath('/negocios')
-  redirect(`/mi-negocio/${businessId}`)
+  return { error: 'No se pudo actualizar el estado del negocio.' }
 }
 
 export async function createExperience(formData: FormData): Promise<ActionResult> {

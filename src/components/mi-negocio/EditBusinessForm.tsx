@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import LocationPicker from '@/components/shared/LocationPicker'
 
 type FormState = { error: string | null }
 type Category = { id: string; name: string }
@@ -19,6 +20,8 @@ type Props = {
     description: string | null
     address: string | null
     phone: string | null
+    lat: number | null
+    lng: number | null
   }
   categories: Category[]
   selectedCategoryIds: string[]
@@ -136,6 +139,14 @@ export default function EditBusinessForm({
           placeholder={copy.form.phonePlaceholder}
         />
       </div>
+
+      {/* Location */}
+      <LocationPicker
+        defaultLat={defaultValues.lat}
+        defaultLng={defaultValues.lng}
+        label={copy.form.location}
+        hint={copy.form.locationHint}
+      />
 
       {state.error && (
         <p role="alert" className="text-sm text-destructive">

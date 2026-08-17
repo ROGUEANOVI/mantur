@@ -60,7 +60,16 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
     const categorySlugs = formData.getAll('category_slugs') as string[]
     const phone = (formData.get('phone') as string | null)?.trim()
     if (!businessName || !categorySlugs.length || !phone) return { error: copy.missingFields }
-    metadata = { business_name: businessName, category_slugs: categorySlugs, phone }
+
+    const rawLat = (formData.get('lat') as string | null) ?? ''
+    const rawLng = (formData.get('lng') as string | null) ?? ''
+    const lat = rawLat ? Number(rawLat) : null
+    const lng = rawLng ? Number(rawLng) : null
+    if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+      return { error: copy.invalidCoords }
+    }
+
+    metadata = { business_name: businessName, category_slugs: categorySlugs, phone, lat, lng }
   }
 
   if (requestedRole === 'transporter') {

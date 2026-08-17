@@ -140,12 +140,22 @@ export async function createBusinessAsAdmin(
   const address = (formData.get('address') as string | null)?.trim() || null
   const phone = (formData.get('phone') as string | null)?.trim() || null
 
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: adminCopy.negocios.form.errors.invalidCoords }
+  }
+
   const { error } = await admin.from('businesses').insert({
     name,
     type,
     description,
     address,
     phone,
+    lat,
+    lng,
     owner_id: ownerId,
     status: 'active',
     verified: true,
@@ -523,12 +533,17 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     const meta = (request.metadata ?? {}) as Record<string, unknown>
     const businessName = (meta.business_name as string | undefined)?.trim()
     if (businessName) {
+      const lat = typeof meta.lat === 'number' && Number.isFinite(meta.lat) ? meta.lat : null
+      const lng = typeof meta.lng === 'number' && Number.isFinite(meta.lng) ? meta.lng : null
+
       const { data: newBusiness } = await admin
         .from('businesses')
         .insert({
           name: businessName,
           owner_id: request.user_id,
           phone: (meta.phone as string | undefined)?.trim() || null,
+          lat,
+          lng,
           type: 'other',
           status: 'active',
           verified: true,

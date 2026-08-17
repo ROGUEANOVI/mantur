@@ -5,6 +5,7 @@ import { Store, Car, Compass, ChevronRight, ArrowLeft } from 'lucide-react'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { submitRoleRequest } from './actions'
 import { cn } from '@/lib/utils'
+import LocationPicker from '@/components/shared/LocationPicker'
 
 type RequestableRole = 'business_owner' | 'transporter' | 'tourist_guide'
 type ActionResult = { error?: string; success?: boolean }
@@ -115,6 +116,12 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
             </div>
           </div>
           <Field label={copy.form.businessOwner.phone} name="phone" placeholder={copy.form.businessOwner.phonePlaceholder} type="tel" />
+          <LocationPicker
+            defaultLat={null}
+            defaultLng={null}
+            label={copy.form.businessOwner.location}
+            hint={copy.form.businessOwner.locationHint}
+          />
         </fieldset>
       )}
 

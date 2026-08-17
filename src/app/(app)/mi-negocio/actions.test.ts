@@ -33,7 +33,7 @@ const businessInsertSingle = vi.fn()
 const businessUpdateMock = vi.fn()
 const businessDeleteEq = vi.fn()
 const businessOwnershipSingle = vi.fn() // select('id').eq(id).eq(owner_id).single() — createExperience
-const businessReactivateMaybeSingle = vi.fn() // select('id, verified')... .maybeSingle() — reactivateBusiness
+const businessReactivateMaybeSingle = vi.fn() // select('id, verified')... .maybeSingle() — toggleBusinessStatus (activate path)
 const businessImagesMaybeSingle = vi.fn() // select('id, images')... .maybeSingle() — deleteBusinessImage
 const businessMediaMaybeSingle = vi.fn() // select('id, images, videos')... .maybeSingle() — upload/requestBusinessVideoUpload/confirmBusinessVideoUpload
 const businessVideosMaybeSingle = vi.fn() // select('id, videos')... .maybeSingle() — deleteBusinessVideo
@@ -150,8 +150,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 const {
   createBusiness,
   updateBusiness,
-  deactivateBusiness,
-  reactivateBusiness,
+  toggleBusinessStatus,
   createExperience,
   updateExperience,
   toggleExperienceStatus,
@@ -328,59 +327,63 @@ describe('updateBusiness', () => {
   })
 })
 
-describe('deactivateBusiness / reactivateBusiness', () => {
-  it('deactivateBusiness silently returns (no redirect) for a non-UUID id', async () => {
-    await deactivateBusiness('bad-id', new FormData())
-    expect(redirectMock).not.toHaveBeenCalled()
+describe('toggleBusinessStatus', () => {
+  it('returns an error for a non-UUID id, without touching auth', async () => {
+    const result = await toggleBusinessStatus('bad-id', 'active')
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
     expect(authGetUser).not.toHaveBeenCalled()
   })
 
-  it('deactivateBusiness scopes the update to id AND owner_id and redirects on success', async () => {
+  it('deactivates: scopes the update to id AND owner_id, no redirect', async () => {
     businessUpdateMock.mockResolvedValue({ error: null })
-    await expect(deactivateBusiness(BIZ_ID, new FormData())).rejects.toThrow('redirect:/mi-negocio')
+    const result = await toggleBusinessStatus(BIZ_ID, 'active')
+    expect(result).toBeUndefined()
     expect(businessUpdateMock).toHaveBeenCalledWith({ status: 'inactive' }, 'id', BIZ_ID, 'owner_id', USER_ID)
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
-  it('deactivateBusiness silently returns (no redirect) when the update fails (e.g. RLS blocks a non-owner)', async () => {
+  it('deactivates: returns an error when the update fails (e.g. RLS blocks a non-owner)', async () => {
     businessUpdateMock.mockResolvedValue({ error: { message: 'rls blocked' } })
-    await deactivateBusiness(BIZ_ID, new FormData())
-    expect(redirectMock).not.toHaveBeenCalled()
+    const result = await toggleBusinessStatus(BIZ_ID, 'active')
+    expect(result).toEqual({ error: 'No se pudo desactivar el negocio. Intenta de nuevo.' })
   })
 
-  it('reactivateBusiness silently returns (no redirect) for a non-UUID id', async () => {
-    await reactivateBusiness('bad-id', new FormData())
-    expect(redirectMock).not.toHaveBeenCalled()
-    expect(authGetUser).not.toHaveBeenCalled()
-  })
-
-  it('reactivateBusiness silently returns when the admin update fails', async () => {
+  it('activates: returns an error when the admin update fails', async () => {
     businessReactivateMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, verified: true } })
     adminBusinessesUpdate.mockResolvedValue({ error: { message: 'db error' } })
-    await reactivateBusiness(BIZ_ID, new FormData())
-    expect(redirectMock).not.toHaveBeenCalled()
+    const result = await toggleBusinessStatus(BIZ_ID, 'inactive')
+    expect(result).toEqual({ error: 'No se pudo activar el negocio. Intenta de nuevo.' })
   })
 
-  it('reactivateBusiness restores a verified business directly to active', async () => {
+  it('activates: restores a verified business directly to active, no redirect', async () => {
     businessReactivateMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, verified: true } })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
-    await expect(reactivateBusiness(BIZ_ID, new FormData())).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}`)
+    const result = await toggleBusinessStatus(BIZ_ID, 'inactive')
+    expect(result).toBeUndefined()
     expect(adminBusinessesUpdate).toHaveBeenCalledWith({ status: 'active' }, 'id', BIZ_ID)
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
-  it('reactivateBusiness sends an unverified business back to pending, not active', async () => {
+  it('activates: sends an unverified business back to pending, not active', async () => {
     businessReactivateMaybeSingle.mockResolvedValue({ data: { id: BIZ_ID, verified: false } })
     adminBusinessesUpdate.mockResolvedValue({ error: null })
 
-    await expect(reactivateBusiness(BIZ_ID, new FormData())).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}`)
+    const result = await toggleBusinessStatus(BIZ_ID, 'inactive')
+    expect(result).toBeUndefined()
     expect(adminBusinessesUpdate).toHaveBeenCalledWith({ status: 'pending' }, 'id', BIZ_ID)
   })
 
-  it('reactivateBusiness does nothing when the business is not owned/not inactive', async () => {
+  it('activates: returns an error when the business is not owned/not inactive', async () => {
     businessReactivateMaybeSingle.mockResolvedValue({ data: null })
-    await reactivateBusiness(BIZ_ID, new FormData())
+    const result = await toggleBusinessStatus(BIZ_ID, 'inactive')
+    expect(result).toEqual({ error: 'No se pudo activar el negocio. Intenta de nuevo.' })
     expect(adminBusinessesUpdate).not.toHaveBeenCalled()
-    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it('returns an error for any other current status (e.g. pending — nothing to toggle yet)', async () => {
+    const result = await toggleBusinessStatus(BIZ_ID, 'pending')
+    expect(result).toEqual({ error: 'No se pudo actualizar el estado del negocio.' })
   })
 })
 
