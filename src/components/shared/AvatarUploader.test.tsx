@@ -37,6 +37,41 @@ describe('AvatarUploader — fallback and current photo', () => {
     )
     expect(screen.queryByRole('button', { name: 'Quitar foto' })).not.toBeInTheDocument()
   })
+
+  it('falls back to initials when the avatar image fails to load (e.g. blocked or expired url)', () => {
+    render(
+      <AvatarUploader avatarUrl="https://x/broken.webp" name="Ana Pérez" uploadAction={vi.fn()} removeAction={vi.fn()} />,
+    )
+
+    fireEvent.error(screen.getByRole('img', { name: 'Ana Pérez' }))
+
+    expect(screen.getByText('AP')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'Ana Pérez' })).not.toBeInTheDocument()
+  })
+
+  it('still shows "Quitar foto" after a failed image load — the stored url is still removable', () => {
+    render(
+      <AvatarUploader avatarUrl="https://x/broken.webp" name="Ana Pérez" uploadAction={vi.fn()} removeAction={vi.fn()} />,
+    )
+
+    fireEvent.error(screen.getByRole('img', { name: 'Ana Pérez' }))
+
+    expect(screen.getByRole('button', { name: 'Quitar foto' })).toBeInTheDocument()
+  })
+
+  it('recovers from a previous load failure once avatarUrl changes (e.g. after a fresh upload)', () => {
+    const { rerender } = render(
+      <AvatarUploader avatarUrl="https://x/broken.webp" name="Ana Pérez" uploadAction={vi.fn()} removeAction={vi.fn()} />,
+    )
+    fireEvent.error(screen.getByRole('img', { name: 'Ana Pérez' }))
+    expect(screen.getByText('AP')).toBeInTheDocument()
+
+    rerender(
+      <AvatarUploader avatarUrl="https://x/new.webp" name="Ana Pérez" uploadAction={vi.fn()} removeAction={vi.fn()} />,
+    )
+
+    expect(screen.getByRole('img', { name: 'Ana Pérez' })).toHaveAttribute('src', 'https://x/new.webp')
+  })
 })
 
 describe('AvatarUploader — upload flow', () => {
