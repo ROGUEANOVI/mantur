@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
+import { List, Map as MapIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { businessesCopy } from '@/lib/copy/businesses'
 import type { MapPlace } from '@/components/shared/PlacesMap'
@@ -23,22 +24,36 @@ export default function PlacesListMapToggle({
 
   return (
     <div>
-      <div className="flex justify-center gap-2 mb-4">
-        {(['list', 'map'] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setView(v)}
-            className={cn(
-              'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95',
-              view === v
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-background text-foreground hover:bg-muted',
-            )}
-          >
-            {v === 'list' ? copy.listLabel : copy.mapLabel}
-          </button>
-        ))}
+      <div className="flex justify-center mb-4">
+        <div
+          role="tablist"
+          aria-label="Cambiar vista"
+          className="inline-flex p-1 rounded-full border border-border bg-muted"
+        >
+          {(
+            [
+              { key: 'list', label: copy.listLabel, Icon: List },
+              { key: 'map', label: copy.mapLabel, Icon: MapIcon },
+            ] as const
+          ).map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => setView(key)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all active:scale-95',
+                view === key
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className="size-4" aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {view === 'list' ? children : <PlacesMap places={mapPlaces} />}

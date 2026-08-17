@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { Store, MapPin } from 'lucide-react'
+import { Store, MapPin, SlidersHorizontal } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 
@@ -131,6 +131,10 @@ export default async function NegociosPage({
 
         {/* Pills de tipo — driven by business_categories table */}
         <div className="border-t border-[#0a2b1e]/10 py-3">
+          <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-[#0a2b1e]/60 mb-2">
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+            {copy.filterLabel}
+          </p>
           <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
             <Link
               href={search ? `/negocios?q=${encodeURIComponent(search)}` : '/negocios'}

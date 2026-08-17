@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark } from 'lucide-react'
+import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark, SlidersHorizontal } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 
@@ -134,6 +134,10 @@ export default async function LugaresPage({
 
         {/* Pills de tipo sobre el mismo fondo oscuro */}
         <div className="border-t border-white/10 py-3">
+          <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-white/60 mb-2">
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+            {copy.filterLabel}
+          </p>
           <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
             <Link
               href={search ? `/lugares?q=${encodeURIComponent(search)}` : '/lugares'}

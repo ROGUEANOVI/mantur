@@ -32,11 +32,11 @@ describe('PlacesListMapToggle', () => {
       </PlacesListMapToggle>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Mapa' }))
+    await user.click(screen.getByRole('tab', { name: 'Mapa' }))
     expect(screen.queryByTestId('list-content')).not.toBeInTheDocument()
     expect(screen.getByTestId('places-map-mock')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Lista' }))
+    await user.click(screen.getByRole('tab', { name: 'Lista' }))
     expect(screen.getByTestId('list-content')).toBeInTheDocument()
     expect(screen.queryByTestId('places-map-mock')).not.toBeInTheDocument()
   })

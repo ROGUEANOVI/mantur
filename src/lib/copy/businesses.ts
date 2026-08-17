@@ -79,6 +79,7 @@ export const businessesCopy = {
   businesses: {
     pageTitle: 'Explora Manaure',
     pageSubtitle: 'Descubre los mejores balnearios, restaurantes y fincas de Manaure',
+    filterLabel: 'Filtrar por tipo',
     empty: 'Próximamente habrá establecimientos disponibles en Manaure.',
     fromPrice: 'Desde',
     viewDetail: 'Ver detalles',
@@ -94,6 +95,7 @@ export const businessesCopy = {
   places: {
     pageTitle: 'Imperdibles de Manaure',
     pageSubtitle: 'Los lugares que todo visitante debe conocer en Manaure Balcón del Cesar',
+    filterLabel: 'Filtrar por tipo',
     empty: 'Próximamente se publicarán los imperdibles de Manaure.',
     viewMap: 'Ver en el mapa',
     listLabel: 'Lista',
