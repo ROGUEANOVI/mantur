@@ -12,7 +12,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy, businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
-import { deactivateBusiness, reactivateBusiness } from '@/app/(app)/mi-negocio/actions'
+import BusinessStatusToggle from '@/components/mi-negocio/BusinessStatusToggle'
 
 type Business = {
   id: string
@@ -77,9 +77,6 @@ export default async function MiNegocioDetailPage({
     .select('id', { count: 'exact', head: true })
     .eq('business_id', b.id)
     .in('status', ['confirmed', 'pending_payment'])
-
-  const boundDeactivate = deactivateBusiness.bind(null, b.id)
-  const boundReactivate = reactivateBusiness.bind(null, b.id)
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -169,34 +166,8 @@ export default async function MiNegocioDetailPage({
           <ChevronRight className="size-5 text-muted-foreground shrink-0" aria-hidden="true" />
         </Link>
 
-        {/* Status toggle */}
-        {b.status === 'inactive' ? (
-          <form action={boundReactivate}>
-            <button
-              type="submit"
-              className={cn(
-                'w-full rounded-2xl border border-primary/40 text-primary bg-primary/5',
-                'text-sm font-medium min-h-[52px] px-5 text-left',
-                'hover:bg-primary/10 transition-colors',
-              )}
-            >
-              Activar negocio
-            </button>
-          </form>
-        ) : (
-          <form action={boundDeactivate}>
-            <button
-              type="submit"
-              className={cn(
-                'w-full rounded-2xl border border-destructive/40 text-destructive bg-destructive/5',
-                'text-sm font-medium min-h-[52px] px-5 text-left',
-                'hover:bg-destructive/10 transition-colors',
-              )}
-            >
-              Desactivar negocio
-            </button>
-          </form>
-        )}
+        {/* Visibility toggle — hidden while pending: nothing to toggle before the first admin approval */}
+        {b.status !== 'pending' && <BusinessStatusToggle businessId={b.id} status={b.status} />}
       </div>
     </main>
   )
