@@ -9,6 +9,7 @@ import { normalizeColombianPhone } from '@/lib/phone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import LocationPicker from '@/components/shared/LocationPicker'
 
 type FormState = { error: string | null }
 type Category = { id: string; name: string }
@@ -138,6 +139,14 @@ export default function CreateBusinessForm({ categories }: { categories: Categor
           <p role="alert" className="text-sm text-destructive">{phoneError}</p>
         )}
       </div>
+
+      {/* Location */}
+      <LocationPicker
+        defaultLat={null}
+        defaultLng={null}
+        label={copy.form.location}
+        hint={copy.form.locationHint}
+      />
 
       {/* Inline error */}
       {state.error && (

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { normalizeColombianPhone } from '@/lib/phone'
+import LocationPicker from '@/components/shared/LocationPicker'
 
 type ActionResult = { error: string } | { success: true }
 type FormState = ActionResult | undefined
@@ -161,6 +162,13 @@ export default function AdminBusinessForm({ action, owners }: Props) {
           <p role="alert" className="text-sm text-destructive">{phoneError}</p>
         )}
       </div>
+
+      <LocationPicker
+        defaultLat={null}
+        defaultLng={null}
+        label={copy.location}
+        hint={copy.locationHint}
+      />
 
       <div className="flex gap-3 pt-2">
         <Link

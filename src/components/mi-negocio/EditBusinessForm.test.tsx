@@ -9,6 +9,15 @@ vi.mock('@/app/(app)/mi-negocio/actions', () => ({
   updateBusiness: (...args: unknown[]) => updateBusinessMock(...args),
 }))
 
+vi.mock('@/components/shared/LocationPicker', () => ({
+  default: ({ defaultLat, defaultLng }: { defaultLat: number | null; defaultLng: number | null }) => (
+    <>
+      <input type="hidden" name="lat" value={defaultLat ?? ''} />
+      <input type="hidden" name="lng" value={defaultLng ?? ''} />
+    </>
+  ),
+}))
+
 const CATEGORIES = [
   { id: 'cat-1', name: 'Restaurante' },
   { id: 'cat-2', name: 'Finca' },
@@ -21,6 +30,8 @@ const DEFAULT_VALUES = {
   description: 'Un lugar tranquilo',
   address: 'Calle 5 #10-20',
   phone: '3001234567',
+  lat: 11.7808,
+  lng: -72.9944,
 }
 
 beforeEach(() => {
@@ -29,7 +40,7 @@ beforeEach(() => {
 
 describe('EditBusinessForm', () => {
   it('pre-populates every field from defaultValues', () => {
-    render(
+    const { container } = render(
       <EditBusinessForm
         businessId={BIZ_ID}
         defaultValues={DEFAULT_VALUES}
@@ -42,6 +53,8 @@ describe('EditBusinessForm', () => {
     expect(screen.getByLabelText('Descripción')).toHaveValue('Un lugar tranquilo')
     expect(screen.getByLabelText('Dirección')).toHaveValue('Calle 5 #10-20')
     expect(screen.getByLabelText('Teléfono de contacto')).toHaveValue('3001234567')
+    expect(container.querySelector('input[name="lat"]')).toHaveValue('11.7808')
+    expect(container.querySelector('input[name="lng"]')).toHaveValue('-72.9944')
   })
 
   it('pre-checks only the categories in selectedCategoryIds', () => {
@@ -62,7 +75,7 @@ describe('EditBusinessForm', () => {
     render(
       <EditBusinessForm
         businessId={BIZ_ID}
-        defaultValues={{ name: 'Finca X', description: null, address: null, phone: null }}
+        defaultValues={{ name: 'Finca X', description: null, address: null, phone: null, lat: null, lng: null }}
         categories={CATEGORIES}
         selectedCategoryIds={[]}
       />,

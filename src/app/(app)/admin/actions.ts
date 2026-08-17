@@ -6,6 +6,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { normalizeColombianPhone } from '@/lib/phone'
+import {
+  sendRoleRequestApprovedEmail,
+  sendRoleRequestRejectedEmail,
+  type RequestableRole,
+} from '@/lib/email/roleRequestEmails'
 
 type ActionResult = { error: string } | { success: true }
 
@@ -138,12 +143,22 @@ export async function createBusinessAsAdmin(
   const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
   if (rawPhone && !phone) return { error: adminCopy.negocios.form.errors.invalidPhone }
 
+  const rawLat = formData.get('lat') as string
+  const rawLng = formData.get('lng') as string
+  const lat = rawLat ? Number(rawLat) : null
+  const lng = rawLng ? Number(rawLng) : null
+  if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+    return { error: adminCopy.negocios.form.errors.invalidCoords }
+  }
+
   const { error } = await admin.from('businesses').insert({
     name,
     type,
     description,
     address,
     phone,
+    lat,
+    lng,
     owner_id: ownerId,
     status: 'active',
     verified: true,
@@ -521,12 +536,17 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     const meta = (request.metadata ?? {}) as Record<string, unknown>
     const businessName = (meta.business_name as string | undefined)?.trim()
     if (businessName) {
+      const lat = typeof meta.lat === 'number' && Number.isFinite(meta.lat) ? meta.lat : null
+      const lng = typeof meta.lng === 'number' && Number.isFinite(meta.lng) ? meta.lng : null
+
       const { data: newBusiness } = await admin
         .from('businesses')
         .insert({
           name: businessName,
           owner_id: request.user_id,
           phone: (meta.phone as string | undefined)?.trim() || null,
+          lat,
+          lng,
           type: 'other',
           status: 'active',
           verified: true,
@@ -595,6 +615,11 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     .eq('status', 'pending')
     .neq('id', requestId)
 
+  const { data: authUser } = await admin.auth.admin.getUserById(request.user_id)
+  if (authUser?.user?.email) {
+    await sendRoleRequestApprovedEmail(authUser.user.email, request.requested_role as RequestableRole)
+  }
+
   revalidatePath('/admin/solicitudes')
   revalidatePath('/solicitar-rol')
   revalidatePath('/negocios')
@@ -608,7 +633,7 @@ export async function rejectRoleRequest(formData: FormData): Promise<void> {
   const reason = (formData.get('rejection_reason') as string | null)?.trim()
   if (!UUID_RE.test(requestId) || !reason) redirect('/admin/solicitudes')
 
-  await admin
+  const { data: updated } = await admin
     .from('role_requests')
     .update({
       status: 'rejected',
@@ -617,6 +642,15 @@ export async function rejectRoleRequest(formData: FormData): Promise<void> {
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', requestId)
+    .select('user_id, requested_role')
+    .single()
+
+  if (updated) {
+    const { data: authUser } = await admin.auth.admin.getUserById(updated.user_id)
+    if (authUser?.user?.email) {
+      await sendRoleRequestRejectedEmail(authUser.user.email, updated.requested_role as RequestableRole, reason)
+    }
+  }
 
   revalidatePath('/admin/solicitudes')
   revalidatePath('/solicitar-rol')

@@ -3,6 +3,15 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import LugarForm from './LugarForm'
 
+vi.mock('@/components/shared/LocationPicker', () => ({
+  default: ({ defaultLat, defaultLng }: { defaultLat: number | null; defaultLng: number | null }) => (
+    <>
+      <input type="hidden" name="lat" value={defaultLat ?? ''} />
+      <input type="hidden" name="lng" value={defaultLng ?? ''} />
+    </>
+  ),
+}))
+
 const PLACE = {
   id: '66666666-6666-6666-6666-666666666666',
   name: 'Pozo Azul',
@@ -30,12 +39,12 @@ describe('LugarForm', () => {
     expect(screen.getByLabelText('Nombre', { exact: false })).toHaveValue('Pozo Azul')
     expect(screen.getByLabelText('Descripción')).toHaveValue('Un pozo natural')
     expect(screen.getByLabelText('Tipo', { exact: false })).toHaveValue('river')
-    expect(screen.getByLabelText('Latitud')).toHaveValue(11.7808)
-    expect(screen.getByLabelText('Longitud')).toHaveValue(-72.9944)
+    expect(container.querySelector('input[name="lat"]')).toHaveValue('11.7808')
+    expect(container.querySelector('input[name="lng"]')).toHaveValue('-72.9944')
   })
 
   it('falls back to empty strings for null description/lat/lng in edit mode', () => {
-    render(
+    const { container } = render(
       <LugarForm
         action={vi.fn()}
         place={{ ...PLACE, description: null, lat: null, lng: null }}
@@ -43,8 +52,8 @@ describe('LugarForm', () => {
     )
 
     expect(screen.getByLabelText('Descripción')).toHaveValue('')
-    expect(screen.getByLabelText('Latitud')).toHaveValue(null)
-    expect(screen.getByLabelText('Longitud')).toHaveValue(null)
+    expect(container.querySelector('input[name="lat"]')).toHaveValue('')
+    expect(container.querySelector('input[name="lng"]')).toHaveValue('')
   })
 
   it('submits the entered fields to the action prop', async () => {

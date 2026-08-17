@@ -18,6 +18,8 @@ export const metadata: Metadata = {
 }
 import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
+import EntityListMapToggle from '@/components/shared/EntityListMapToggle'
+import type { EntityMapMarker } from '@/components/shared/EntityMap'
 import Reveal from '@/components/shared/Reveal'
 import PaginationNav from '@/components/shared/PaginationNav'
 
@@ -38,6 +40,16 @@ type BusinessRow = {
 }
 
 type CategoryRow = { id: string; slug: string; name: string }
+
+type MapBusinessRow = {
+  id: string
+  slug: string
+  name: string
+  images: string[] | null
+  lat: number
+  lng: number
+  business_category_links: CategoryLink[]
+}
 
 export default async function NegociosPage({
   searchParams,
@@ -85,10 +97,41 @@ export default async function NegociosPage({
 
   if (error) throw new Error(error.message)
 
+  const mapSelectClause = activeCategory
+    ? 'id, slug, name, images, lat, lng, business_category_links!inner(business_categories(name, slug))'
+    : 'id, slug, name, images, lat, lng, business_category_links(business_categories(name, slug))'
+
+  let mapQuery = supabase
+    .from('businesses')
+    .select(mapSelectClause)
+    .eq('verified', true)
+    .eq('status', 'active')
+    .not('lat', 'is', null)
+    .not('lng', 'is', null)
+
+  if (activeCategory) mapQuery = mapQuery.eq('business_category_links.category_id', activeCategory.id)
+  if (search) mapQuery = mapQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
+
+  const { data: mapBusinesses, error: mapError } = await mapQuery.order('name')
+
+  if (mapError) throw new Error(mapError.message)
+
   const totalCount = count ?? 0
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
   const copy = businessesCopy.businesses
+
+  const mapMarkers: EntityMapMarker[] = ((mapBusinesses ?? []) as unknown as MapBusinessRow[]).map((b) => ({
+    id: b.id,
+    slug: b.slug,
+    name: b.name,
+    lat: b.lat,
+    lng: b.lng,
+    images: b.images,
+    subtitle: b.business_category_links
+      .map((l) => l.business_categories?.name)
+      .find((n): n is string => Boolean(n)),
+  }))
 
   // Build base params for pagination (exclude page)
   const baseParams: Record<string, string> = {}
@@ -177,7 +220,12 @@ export default async function NegociosPage({
           {!businesses || businesses.length === 0 ? (
             <EmptyState message={search ? `Sin resultados para "${search}"` : copy.empty} />
           ) : (
-            <>
+            <EntityListMapToggle
+              mapItems={mapMarkers}
+              basePath="/negocios"
+              listLabel={copy.listLabel}
+              mapLabel={copy.mapLabel}
+            >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {(businesses as unknown as BusinessRow[]).map((business, i) => (
                   <Reveal key={business.id} delay={Math.min(i, 8) * 50}>
@@ -193,7 +241,7 @@ export default async function NegociosPage({
                 baseParams={baseParams}
                 basePath="/negocios"
               />
-            </>
+            </EntityListMapToggle>
           )}
         </div>
       </div>

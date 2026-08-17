@@ -27,7 +27,7 @@ export default async function EditarNegocioPage({
   const [{ data: business }, { data: categoriesData }, { data: linksData }] = await Promise.all([
     supabase
       .from('businesses')
-      .select('id, name, description, address, phone, images, videos')
+      .select('id, name, description, address, phone, images, videos, lat, lng')
       .eq('id', id)
       .eq('owner_id', user!.id)
       .maybeSingle(),
@@ -78,6 +78,8 @@ export default async function EditarNegocioPage({
               description: business.description,
               address: business.address,
               phone: business.phone,
+              lat: business.lat,
+              lng: business.lng,
             }}
             categories={categories}
             selectedCategoryIds={selectedCategoryIds}

@@ -9,6 +9,15 @@ vi.mock('@/app/(app)/mi-negocio/actions', () => ({
   createBusiness: (formData: FormData) => createBusinessMock(formData),
 }))
 
+vi.mock('@/components/shared/LocationPicker', () => ({
+  default: ({ defaultLat, defaultLng }: { defaultLat: number | null; defaultLng: number | null }) => (
+    <>
+      <input type="hidden" name="lat" value={defaultLat ?? ''} />
+      <input type="hidden" name="lng" value={defaultLng ?? ''} />
+    </>
+  ),
+}))
+
 const CATEGORIES = [
   { id: 'cat-1', name: 'Restaurante' },
   { id: 'cat-2', name: 'Finca' },

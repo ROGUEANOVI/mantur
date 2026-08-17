@@ -20,8 +20,8 @@ import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
 import PaginationNav from '@/components/shared/PaginationNav'
 import Reveal from '@/components/shared/Reveal'
-import PlacesListMapToggle from '@/components/shared/PlacesListMapToggle'
-import type { MapPlace } from '@/components/shared/PlacesMap'
+import EntityListMapToggle from '@/components/shared/EntityListMapToggle'
+import type { EntityMapMarker } from '@/components/shared/EntityMap'
 
 const PAGE_SIZE = 15
 
@@ -93,6 +93,16 @@ export default async function LugaresPage({
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
   const copy = businessesCopy.places
+
+  const mapMarkers: EntityMapMarker[] = (mapPlaces ?? []).map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    lat: p.lat as number,
+    lng: p.lng as number,
+    images: p.images,
+    subtitle: copy.types[p.type] ?? copy.types.other,
+  }))
 
   const baseParams: Record<string, string> = {}
   if (typeFilter) baseParams.type = typeFilter
@@ -180,7 +190,12 @@ export default async function LugaresPage({
           {!places || places.length === 0 ? (
             <EmptyState message={search ? `Sin resultados para "${search}"` : copy.empty} />
           ) : (
-            <PlacesListMapToggle mapPlaces={(mapPlaces ?? []) as MapPlace[]}>
+            <EntityListMapToggle
+              mapItems={mapMarkers}
+              basePath="/lugares"
+              listLabel={copy.listLabel}
+              mapLabel={copy.mapLabel}
+            >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {(places as PlaceRow[]).map((place, i) => (
                   <Reveal key={place.id} delay={Math.min(i, 8) * 50}>
@@ -196,7 +211,7 @@ export default async function LugaresPage({
                 baseParams={baseParams}
                 basePath="/lugares"
               />
-            </PlacesListMapToggle>
+            </EntityListMapToggle>
           )}
         </div>
       </div>

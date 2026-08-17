@@ -3,6 +3,15 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminBusinessForm from './AdminBusinessForm'
 
+vi.mock('@/components/shared/LocationPicker', () => ({
+  default: ({ defaultLat, defaultLng }: { defaultLat: number | null; defaultLng: number | null }) => (
+    <>
+      <input type="hidden" name="lat" value={defaultLat ?? ''} />
+      <input type="hidden" name="lng" value={defaultLng ?? ''} />
+    </>
+  ),
+}))
+
 const OWNERS = [
   { id: 'owner-1', full_name: 'Ana Pérez' },
   { id: 'owner-2', full_name: null },

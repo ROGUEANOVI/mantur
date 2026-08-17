@@ -9,6 +9,7 @@ import { normalizeColombianPhone } from '@/lib/phone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import LocationPicker from '@/components/shared/LocationPicker'
 
 const INVALID_PHONE = 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'
 
@@ -22,6 +23,8 @@ type Props = {
     description: string | null
     address: string | null
     phone: string | null
+    lat: number | null
+    lng: number | null
   }
   categories: Category[]
   selectedCategoryIds: string[]
@@ -158,6 +161,14 @@ export default function EditBusinessForm({
           <p role="alert" className="text-sm text-destructive">{phoneError}</p>
         )}
       </div>
+
+      {/* Location */}
+      <LocationPicker
+        defaultLat={defaultValues.lat}
+        defaultLng={defaultValues.lng}
+        label={copy.form.location}
+        hint={copy.form.locationHint}
+      />
 
       {state.error && (
         <p role="alert" className="text-sm text-destructive">

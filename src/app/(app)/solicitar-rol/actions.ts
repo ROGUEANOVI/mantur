@@ -62,7 +62,16 @@ export async function submitRoleRequest(formData: FormData): Promise<ActionResul
     if (!businessName || !categorySlugs.length || !rawPhone) return { error: copy.missingFields }
     const phone = normalizeColombianPhone(rawPhone)
     if (!phone) return { error: copy.invalidPhone }
-    metadata = { business_name: businessName, category_slugs: categorySlugs, phone }
+
+    const rawLat = (formData.get('lat') as string | null) ?? ''
+    const rawLng = (formData.get('lng') as string | null) ?? ''
+    const lat = rawLat ? Number(rawLat) : null
+    const lng = rawLng ? Number(rawLng) : null
+    if ((rawLat && !Number.isFinite(lat)) || (rawLng && !Number.isFinite(lng))) {
+      return { error: copy.invalidCoords }
+    }
+
+    metadata = { business_name: businessName, category_slugs: categorySlugs, phone, lat, lng }
   }
 
   if (requestedRole === 'transporter') {

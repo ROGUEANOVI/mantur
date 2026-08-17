@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { Toaster } from 'sonner'
 import { cn } from "@/lib/utils";
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
+import { MANAURE_CENTER } from '@/lib/geo'
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -62,7 +63,7 @@ const organizationJsonLd = {
     '@type': 'City',
     name: 'Manaure Balcón del Cesar',
     containedInPlace: { '@type': 'AdministrativeArea', name: 'Cesar' },
-    geo: { '@type': 'GeoCoordinates', latitude: 10.4, longitude: -73.1667 },
+    geo: { '@type': 'GeoCoordinates', latitude: MANAURE_CENTER[0], longitude: MANAURE_CENTER[1] },
   },
 }
 

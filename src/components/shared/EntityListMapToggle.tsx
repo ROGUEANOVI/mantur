@@ -4,23 +4,27 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { List, Map as MapIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { businessesCopy } from '@/lib/copy/businesses'
-import type { MapPlace } from '@/components/shared/PlacesMap'
+import type { EntityMapMarker } from '@/components/shared/EntityMap'
 
-const PlacesMap = dynamic(() => import('@/components/shared/PlacesMap'), {
+const EntityMap = dynamic(() => import('@/components/shared/EntityMap'), {
   ssr: false,
   loading: () => <div className="h-[60vh] rounded-2xl bg-muted animate-pulse" />,
 })
 
-export default function PlacesListMapToggle({
-  mapPlaces,
+export default function EntityListMapToggle({
+  mapItems,
+  basePath,
+  listLabel,
+  mapLabel,
   children,
 }: {
-  mapPlaces: MapPlace[]
+  mapItems: EntityMapMarker[]
+  basePath: string
+  listLabel: string
+  mapLabel: string
   children: React.ReactNode
 }) {
   const [view, setView] = useState<'list' | 'map'>('list')
-  const copy = businessesCopy.places
 
   return (
     <div>
@@ -32,8 +36,8 @@ export default function PlacesListMapToggle({
         >
           {(
             [
-              { key: 'list', label: copy.listLabel, Icon: List },
-              { key: 'map', label: copy.mapLabel, Icon: MapIcon },
+              { key: 'list', label: listLabel, Icon: List },
+              { key: 'map', label: mapLabel, Icon: MapIcon },
             ] as const
           ).map(({ key, label, Icon }) => (
             <button
@@ -56,7 +60,7 @@ export default function PlacesListMapToggle({
         </div>
       </div>
 
-      {view === 'list' ? children : <PlacesMap places={mapPlaces} />}
+      {view === 'list' ? children : <EntityMap items={mapItems} basePath={basePath} />}
     </div>
   )
 }
