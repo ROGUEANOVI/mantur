@@ -43,6 +43,8 @@ export const roleRequestsCopy = {
       categoriesHint: 'Selecciona todas las que aplican.',
       phone: 'Teléfono de contacto',
       phonePlaceholder: 'Ej: 300 123 4567',
+      location: 'Ubicación (opcional)',
+      locationHint: 'Tocá el mapa para marcar dónde queda tu negocio. Podés agregarla después si preferís.',
     },
 
     transporter: {
@@ -112,5 +114,6 @@ export const roleRequestsCopy = {
     generic:        'Ocurrió un error. Intenta de nuevo.',
     rateLimited:    'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
     invalidPhone:   'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
+    invalidCoords:  'Las coordenadas deben ser números válidos.',
   },
 } as const

@@ -9,6 +9,15 @@ vi.mock('./actions', () => ({
   submitRoleRequest: (formData: FormData) => submitRoleRequestMock(formData),
 }))
 
+vi.mock('@/components/shared/LocationPicker', () => ({
+  default: ({ defaultLat, defaultLng }: { defaultLat: number | null; defaultLng: number | null }) => (
+    <>
+      <input type="hidden" name="lat" value={defaultLat ?? ''} />
+      <input type="hidden" name="lng" value={defaultLng ?? ''} />
+    </>
+  ),
+}))
+
 const CATEGORIES = [
   { slug: 'resort', name: 'Balneario' },
   { slug: 'restaurant', name: 'Restaurante' },

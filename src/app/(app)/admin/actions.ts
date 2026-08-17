@@ -528,12 +528,17 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     const meta = (request.metadata ?? {}) as Record<string, unknown>
     const businessName = (meta.business_name as string | undefined)?.trim()
     if (businessName) {
+      const lat = typeof meta.lat === 'number' && Number.isFinite(meta.lat) ? meta.lat : null
+      const lng = typeof meta.lng === 'number' && Number.isFinite(meta.lng) ? meta.lng : null
+
       const { data: newBusiness } = await admin
         .from('businesses')
         .insert({
           name: businessName,
           owner_id: request.user_id,
           phone: (meta.phone as string | undefined)?.trim() || null,
+          lat,
+          lng,
           type: 'other',
           status: 'active',
           verified: true,

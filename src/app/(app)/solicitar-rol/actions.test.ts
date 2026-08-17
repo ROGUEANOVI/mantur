@@ -169,7 +169,30 @@ describe('business_owner metadata', () => {
     const result = await submitRoleRequest(fd)
     expect(result).toEqual({ success: true })
     const insertPayload = roleRequestInsertMock.mock.calls[0][0] as { metadata: unknown }
-    expect(insertPayload.metadata).toEqual({ business_name: 'Finca X', category_slugs: ['finca', 'balneario'], phone: '3001234567' })
+    expect(insertPayload.metadata).toEqual({
+      business_name: 'Finca X',
+      category_slugs: ['finca', 'balneario'],
+      phone: '3001234567',
+      lat: null,
+      lng: null,
+    })
+  })
+
+  it('includes lat/lng in metadata when provided', async () => {
+    roleRequestInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ requested_role: 'business_owner', ...validFields, lat: '11.7808', lng: '-72.9944' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ success: true })
+    const insertPayload = roleRequestInsertMock.mock.calls[0][0] as { metadata: { lat: number; lng: number } }
+    expect(insertPayload.metadata.lat).toBe(11.7808)
+    expect(insertPayload.metadata.lng).toBe(-72.9944)
+  })
+
+  it('rejects non-numeric coordinates', async () => {
+    const fd = formData({ requested_role: 'business_owner', ...validFields, lat: 'not-a-number', lng: '-72.9944' })
+    const result = await submitRoleRequest(fd)
+    expect(result).toEqual({ error: 'Las coordenadas deben ser números válidos.' })
+    expect(roleRequestInsertMock).not.toHaveBeenCalled()
   })
 })
 
