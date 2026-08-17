@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark } from 'lucide-react'
+import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark, SlidersHorizontal } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 
@@ -20,6 +20,8 @@ import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
 import PaginationNav from '@/components/shared/PaginationNav'
 import Reveal from '@/components/shared/Reveal'
+import PlacesListMapToggle from '@/components/shared/PlacesListMapToggle'
+import type { MapPlace } from '@/components/shared/PlacesMap'
 
 const PAGE_SIZE = 15
 
@@ -74,6 +76,19 @@ export default async function LugaresPage({
 
   if (error) throw new Error(error.message)
 
+  let mapQuery = supabase
+    .from('places')
+    .select('id, slug, name, type, lat, lng, images')
+    .not('lat', 'is', null)
+    .not('lng', 'is', null)
+
+  if (typeFilter) mapQuery = mapQuery.eq('type', typeFilter)
+  if (search) mapQuery = mapQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
+
+  const { data: mapPlaces, error: mapError } = await mapQuery.order('name')
+
+  if (mapError) throw new Error(mapError.message)
+
   const totalCount = count ?? 0
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
@@ -119,6 +134,10 @@ export default async function LugaresPage({
 
         {/* Pills de tipo sobre el mismo fondo oscuro */}
         <div className="border-t border-white/10 py-3">
+          <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-white/60 mb-2">
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+            {copy.filterLabel}
+          </p>
           <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
             <Link
               href={search ? `/lugares?q=${encodeURIComponent(search)}` : '/lugares'}
@@ -161,7 +180,7 @@ export default async function LugaresPage({
           {!places || places.length === 0 ? (
             <EmptyState message={search ? `Sin resultados para "${search}"` : copy.empty} />
           ) : (
-            <>
+            <PlacesListMapToggle mapPlaces={(mapPlaces ?? []) as MapPlace[]}>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {(places as PlaceRow[]).map((place, i) => (
                   <Reveal key={place.id} delay={Math.min(i, 8) * 50}>
@@ -177,7 +196,7 @@ export default async function LugaresPage({
                 baseParams={baseParams}
                 basePath="/lugares"
               />
-            </>
+            </PlacesListMapToggle>
           )}
         </div>
       </div>
