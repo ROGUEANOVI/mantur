@@ -35,6 +35,7 @@ export async function generateMetadata({
   if (!data) return {}
 
   const title = data.name
+  const seoTitle = `${data.name} en Manaure Balcón del Cesar`
   const description =
     data.description ??
     `Reserva experiencias en ${data.name} en Manaure Balcón del Cesar.`
@@ -42,7 +43,7 @@ export async function generateMetadata({
   const url = `https://mantur.co/negocios/${data.slug}`
 
   return {
-    title,
+    title: seoTitle,
     description,
     alternates: { canonical: url },
     openGraph: {
@@ -144,6 +145,7 @@ export default async function NegocioDetailPage({
           addressCountry: 'CO',
         }
       : undefined,
+    geo: { '@type': 'GeoCoordinates', latitude: 10.4, longitude: -73.1667 },
     url: `${APP_URL}/negocios/${b.slug}`,
   }
 
