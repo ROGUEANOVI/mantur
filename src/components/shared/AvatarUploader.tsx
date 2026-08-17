@@ -1,7 +1,7 @@
 'use client'
 
-import { useTransition, useState } from 'react'
-import { Camera, Loader2 } from 'lucide-react'
+import { useTransition, useState, useEffect } from 'react'
+import { Camera, Loader2, Upload, Trash2 } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 import { profileCopy } from '@/lib/copy/profile'
 
@@ -21,8 +21,17 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
   const [error, setError] = useState<string | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [imgFailed, setImgFailed] = useState(false)
   const busy = compressing || isPending
   const initials = getInitials(name)
+  const showImage = avatarUrl && !imgFailed
+
+  // A previously-failed URL (e.g. blocked by an ad blocker, or a Google
+  // photo URL that rotated) shouldn't stay stuck once avatarUrl changes —
+  // most commonly right after a fresh upload replaces it.
+  useEffect(() => {
+    setImgFailed(false)
+  }, [avatarUrl])
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const input = e.target
@@ -74,9 +83,14 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
     <div className="flex flex-col items-center gap-2">
       <div className="relative size-28">
         <div className="size-28 rounded-full overflow-hidden bg-primary flex items-center justify-center select-none">
-          {avatarUrl ? (
+          {showImage ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+            <img
+              src={avatarUrl}
+              alt={name}
+              className="w-full h-full object-cover"
+              onError={() => setImgFailed(true)}
+            />
           ) : (
             <span className="text-3xl font-semibold text-primary-foreground" aria-hidden="true">
               {initials || '?'}
@@ -104,7 +118,12 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
       </div>
 
       <div className="flex items-center gap-3 text-sm font-medium">
-        <label className="text-primary hover:text-primary/80 cursor-pointer transition-colors">
+        <label className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 cursor-pointer transition-colors">
+          {busy ? (
+            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Upload className="size-3.5" aria-hidden="true" />
+          )}
           {busy ? copy.uploading : copy.changePhoto}
           <input
             type="file"
@@ -119,8 +138,9 @@ export default function AvatarUploader({ avatarUrl, name, uploadAction, removeAc
             type="button"
             onClick={handleRemove}
             disabled={busy}
-            className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-60"
           >
+            <Trash2 className="size-3.5" aria-hidden="true" />
             {copy.removePhoto}
           </button>
         )}
