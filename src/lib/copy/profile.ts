@@ -25,6 +25,7 @@ export const profileCopy = {
 
   errors: {
     nameRequired: 'El nombre es obligatorio.',
+    invalidName: 'El nombre solo puede contener letras y espacios.',
     invalidFile: 'Selecciona una imagen.',
     invalidFormat: 'Formato no válido. Usa JPEG, PNG o WebP.',
     fileTooLarge: 'La imagen no puede superar 2 MB.',

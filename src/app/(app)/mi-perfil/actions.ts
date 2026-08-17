@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { profileCopy } from '@/lib/copy/profile'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { isValidFullName } from '@/lib/name'
 
 type ActionResult = { error: string } | void
 
@@ -51,6 +52,7 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
   const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
 
   if (!fullName) return { error: errors.nameRequired }
+  if (!isValidFullName(fullName)) return { error: errors.invalidName }
 
   const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
   if (rawPhone && !phone) return { error: errors.invalidPhone }

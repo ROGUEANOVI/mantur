@@ -1,11 +1,13 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Lock } from 'lucide-react'
 import { updateProfile, uploadAvatar, removeAvatar } from '@/app/(app)/mi-perfil/actions'
 import { profileCopy } from '@/lib/copy/profile'
+import { normalizeColombianPhone } from '@/lib/phone'
+import { isValidFullName } from '@/lib/name'
 import AvatarUploader from '@/components/shared/AvatarUploader'
 
 type FormState = { error: string | null }
@@ -21,8 +23,31 @@ const copy = profileCopy.form
 const page = profileCopy.page
 
 export default function EditProfileForm({ fullName, phone, email, avatarUrl }: Props) {
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+
+  function handleNameBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const raw = e.target.value.trim()
+    setNameError(raw && !isValidFullName(raw) ? profileCopy.errors.invalidName : null)
+  }
+
+  function handlePhoneBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const raw = e.target.value.trim()
+    setPhoneError(raw && !normalizeColombianPhone(raw) ? profileCopy.errors.invalidPhone : null)
+  }
+
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => {
+      const rawName = (formData.get('full_name') as string).trim()
+      if (rawName && !isValidFullName(rawName)) {
+        setNameError(profileCopy.errors.invalidName)
+        return { error: null }
+      }
+      const rawPhone = (formData.get('phone') as string).trim()
+      if (rawPhone && !normalizeColombianPhone(rawPhone)) {
+        setPhoneError(profileCopy.errors.invalidPhone)
+        return { error: null }
+      }
       const result = await updateProfile(formData)
       if (result && 'error' in result) return { error: result.error }
       toast.success(copy.saved)
@@ -52,9 +77,15 @@ export default function EditProfileForm({ fullName, phone, email, avatarUrl }: P
             required
             maxLength={100}
             defaultValue={fullName}
+            onBlur={handleNameBlur}
+            onChange={() => nameError && setNameError(null)}
+            aria-invalid={nameError ? true : undefined}
             placeholder={copy.fullNamePlaceholder}
-            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 aria-invalid:border-destructive"
           />
+          {nameError && (
+            <p role="alert" className="text-xs text-destructive">{nameError}</p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -66,9 +97,15 @@ export default function EditProfileForm({ fullName, phone, email, avatarUrl }: P
             type="tel"
             name="phone"
             defaultValue={phone}
+            onBlur={handlePhoneBlur}
+            onChange={() => phoneError && setPhoneError(null)}
+            aria-invalid={phoneError ? true : undefined}
             placeholder={copy.phonePlaceholder}
-            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 aria-invalid:border-destructive"
           />
+          {phoneError && (
+            <p role="alert" className="text-xs text-destructive">{phoneError}</p>
+          )}
         </div>
 
         <div className="space-y-1.5">

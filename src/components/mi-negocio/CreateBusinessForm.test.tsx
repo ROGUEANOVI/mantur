@@ -70,4 +70,21 @@ describe('CreateBusinessForm', () => {
 
     resolveAction(undefined)
   })
+
+  it('shows an inline error on blur for an invalid phone, without submitting', async () => {
+    const user = userEvent.setup()
+    render(<CreateBusinessForm categories={CATEGORIES} />)
+
+    await user.type(screen.getByLabelText('Nombre'), 'Finca X')
+    await user.type(screen.getByLabelText('Teléfono de contacto'), 'abcdefgh')
+    await user.tab()
+
+    expect(
+      await screen.findByText('Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Restaurante' }))
+    await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
+    expect(createBusinessMock).not.toHaveBeenCalled()
+  })
 })

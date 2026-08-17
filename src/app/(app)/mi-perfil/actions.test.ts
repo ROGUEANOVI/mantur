@@ -115,6 +115,22 @@ describe('updateProfile', () => {
     expect(contactUpsertMock).not.toHaveBeenCalled()
   })
 
+  it('rejects a name containing digits or symbols, without touching the database', async () => {
+    const result = await updateProfile(formData({ full_name: 'Ana123', phone: '3001234567' }))
+    expect(result).toEqual({ error: 'El nombre solo puede contener letras y espacios.' })
+    expect(profileUpdateMock).not.toHaveBeenCalled()
+    expect(contactUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts accented letters, ñ, apostrophes, and hyphens in the name', async () => {
+    profileUpdateMock.mockResolvedValue({ error: null })
+    contactUpsertMock.mockResolvedValue({ error: null })
+
+    await updateProfile(formData({ full_name: "María José O'Connor-Peña", phone: '3001234567' }))
+
+    expect(profileUpdateMock).toHaveBeenCalledWith({ full_name: "María José O'Connor-Peña" }, 'id', USER_ID)
+  })
+
   it('trims the name, updates profiles, and upserts phone into profile_contact_details', async () => {
     profileUpdateMock.mockResolvedValue({ error: null })
     contactUpsertMock.mockResolvedValue({ error: null })

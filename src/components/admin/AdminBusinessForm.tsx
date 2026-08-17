@@ -1,9 +1,10 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
+import { normalizeColombianPhone } from '@/lib/phone'
 
 type ActionResult = { error: string } | { success: true }
 type FormState = ActionResult | undefined
@@ -15,19 +16,26 @@ type Props = {
   owners: Owner[]
 }
 
-async function wrap(
-  action: Props['action'],
-  _prevState: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  return (await action(formData)) ?? undefined
-}
-
 export default function AdminBusinessForm({ action, owners }: Props) {
   const copy = adminCopy.negocios.form
-  const bound = wrap.bind(null, action)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+
+  function handlePhoneBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const raw = e.target.value.trim()
+    setPhoneError(raw && !normalizeColombianPhone(raw) ? copy.errors.invalidPhone : null)
+  }
+
+  async function submitAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+    const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
+    if (rawPhone && !normalizeColombianPhone(rawPhone)) {
+      setPhoneError(copy.errors.invalidPhone)
+      return undefined
+    }
+    return (await action(formData)) ?? undefined
+  }
+
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    bound,
+    submitAction,
     undefined,
   )
 
@@ -143,9 +151,15 @@ export default function AdminBusinessForm({ action, owners }: Props) {
           id="phone"
           name="phone"
           type="tel"
+          onBlur={handlePhoneBlur}
+          onChange={() => phoneError && setPhoneError(null)}
+          aria-invalid={phoneError ? true : undefined}
           placeholder={copy.phonePlaceholder}
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 aria-invalid:border-destructive"
         />
+        {phoneError && (
+          <p role="alert" className="text-sm text-destructive">{phoneError}</p>
+        )}
       </div>
 
       <div className="flex gap-3 pt-2">

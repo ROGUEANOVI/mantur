@@ -146,6 +146,24 @@ describe('RoleRequestForm — business_owner fields', () => {
     expect(fd.getAll('category_slugs')).toEqual(['resort'])
     expect(fd.get('phone')).toBe('3001234567')
   })
+
+  it('shows an inline error on blur for an invalid phone, without submitting', async () => {
+    const user = userEvent.setup()
+    render(<RoleRequestForm categories={CATEGORIES} />)
+
+    await user.click(screen.getByText('Quiero registrar mi negocio'))
+    await user.type(screen.getByLabelText('Nombre del negocio'), 'Finca La Esperanza')
+    await user.click(screen.getByRole('checkbox', { name: 'Balneario' }))
+    await user.type(screen.getByLabelText('Teléfono de contacto'), 'abcdefgh')
+    await user.tab()
+
+    expect(
+      await screen.findByText('Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
+    expect(submitRoleRequestMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('RoleRequestForm — transporter fields', () => {
