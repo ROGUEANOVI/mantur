@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authCopy } from '@/lib/copy/auth'
 import { authRateLimit, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { isValidFullName } from '@/lib/name'
 
 type AuthResult = { error: string } | never
 
@@ -48,11 +49,14 @@ export async function signUp(formData: FormData): Promise<SignUpResult> {
 
   const email = formData.get('email') as string
   const password = formData.get('password') as string
-  const fullName = formData.get('full_name') as string
+  const fullName = (formData.get('full_name') as string | null)?.trim() || ''
 
   if (!PASSWORD_RE.test(password)) {
     return { error: authCopy.signup.errors.weakPassword }
   }
+
+  if (!fullName) return { error: authCopy.signup.errors.nameRequired }
+  if (!isValidFullName(fullName)) return { error: authCopy.signup.errors.invalidName }
 
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signUp({ email, password })

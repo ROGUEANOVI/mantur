@@ -51,6 +51,8 @@ export const authCopy = {
       emailInUse: 'Este correo ya está registrado',
       weakPassword: 'La contraseña no cumple los requisitos de seguridad',
       passwordMismatch: 'Las contraseñas no coinciden',
+      nameRequired: 'El nombre es obligatorio.',
+      invalidName: 'El nombre solo puede contener letras y espacios.',
       generic: 'Ocurrió un error. Intenta de nuevo.',
       rateLimited: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
     },

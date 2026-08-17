@@ -6,6 +6,7 @@ import { Check, X } from 'lucide-react'
 
 import { signUp } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
+import { isValidFullName } from '@/lib/name'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,12 +35,21 @@ export default function SignupForm() {
   const [password, setPassword]       = useState('')
   const [confirm, setConfirm]         = useState('')
   const [pwTouched, setPwTouched]     = useState(false)
+  const [nameError, setNameError]     = useState<string | null>(null)
 
   const passwordsMatch = confirm.length > 0 && password === confirm
   const passwordsMismatch = confirm.length > 0 && password !== confirm
 
+  function handleNameBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const raw = e.target.value.trim()
+    setNameError(raw && !isValidFullName(raw) ? copy.errors.invalidName : null)
+  }
+
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => {
+      const name = (formData.get('full_name') as string).trim()
+      if (!name)                  return { error: copy.errors.nameRequired }
+      if (!isValidFullName(name)) { setNameError(copy.errors.invalidName); return { error: null } }
       const pw  = formData.get('password') as string
       const cfm = formData.get('confirm_password') as string
       if (!isPasswordValid(pw))  return { error: copy.errors.weakPassword }
@@ -75,8 +85,15 @@ export default function SignupForm() {
             name="full_name"
             required
             autoComplete="name"
+            onBlur={handleNameBlur}
+            onChange={() => nameError && setNameError(null)}
+            aria-invalid={nameError ? true : undefined}
             placeholder="Tu nombre completo"
+            className="aria-invalid:border-destructive"
           />
+          {nameError && (
+            <p role="alert" className="text-xs text-destructive">{nameError}</p>
+          )}
         </div>
 
         {/* Email */}

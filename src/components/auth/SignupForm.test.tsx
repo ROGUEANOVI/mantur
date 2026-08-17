@@ -121,6 +121,25 @@ describe('SignupForm', () => {
     expect(signUpMock).not.toHaveBeenCalled()
   })
 
+  it('shows an inline error on blur for a name with digits/symbols, without calling signUp', async () => {
+    const user = userEvent.setup()
+    render(<SignupForm />)
+
+    await user.type(screen.getByLabelText('Nombre completo'), 'Ana123')
+    await user.tab()
+
+    expect(
+      await screen.findByText('El nombre solo puede contener letras y espacios.'),
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
+    await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
+    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
+    await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
+
+    expect(signUpMock).not.toHaveBeenCalled()
+  })
+
   it('rejects mismatched passwords client-side without calling signUp', async () => {
     const user = userEvent.setup()
     render(<SignupForm />)
