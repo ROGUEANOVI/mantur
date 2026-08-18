@@ -114,7 +114,7 @@ export default function LoginForm({
 
         {/* Submit */}
         <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
-          {pending ? 'Iniciando sesión...' : copy.submit}
+          {pending ? 'Ingresando...' : copy.submit}
         </Button>
       </form>
 
@@ -129,17 +129,6 @@ export default function LoginForm({
       </div>
 
       <GoogleSignInButton />
-
-      {/* Link to signup */}
-      <p className="text-center text-sm text-muted-foreground">
-        {copy.noAccount}{' '}
-        <Link
-          href="/signup"
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          {copy.signupLink}
-        </Link>
-      </p>
     </div>
   )
 }

@@ -68,11 +68,6 @@ describe('ForgotPasswordForm', () => {
     resolveAction({ error: null, emailSent: true })
   })
 
-  it('renders a link back to the login page', () => {
-    render(<ForgotPasswordForm />)
-    expect(screen.getByRole('link', { name: 'Volver a iniciar sesión' })).toHaveAttribute('href', '/login')
-  })
-
   it('shows the expired-link message when authError is "expired"', () => {
     render(<ForgotPasswordForm authError="expired" />)
     expect(screen.getByRole('alert')).toHaveTextContent(

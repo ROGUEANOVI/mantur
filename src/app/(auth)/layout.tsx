@@ -4,10 +4,14 @@ import { authCopy } from '@/lib/copy/auth'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-4 py-10 bg-gradient-to-b from-[#0a2b1e] via-[#0d1f2d] to-[#091b27]">
-      {/* decorative circles — same treatment as the landing hero */}
-      <div className="pointer-events-none absolute -top-16 -right-16 size-72 rounded-full bg-white/5" />
-      <div className="pointer-events-none absolute -bottom-10 -left-10 size-48 rounded-full bg-white/5" />
+    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-4 py-10 bg-gradient-to-b from-[#0d1f2d] to-[#0a2b1e]">
+      {/* Aurora sutil — faint amber glow behind the header, echoing the sun
+          dot in ManturLogo. Kept intentionally understated: a soft radial
+          fade, not a visible blob. */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-96 bg-[radial-gradient(ellipse_480px_320px_at_50%_15%,rgba(232,160,32,0.09),transparent_70%)]"
+        aria-hidden="true"
+      />
 
       {/* Brand header — logo doubles as the way back to the landing page.
           No nav on auth screens by design (keeps focus on the form), but the
@@ -22,10 +26,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </p>
       </div>
 
-      {/* Form card */}
-      <div className="animate-fade-up [animation-delay:120ms] relative max-w-md w-full mx-auto bg-card rounded-2xl shadow-2xl p-6 md:p-8">
-        {children}
-      </div>
+      {children}
     </div>
   )
 }

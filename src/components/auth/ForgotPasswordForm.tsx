@@ -1,7 +1,6 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import Link from 'next/link'
 
 import { requestPasswordReset } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
@@ -37,11 +36,6 @@ export default function ForgotPasswordForm({ authError }: { authError?: 'expired
       <div className="space-y-2 text-center">
         <h2 className="text-lg font-semibold text-foreground">{copy.confirmationSent.title}</h2>
         <p className="text-sm text-muted-foreground">{copy.confirmationSent.body}</p>
-        <p className="text-sm text-muted-foreground">
-          <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
-            {copy.backToLogin}
-          </Link>
-        </p>
       </div>
     )
   }
@@ -79,12 +73,6 @@ export default function ForgotPasswordForm({ authError }: { authError?: 'expired
           {pending ? 'Enviando...' : copy.submit}
         </Button>
       </form>
-
-      <p className="text-center text-sm text-muted-foreground">
-        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
-          {copy.backToLogin}
-        </Link>
-      </p>
     </div>
   )
 }
