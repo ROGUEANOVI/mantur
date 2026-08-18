@@ -14,6 +14,8 @@ export const authCopy = {
     submit: 'Iniciar sesión',
     noAccount: '¿No tienes cuenta?',
     signupLink: 'Regístrate',
+    forgotPasswordLink: '¿Olvidaste tu contraseña?',
+    resetSuccess: 'Tu contraseña fue actualizada. Inicia sesión con tu nueva contraseña.',
     errors: {
       invalidCredentials: 'Correo o contraseña incorrectos',
       generic: 'Ocurrió un error. Intenta de nuevo.',
@@ -55,6 +57,36 @@ export const authCopy = {
       invalidName: 'El nombre solo puede contener letras y espacios.',
       generic: 'Ocurrió un error. Intenta de nuevo.',
       rateLimited: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
+    },
+  },
+  forgotPassword: {
+    title: 'Recupera tu contraseña',
+    subtitle: 'Te enviaremos un enlace para restablecerla',
+    email: 'Correo electrónico',
+    submit: 'Enviar enlace',
+    backToLogin: 'Volver a iniciar sesión',
+    confirmationSent: {
+      title: 'Revisa tu correo',
+      body: 'Si existe una cuenta con ese correo, te enviamos un enlace para restablecer tu contraseña.',
+    },
+    errors: {
+      emailRequired: 'Ingresa tu correo electrónico.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
+      rateLimited: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
+      expiredLink: 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+    },
+  },
+  resetPassword: {
+    title: 'Crea una nueva contraseña',
+    subtitle: 'Elige una contraseña segura para tu cuenta',
+    password: 'Nueva contraseña',
+    confirmPassword: 'Confirmar contraseña',
+    submit: 'Guardar contraseña',
+    errors: {
+      weakPassword: 'La contraseña no cumple los requisitos de seguridad',
+      passwordMismatch: 'Las contraseñas no coinciden',
+      sessionExpired: 'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
     },
   },
 } as const

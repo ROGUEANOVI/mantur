@@ -127,6 +127,26 @@ describe('LoginForm', () => {
     expect(passwordInput).toHaveAttribute('type', 'password')
   })
 
+  it('renders a link to the forgot-password page', () => {
+    render(<LoginForm />)
+    expect(screen.getByRole('link', { name: '¿Olvidaste tu contraseña?' })).toHaveAttribute(
+      'href',
+      '/recuperar-password',
+    )
+  })
+
+  it('shows the reset-success message when resetSuccess is true', () => {
+    render(<LoginForm resetSuccess />)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Tu contraseña fue actualizada. Inicia sesión con tu nueva contraseña.',
+    )
+  })
+
+  it('does not show the reset-success message by default', () => {
+    render(<LoginForm />)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('preserves the entered email and password after a failed login, instead of clearing them', async () => {
     signInMock.mockResolvedValue({ error: 'Correo o contraseña incorrectos' })
     const user = userEvent.setup()

@@ -34,6 +34,9 @@ const authGetUser = vi.fn()
 const profileSelectSingle = vi.fn()
 const profileUpdateMock = vi.fn()
 const contactUpsertMock = vi.fn()
+const signInWithPasswordMock = vi.fn()
+const updateUserMock = vi.fn()
+const authSignOutMock = vi.fn()
 
 function profilesUserTable() {
   return {
@@ -50,7 +53,12 @@ function profileContactDetailsUserTable() {
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
-    auth: { getUser: authGetUser },
+    auth: {
+      getUser: authGetUser,
+      signInWithPassword: signInWithPasswordMock,
+      updateUser: updateUserMock,
+      signOut: authSignOutMock,
+    },
     from: (table: string) => {
       if (table === 'profiles') return profilesUserTable()
       if (table === 'profile_contact_details') return profileContactDetailsUserTable()
@@ -75,7 +83,14 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
-const { updateProfile, uploadAvatar, removeAvatar } = await import('./actions')
+const checkRateLimitMock = vi.fn()
+
+vi.mock('@/lib/rate-limit', () => ({
+  changePasswordRateLimit: {},
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
+const { updateProfile, uploadAvatar, removeAvatar, changePassword } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -93,8 +108,9 @@ const USER_ID = 'user-1'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  authGetUser.mockResolvedValue({ data: { user: { id: USER_ID } } })
+  authGetUser.mockResolvedValue({ data: { user: { id: USER_ID, email: 'ana@example.com' } } })
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/avatar.webp' } })
+  checkRateLimitMock.mockResolvedValue(true)
 })
 
 describe('auth guard', () => {
@@ -104,6 +120,9 @@ describe('auth guard', () => {
     await expect(updateProfile(formData({ full_name: 'Ana' }))).rejects.toThrow('redirect:/login')
     await expect(uploadAvatar(new FormData())).rejects.toThrow('redirect:/login')
     await expect(removeAvatar()).rejects.toThrow('redirect:/login')
+    await expect(
+      changePassword(formData({ current_password: 'x', new_password: 'Correct1!', confirm_password: 'Correct1!' })),
+    ).rejects.toThrow('redirect:/login')
   })
 })
 
@@ -314,5 +333,84 @@ describe('removeAvatar', () => {
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
     expect(storageRemove).not.toHaveBeenCalled()
+  })
+})
+
+describe('changePassword', () => {
+  function pwFormData(overrides: Partial<{ current: string; next: string; confirm: string }> = {}) {
+    return formData({
+      current_password: overrides.current ?? 'CurrentPass1!',
+      new_password: overrides.next ?? 'NewCorrect1!',
+      confirm_password: overrides.confirm ?? 'NewCorrect1!',
+    })
+  }
+
+  it('returns a rate-limit error and never calls Supabase when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+
+    const result = await changePassword(pwFormData())
+
+    expect(result).toEqual({ error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' })
+    expect(checkRateLimitMock).toHaveBeenCalledWith({}, USER_ID)
+    expect(signInWithPasswordMock).not.toHaveBeenCalled()
+    expect(updateUserMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['too short', 'Ab1!'],
+    ['no uppercase', 'abcdefg1!'],
+    ['no number', 'Abcdefgh!'],
+    ['no special character', 'Abcdefgh1'],
+    ['empty', ''],
+  ])('rejects a new password that is %s, without calling Supabase', async (_label, weak) => {
+    const result = await changePassword(pwFormData({ next: weak, confirm: weak }))
+
+    expect(result).toEqual({ error: 'La contraseña no cumple los requisitos de seguridad' })
+    expect(signInWithPasswordMock).not.toHaveBeenCalled()
+    expect(updateUserMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects mismatched new/confirm passwords without calling Supabase', async () => {
+    const result = await changePassword(pwFormData({ confirm: 'Different1!' }))
+
+    expect(result).toEqual({ error: 'Las contraseñas no coinciden' })
+    expect(signInWithPasswordMock).not.toHaveBeenCalled()
+    expect(updateUserMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an incorrect current password without calling updateUser', async () => {
+    signInWithPasswordMock.mockResolvedValue({ error: { message: 'Invalid login credentials' } })
+
+    const result = await changePassword(pwFormData())
+
+    expect(signInWithPasswordMock).toHaveBeenCalledWith({
+      email: 'ana@example.com',
+      password: 'CurrentPass1!',
+    })
+    expect(result).toEqual({ error: 'La contraseña actual no es correcta' })
+    expect(updateUserMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when updateUser fails after a verified current password, without revoking sessions', async () => {
+    signInWithPasswordMock.mockResolvedValue({ error: null })
+    updateUserMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await changePassword(pwFormData())
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(authSignOutMock).not.toHaveBeenCalled()
+  })
+
+  it('updates the password, revokes other sessions, and does not redirect or sign out the current session', async () => {
+    signInWithPasswordMock.mockResolvedValue({ error: null })
+    updateUserMock.mockResolvedValue({ error: null })
+    authSignOutMock.mockResolvedValue({ error: null })
+
+    const result = await changePassword(pwFormData({ next: 'NewCorrect1!', confirm: 'NewCorrect1!' }))
+
+    expect(updateUserMock).toHaveBeenCalledWith({ password: 'NewCorrect1!' })
+    expect(authSignOutMock).toHaveBeenCalledWith({ scope: 'others' })
+    expect(result).toBeUndefined()
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 })

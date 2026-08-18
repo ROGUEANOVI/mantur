@@ -29,6 +29,19 @@ export const profileCopy = {
     saved: '¡Perfil actualizado!',
   },
 
+  changePassword: {
+    trigger: 'Cambiar contraseña',
+    title: 'Cambiar contraseña',
+    description: 'Ingresa tu contraseña actual y elige una nueva.',
+    currentPassword: 'Contraseña actual',
+    newPassword: 'Nueva contraseña',
+    confirmPassword: 'Confirmar contraseña',
+    submit: 'Guardar contraseña',
+    saving: 'Guardando...',
+    saved: '¡Contraseña actualizada!',
+    cancel: 'Cancelar',
+  },
+
   errors: {
     nameRequired: 'El nombre es obligatorio.',
     invalidName: 'El nombre solo puede contener letras y espacios.',
@@ -41,5 +54,9 @@ export const profileCopy = {
     compressionFailed: 'Error al procesar la imagen. Intenta de nuevo.',
     cropFailed: 'No se pudo recortar la imagen. Intenta de nuevo.',
     invalidPhone: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).',
+    currentPasswordWrong: 'La contraseña actual no es correcta',
+    rateLimited: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
+    weakPassword: 'La contraseña no cumple los requisitos de seguridad',
+    passwordMismatch: 'Las contraseñas no coinciden',
   },
 } as const

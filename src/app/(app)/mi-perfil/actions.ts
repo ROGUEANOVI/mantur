@@ -7,6 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { profileCopy } from '@/lib/copy/profile'
 import { normalizeColombianPhone } from '@/lib/phone'
 import { isValidFullName } from '@/lib/name'
+import { PASSWORD_RE } from '@/lib/password'
+import { changePasswordRateLimit, checkRateLimit } from '@/lib/rate-limit'
 
 type ActionResult = { error: string } | void
 
@@ -114,6 +116,50 @@ export async function uploadAvatar(formData: FormData): Promise<ActionResult> {
   }
 
   revalidatePath('/mi-perfil')
+}
+
+export async function changePassword(formData: FormData): Promise<ActionResult> {
+  const { supabase, userId } = await getAuthenticatedUser()
+
+  // Caps current-password guesses independently of Supabase's own IP-based
+  // limits — an already-authenticated-but-compromised session (stolen
+  // cookie, shared device) could otherwise brute-force the real password
+  // via unlimited signInWithPassword attempts below.
+  const allowed = await checkRateLimit(changePasswordRateLimit, userId)
+  if (!allowed) return { error: errors.rateLimited }
+
+  const currentPassword = formData.get('current_password') as string
+  const newPassword = formData.get('new_password') as string
+  const confirmPassword = formData.get('confirm_password') as string
+
+  if (!PASSWORD_RE.test(newPassword)) return { error: errors.weakPassword }
+  if (newPassword !== confirmPassword) return { error: errors.passwordMismatch }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user?.email) return { error: errors.generic }
+
+  // Re-authenticate with the current password before allowing the change —
+  // this is what makes this path stronger than the recovery-link flow,
+  // which only requires an active session. signInWithPassword against the
+  // caller's own email verifies "current password", it does not start a
+  // new/different session.
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: currentPassword,
+  })
+  if (verifyError) return { error: errors.currentPasswordWrong }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) return { error: errors.generic }
+
+  // Revoke every other session for this account — a password change is a
+  // credential-compromise recovery action, and leaving other sessions
+  // (e.g. one an attacker already holds) alive would defeat that purpose.
+  // scope:'others' keeps the caller's own session (just re-authenticated
+  // above) alive, so no forced re-login here.
+  await supabase.auth.signOut({ scope: 'others' })
 }
 
 export async function removeAvatar(): Promise<ActionResult> {

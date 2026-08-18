@@ -26,7 +26,13 @@ async function loginAction(
 
 const copy = authCopy.login
 
-export default function LoginForm({ authError }: { authError?: 'oauth' | 'confirm' }) {
+export default function LoginForm({
+  authError,
+  resetSuccess,
+}: {
+  authError?: 'oauth' | 'confirm'
+  resetSuccess?: boolean
+}) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     loginAction,
     { error: null },
@@ -48,6 +54,12 @@ export default function LoginForm({ authError }: { authError?: 'oauth' | 'confir
 
   return (
     <div className="space-y-5">
+      {resetSuccess && (
+        <p role="status" className="text-sm text-primary">
+          {copy.resetSuccess}
+        </p>
+      )}
+
       {authErrorMessage && (
         <p role="alert" className="text-sm text-destructive">
           {authErrorMessage}
@@ -83,6 +95,14 @@ export default function LoginForm({ authError }: { authError?: 'oauth' | 'confir
             value={password}
             onChange={setPassword}
           />
+          <div className="flex justify-end">
+            <Link
+              href="/recuperar-password"
+              className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {copy.forgotPasswordLink}
+            </Link>
+          </div>
         </div>
 
         {/* Inline error — only rendered when the server action returns one */}

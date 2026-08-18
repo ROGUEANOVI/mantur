@@ -29,9 +29,14 @@ export async function middleware(request: NextRequest) {
   // Do not remove — required by @supabase/ssr to keep auth working.
   const { data: { user } } = await supabase.auth.getUser()
 
+  // /restablecer-password is deliberately excluded: verifyOtp({type:'recovery'})
+  // signs the user into a temporary recovery session before they reach it, so
+  // `user` is truthy there by design — bouncing them to `/` would block the
+  // one page that session exists to let them use.
   const isAuthPage =
     request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/signup')
+    request.nextUrl.pathname.startsWith('/signup') ||
+    request.nextUrl.pathname.startsWith('/recuperar-password')
 
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/', request.url))

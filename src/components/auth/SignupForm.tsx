@@ -7,6 +7,7 @@ import { Check, X } from 'lucide-react'
 import { signUp } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
 import { isValidFullName } from '@/lib/name'
+import { isPasswordValid, PASSWORD_RULES } from '@/lib/password'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,17 +18,6 @@ import PasswordInput from '@/components/auth/PasswordInput'
 type FormState = { error: string | null; pendingConfirmation?: boolean }
 
 const copy = authCopy.signup
-
-const RULES = [
-  { key: 'minLength', label: copy.passwordRules.minLength, test: (p: string) => p.length >= 8 },
-  { key: 'uppercase', label: copy.passwordRules.uppercase, test: (p: string) => /[A-Z]/.test(p) },
-  { key: 'digit',     label: copy.passwordRules.digit,     test: (p: string) => /[0-9]/.test(p) },
-  { key: 'special',   label: copy.passwordRules.special,   test: (p: string) => /[^A-Za-z0-9]/.test(p) },
-]
-
-function isPasswordValid(p: string) {
-  return RULES.every((r) => r.test(p))
-}
 
 export default function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
@@ -126,7 +116,7 @@ export default function SignupForm() {
           {/* Requirements — shown once user starts typing */}
           {pwTouched && (
             <div className="grid grid-cols-2 gap-1.5 pt-1">
-              {RULES.map(({ key, label, test }) => {
+              {PASSWORD_RULES.map(({ key, label, test }) => {
                 const met = test(password)
                 return (
                   <div
