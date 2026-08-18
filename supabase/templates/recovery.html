@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Restablece tu contraseña — ManTur</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: #f5faf7; }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+  @media only screen and (max-width: 600px) {
+    .email-container { width: 100% !important; }
+    .fluid-padding { padding-left: 20px !important; padding-right: 20px !important; }
+    .card-padding { padding: 32px 24px !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#f5faf7;">
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#f5faf7;">
+  Restablece tu contraseña de ManTur. Este enlace expira en 1 hora.
+</div>
+<center style="width:100%; background-color:#f5faf7;">
+<!--[if mso]>
+<table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td>
+<![endif]-->
+<div style="max-width:600px; margin:0 auto;" class="email-container">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; margin:0 auto;">
+    <tr>
+      <td style="padding:36px 24px 28px 24px; text-align:center;" class="fluid-padding">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+          <tr>
+            <td style="vertical-align:middle; padding-right:8px;">
+              <img src="https://mantur.co/apple-icon" width="28" height="28" alt="ManTur" style="display:block; border-radius:7px;">
+            </td>
+            <td style="vertical-align:middle;">
+              <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:20px; font-weight:800; letter-spacing:-0.02em;">
+                <span style="color:#0e7a54;">Man</span><span style="color:#e8a020;">Tur</span>
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 24px;" class="fluid-padding">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff; border-radius:16px; border:1px solid #dfece5;">
+          <tr>
+            <td style="padding:40px 36px;" class="card-padding">
+              <h1 style="margin:0 0 16px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:24px; line-height:1.3; font-weight:800; letter-spacing:-0.01em; color:#0a2b1e;">
+                Restablece tu contraseña
+              </h1>
+              <p style="margin:0 0 28px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#33443c;">
+                Recibimos una solicitud para restablecer la contraseña de tu cuenta ManTur (<strong>{{ .Email }}</strong>). Haz clic en el botón para elegir una nueva.
+              </p>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px 0;">
+                <tr>
+                  <td style="border-radius:10px; background-color:#0e7a54;">
+                    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery"
+                       style="display:inline-block; padding:14px 30px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:10px;">
+                      Restablecer contraseña
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 4px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.5; color:#64766d;">
+                ¿El botón no funciona? Copia y pega este enlace en tu navegador:
+              </p>
+              <p style="margin:0 0 28px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.5; word-break:break-all;">
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery" style="color:#0e7a54;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery</a>
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5faf7; border-radius:10px; border:1px solid #dfece5;">
+                <tr>
+                  <td style="padding:14px 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.55; color:#3f5049;">
+                    Este enlace expira en <strong>1 hora</strong>. Si no solicitaste este cambio, ignora este correo — tu contraseña actual seguirá funcionando.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px 24px 40px 24px; text-align:center;" class="fluid-padding">
+        <p style="margin:0 0 4px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; color:#64766d;">
+          Turismo con alma local
+        </p>
+        <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; color:#7c8d85;">
+          ManTur · Manaure Balcón del Cesar, Cesar, Colombia · <a href="https://mantur.co" style="color:#7c8d85;">mantur.co</a>
+        </p>
+      </td>
+    </tr>
+  </table>
+</div>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
+</center>
+</body>
+</html>
