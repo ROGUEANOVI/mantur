@@ -34,11 +34,29 @@ describe('GET /auth/confirm', () => {
     expect(verifyOtp).not.toHaveBeenCalled()
   })
 
-  it('rejects a type outside signup/email (e.g. "recovery"), without calling verifyOtp', async () => {
+  it('allows type=recovery and redirects to /restablecer-password on success', async () => {
+    verifyOtp.mockResolvedValue({ error: null })
+
+    const res = await GET(makeRequest('?token_hash=abc123&type=recovery'))
+
+    expect(verifyOtp).toHaveBeenCalledWith({ type: 'recovery', token_hash: 'abc123' })
+    expect(res.headers.get('location')).toBe('https://mantur.co/restablecer-password')
+  })
+
+  it('ignores a "next" param for recovery — always redirects to /restablecer-password', async () => {
+    verifyOtp.mockResolvedValue({ error: null })
+
+    const res = await GET(makeRequest('?token_hash=abc123&type=recovery&next=/mi-perfil'))
+
+    expect(res.headers.get('location')).toBe('https://mantur.co/restablecer-password')
+  })
+
+  it('redirects to the confirm-error page when verifyOtp fails for a recovery link', async () => {
+    verifyOtp.mockResolvedValue({ error: { message: 'invalid token' } })
+
     const res = await GET(makeRequest('?token_hash=abc123&type=recovery'))
 
     expect(res.headers.get('location')).toBe('https://mantur.co/login?error=confirm')
-    expect(verifyOtp).not.toHaveBeenCalled()
   })
 
   it('redirects to the confirm-error page when verifyOtp fails', async () => {

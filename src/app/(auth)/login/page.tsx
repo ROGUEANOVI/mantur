@@ -9,10 +9,11 @@ export const metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; reset?: string }>
 }) {
-  const { error } = await searchParams
+  const { error, reset } = await searchParams
   const authError = error === 'oauth' || error === 'confirm' ? error : undefined
+  const resetSuccess = reset === 'success'
 
   return (
     <div className="space-y-6">
@@ -23,7 +24,7 @@ export default async function LoginPage({
         <p className="text-sm text-muted-foreground">{authCopy.login.subtitle}</p>
       </div>
 
-      <LoginForm authError={authError} />
+      <LoginForm authError={authError} resetSuccess={resetSuccess} />
     </div>
   )
 }

@@ -4,12 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 
 const CONFIRM_ERROR_REDIRECT = '/login?error=confirm'
 
-// This route only handles signup confirmation links. Deliberately excludes
-// 'recovery' (and other EmailOtpType values) — this repo has no "set new
-// password" page yet, so verifying a recovery token here would leave a user
-// fully signed in with their old password still active, defeating password
-// reset. Widen this only alongside a dedicated recovery flow.
-const ALLOWED_TYPES: EmailOtpType[] = ['signup', 'email']
+// 'recovery' is allowed alongside signup confirmation links — see the
+// type === 'recovery' branch below, which sends it to the dedicated
+// "set new password" page instead of the generic redirect.
+const ALLOWED_TYPES: EmailOtpType[] = ['signup', 'email', 'recovery']
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
@@ -31,6 +29,13 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     return NextResponse.redirect(`${origin}${CONFIRM_ERROR_REDIRECT}`)
+  }
+
+  // Recovery always lands on the set-new-password page — hardcoded rather
+  // than trusting `next`, since there's exactly one legitimate destination
+  // for a recovery link.
+  if (type === 'recovery') {
+    return NextResponse.redirect(`${origin}/restablecer-password`)
   }
 
   return NextResponse.redirect(`${origin}${redirectTarget}`)

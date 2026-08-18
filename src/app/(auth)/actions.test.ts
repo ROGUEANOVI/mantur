@@ -23,6 +23,8 @@ const authSignUp = vi.fn()
 const authSignOut = vi.fn()
 const getUserMock = vi.fn()
 const profileSingle = vi.fn()
+const resetPasswordForEmail = vi.fn()
+const updateUserMock = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -31,6 +33,8 @@ vi.mock('@/lib/supabase/server', () => ({
       signUp: authSignUp,
       signOut: authSignOut,
       getUser: getUserMock,
+      resetPasswordForEmail,
+      updateUser: updateUserMock,
     },
     from: (table: string) => {
       if (table === 'profiles') {
@@ -62,7 +66,7 @@ vi.mock('@/lib/rate-limit', () => ({
   getClientIp: vi.fn(async () => '203.0.113.1'),
 }))
 
-const { signIn, signUp, signOut } = await import('./actions')
+const { signIn, signUp, signOut, requestPasswordReset, updatePassword } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -95,6 +99,16 @@ describe('rate limiting', () => {
 
     expect(result).toEqual({ error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' })
     expect(authSignUp).not.toHaveBeenCalled()
+  })
+
+  it('requestPasswordReset returns a rate-limit error and never calls Supabase when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ email: 'user@example.com' })
+
+    const result = await requestPasswordReset(fd)
+
+    expect(result).toEqual({ error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' })
+    expect(resetPasswordForEmail).not.toHaveBeenCalled()
   })
 })
 
@@ -282,6 +296,104 @@ describe('signUp', () => {
       { id: 'new-user-5', full_name: 'X', role: 'tourist' },
       { onConflict: 'id' },
     )
+  })
+})
+
+describe('requestPasswordReset', () => {
+  it('rejects an empty email without calling Supabase', async () => {
+    const fd = formData({ email: '' })
+    const result = await requestPasswordReset(fd)
+
+    expect(result).toEqual({ error: 'Ingresa tu correo electrónico.' })
+    expect(resetPasswordForEmail).not.toHaveBeenCalled()
+  })
+
+  it('calls resetPasswordForEmail with the confirm-route redirect and reports success', async () => {
+    resetPasswordForEmail.mockResolvedValue({ error: null })
+    const fd = formData({ email: 'user@example.com' })
+
+    const result = await requestPasswordReset(fd)
+
+    expect(result).toEqual({ error: null, emailSent: true })
+    expect(resetPasswordForEmail).toHaveBeenCalledWith('user@example.com', {
+      redirectTo: 'https://mantur.co/auth/confirm',
+    })
+  })
+
+  it('reports success even for an email Supabase says does not exist, to avoid account enumeration', async () => {
+    resetPasswordForEmail.mockResolvedValue({ error: null })
+    const fd = formData({ email: 'unknown@example.com' })
+
+    const result = await requestPasswordReset(fd)
+
+    expect(result).toEqual({ error: null, emailSent: true })
+  })
+
+  it('maps a genuine Supabase failure to a generic error', async () => {
+    resetPasswordForEmail.mockResolvedValue({ error: { message: 'rate limited by provider' } })
+    const fd = formData({ email: 'user@example.com' })
+
+    const result = await requestPasswordReset(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('updatePassword', () => {
+  it.each([
+    ['too short', 'Ab1!'],
+    ['no uppercase', 'abcdefg1!'],
+    ['no number', 'Abcdefgh!'],
+    ['no special character', 'Abcdefgh1'],
+    ['empty', ''],
+  ])('rejects a new password that is %s, without calling Supabase', async (_label, password) => {
+    const fd = formData({ password, confirm_password: password })
+    const result = await updatePassword(fd)
+
+    expect(result).toEqual({ error: 'La contraseña no cumple los requisitos de seguridad' })
+    expect(updateUserMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects mismatched password/confirm without calling Supabase', async () => {
+    const fd = formData({ password: 'Correct1!', confirm_password: 'Different1!' })
+    const result = await updatePassword(fd)
+
+    expect(result).toEqual({ error: 'Las contraseñas no coinciden' })
+    expect(updateUserMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when there is no active (recovery) session', async () => {
+    getUserMock.mockResolvedValue({ data: { user: null } })
+    const fd = formData({ password: 'Correct1!', confirm_password: 'Correct1!' })
+
+    const result = await updatePassword(fd)
+
+    expect(result).toEqual({ error: 'El enlace no es válido o ya expiró. Solicita uno nuevo.' })
+    expect(updateUserMock).not.toHaveBeenCalled()
+  })
+
+  it('maps a Supabase updateUser failure to a generic error and does not sign out or redirect', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    updateUserMock.mockResolvedValue({ error: { message: 'db error' } })
+    const fd = formData({ password: 'Correct1!', confirm_password: 'Correct1!' })
+
+    const result = await updatePassword(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(authSignOut).not.toHaveBeenCalled()
+    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it('updates the password, signs out the recovery session, and redirects to login on success', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    updateUserMock.mockResolvedValue({ error: null })
+    authSignOut.mockResolvedValue({ error: null })
+    const fd = formData({ password: 'Correct1!', confirm_password: 'Correct1!' })
+
+    await expect(updatePassword(fd)).rejects.toThrow('redirect:/login?reset=success')
+
+    expect(updateUserMock).toHaveBeenCalledWith({ password: 'Correct1!' })
+    expect(authSignOut).toHaveBeenCalled()
   })
 })
 

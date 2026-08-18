@@ -103,3 +103,56 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut()
   redirect('/login')
 }
+
+const APP_URL = 'https://mantur.co'
+
+type RequestPasswordResetResult = { error: string | null; emailSent?: boolean }
+
+export async function requestPasswordReset(formData: FormData): Promise<RequestPasswordResetResult> {
+  const allowed = await checkRateLimit(authRateLimit, await getClientIp())
+  if (!allowed) return { error: authCopy.forgotPassword.errors.rateLimited }
+
+  const email = (formData.get('email') as string | null)?.trim() ?? ''
+  if (!email) return { error: authCopy.forgotPassword.errors.emailRequired }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${APP_URL}/auth/confirm`,
+  })
+
+  // resetPasswordForEmail never reveals whether the account exists (Supabase
+  // returns success either way) — an error here is a request-level failure
+  // (malformed input, provider-side rate limit), never "no such user", so
+  // it's safe to surface without breaking enumeration protection.
+  if (error) return { error: authCopy.forgotPassword.errors.generic }
+
+  return { error: null, emailSent: true }
+}
+
+type UpdatePasswordResult = { error: string | null } | never
+
+export async function updatePassword(formData: FormData): Promise<UpdatePasswordResult> {
+  const password = formData.get('password') as string
+  const confirmPassword = formData.get('confirm_password') as string
+
+  if (!PASSWORD_RE.test(password)) {
+    return { error: authCopy.resetPassword.errors.weakPassword }
+  }
+  if (password !== confirmPassword) {
+    return { error: authCopy.resetPassword.errors.passwordMismatch }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  // The page gates on this too, but a Server Action is its own POST endpoint
+  // and can be hit directly without the page ever rendering — check again.
+  if (!user) return { error: authCopy.resetPassword.errors.sessionExpired }
+
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) return { error: authCopy.resetPassword.errors.generic }
+
+  await supabase.auth.signOut()
+  redirect('/login?reset=success')
+}
