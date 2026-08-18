@@ -20,12 +20,12 @@ beforeEach(() => {
 })
 
 describe('SignupForm', () => {
-  it('renders name, email, password, and confirm password fields', () => {
+  it('renders name, email, and password fields (no confirm password field)', () => {
     render(<SignupForm />)
     expect(screen.getByLabelText('Nombre completo')).toBeInTheDocument()
     expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument()
     expect(screen.getByLabelText('Contraseña')).toBeInTheDocument()
-    expect(screen.getByLabelText('Confirmar contraseña')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Confirmar contraseña')).not.toBeInTheDocument()
   })
 
   it('hides the password requirement checklist before the user types a password', () => {
@@ -40,10 +40,10 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Contraseña'), 'abcdefgh')
 
     // 8+ lowercase letters: meets minLength, fails uppercase/digit/special
-    expect(screen.getByText('Mínimo 8 caracteres').closest('div')).toHaveClass('bg-primary/10')
-    expect(screen.getByText('Una letra mayúscula').closest('div')).toHaveClass('bg-destructive/10')
-    expect(screen.getByText('Un número').closest('div')).toHaveClass('bg-destructive/10')
-    expect(screen.getByText('Un carácter especial').closest('div')).toHaveClass('bg-destructive/10')
+    expect(screen.getByText('Mínimo 8 caracteres').closest('li')).toHaveAttribute('data-met', 'true')
+    expect(screen.getByText('Una letra mayúscula').closest('li')).toHaveAttribute('data-met', 'false')
+    expect(screen.getByText('Un número').closest('li')).toHaveAttribute('data-met', 'false')
+    expect(screen.getByText('Un carácter especial').closest('li')).toHaveAttribute('data-met', 'false')
   })
 
   it('marks every rule as met once a fully compliant password is typed', async () => {
@@ -52,59 +52,24 @@ describe('SignupForm', () => {
 
     await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
 
-    expect(screen.getByText('Mínimo 8 caracteres').closest('div')).toHaveClass('bg-primary/10')
-    expect(screen.getByText('Una letra mayúscula').closest('div')).toHaveClass('bg-primary/10')
-    expect(screen.getByText('Un número').closest('div')).toHaveClass('bg-primary/10')
-    expect(screen.getByText('Un carácter especial').closest('div')).toHaveClass('bg-primary/10')
+    expect(screen.getByText('Mínimo 8 caracteres').closest('li')).toHaveAttribute('data-met', 'true')
+    expect(screen.getByText('Una letra mayúscula').closest('li')).toHaveAttribute('data-met', 'true')
+    expect(screen.getByText('Un número').closest('li')).toHaveAttribute('data-met', 'true')
+    expect(screen.getByText('Un carácter especial').closest('li')).toHaveAttribute('data-met', 'true')
   })
 
-  it('shows no match/mismatch feedback while confirm password is empty', () => {
-    render(<SignupForm />)
-    expect(screen.queryByText('Las contraseñas coinciden')).not.toBeInTheDocument()
-    expect(screen.queryByText('Las contraseñas no coinciden')).not.toBeInTheDocument()
-  })
-
-  it('shows a mismatch message when confirm password differs', async () => {
-    const user = userEvent.setup()
-    render(<SignupForm />)
-
-    await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), 'Different1!')
-
-    expect(screen.getByText('Las contraseñas no coinciden')).toBeInTheDocument()
-    expect(screen.queryByText('Las contraseñas coinciden')).not.toBeInTheDocument()
-  })
-
-  it('shows a match message when confirm password equals the password', async () => {
-    const user = userEvent.setup()
-    render(<SignupForm />)
-
-    await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
-
-    expect(screen.getByText('Las contraseñas coinciden')).toBeInTheDocument()
-    expect(screen.queryByText('Las contraseñas no coinciden')).not.toBeInTheDocument()
-  })
-
-  it('toggles password visibility independently for the password and confirm fields', async () => {
+  it('toggles password visibility', async () => {
     const user = userEvent.setup()
     render(<SignupForm />)
 
     const passwordInput = screen.getByLabelText('Contraseña') as HTMLInputElement
-    const confirmInput = screen.getByLabelText('Confirmar contraseña') as HTMLInputElement
     expect(passwordInput).toHaveAttribute('type', 'password')
-    expect(confirmInput).toHaveAttribute('type', 'password')
 
-    const [passwordToggle, confirmToggle] = screen.getAllByRole('button', { name: 'Mostrar contraseña' })
-
-    await user.click(passwordToggle)
+    await user.click(screen.getByRole('button', { name: 'Mostrar contraseña' }))
     expect(passwordInput).toHaveAttribute('type', 'text')
-    expect(confirmInput).toHaveAttribute('type', 'password')
 
-    await user.click(confirmToggle)
-    expect(confirmInput).toHaveAttribute('type', 'text')
-
-    expect(screen.getAllByRole('button', { name: 'Ocultar contraseña' })).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Ocultar contraseña' }))
+    expect(passwordInput).toHaveAttribute('type', 'password')
   })
 
   it('rejects a weak password client-side without calling signUp', async () => {
@@ -114,7 +79,6 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), 'weak')
-    await user.type(screen.getByLabelText('Confirmar contraseña'), 'weak')
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('La contraseña no cumple los requisitos de seguridad')
@@ -134,27 +98,12 @@ describe('SignupForm', () => {
 
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
     expect(signUpMock).not.toHaveBeenCalled()
   })
 
-  it('rejects mismatched passwords client-side without calling signUp', async () => {
-    const user = userEvent.setup()
-    render(<SignupForm />)
-
-    await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
-    await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
-    await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), 'Different1!')
-    await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Las contraseñas no coinciden')
-    expect(signUpMock).not.toHaveBeenCalled()
-  })
-
-  it('submits the form to signUp once the password is strong and confirmed', async () => {
+  it('submits the form to signUp once the password is strong', async () => {
     signUpMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<SignupForm />)
@@ -162,7 +111,6 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
     expect(signUpMock).toHaveBeenCalledTimes(1)
@@ -180,7 +128,6 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Este correo ya está registrado')
@@ -195,17 +142,11 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
     expect(await screen.findByRole('button', { name: 'Creando cuenta...' })).toBeDisabled()
 
     resolveAction(undefined)
-  })
-
-  it('renders a link to the login page', () => {
-    render(<SignupForm />)
-    expect(screen.getByRole('link', { name: 'Inicia sesión' })).toHaveAttribute('href', '/login')
   })
 
   it('renders the Google sign-in button alongside the form', () => {
@@ -221,7 +162,6 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Nombre completo'), 'Ana Pérez')
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
-    await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
     expect(await screen.findByText('Revisa tu correo')).toBeInTheDocument()

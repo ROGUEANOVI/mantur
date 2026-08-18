@@ -1,19 +1,17 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import Link from 'next/link'
-import { Check, X } from 'lucide-react'
 
 import { signUp } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
 import { isValidFullName } from '@/lib/name'
-import { isPasswordValid, PASSWORD_RULES } from '@/lib/password'
+import { isPasswordValid } from '@/lib/password'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 import PasswordInput from '@/components/auth/PasswordInput'
+import PasswordRequirements from '@/components/auth/PasswordRequirements'
 
 type FormState = { error: string | null; pendingConfirmation?: boolean }
 
@@ -21,14 +19,9 @@ const copy = authCopy.signup
 
 export default function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
   const [password, setPassword]       = useState('')
-  const [confirm, setConfirm]         = useState('')
   const [pwTouched, setPwTouched]     = useState(false)
   const [nameError, setNameError]     = useState<string | null>(null)
-
-  const passwordsMatch = confirm.length > 0 && password === confirm
-  const passwordsMismatch = confirm.length > 0 && password !== confirm
 
   function handleNameBlur(e: React.FocusEvent<HTMLInputElement>) {
     const raw = e.target.value.trim()
@@ -41,9 +34,7 @@ export default function SignupForm() {
       if (!name)                  return { error: copy.errors.nameRequired }
       if (!isValidFullName(name)) { setNameError(copy.errors.invalidName); return { error: null } }
       const pw  = formData.get('password') as string
-      const cfm = formData.get('confirm_password') as string
       if (!isPasswordValid(pw))  return { error: copy.errors.weakPassword }
-      if (pw !== cfm)            return { error: copy.errors.passwordMismatch }
       const result = await signUp(formData)
       return result ?? { error: null }
     },
@@ -115,56 +106,9 @@ export default function SignupForm() {
 
           {/* Requirements — shown once user starts typing */}
           {pwTouched && (
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
-              {PASSWORD_RULES.map(({ key, label, test }) => {
-                const met = test(password)
-                return (
-                  <div
-                    key={key}
-                    className={cn(
-                      'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
-                      met
-                        ? 'bg-primary/10 text-primary'
-                        : 'bg-destructive/10 text-destructive',
-                    )}
-                  >
-                    {met
-                      ? <Check className="size-3 shrink-0" aria-hidden="true" />
-                      : <X     className="size-3 shrink-0" aria-hidden="true" />
-                    }
-                    {label}
-                  </div>
-                )
-              })}
+            <div className="pt-1">
+              <PasswordRequirements password={password} />
             </div>
-          )}
-        </div>
-
-        {/* Confirm password */}
-        <div className="space-y-1.5">
-          <Label htmlFor="signup-confirm">{copy.confirmPassword}</Label>
-          <PasswordInput
-            id="signup-confirm"
-            name="confirm_password"
-            show={showConfirm}
-            onToggle={() => setShowConfirm((v) => !v)}
-            autoComplete="new-password"
-            placeholder="Repite tu contraseña"
-            value={confirm}
-            onChange={setConfirm}
-          />
-          {/* Real-time match feedback */}
-          {passwordsMatch && (
-            <p className="flex items-center gap-1 text-xs text-primary">
-              <Check className="size-3" aria-hidden="true" />
-              Las contraseñas coinciden
-            </p>
-          )}
-          {passwordsMismatch && (
-            <p className="flex items-center gap-1 text-xs text-destructive">
-              <X className="size-3" aria-hidden="true" />
-              Las contraseñas no coinciden
-            </p>
           )}
         </div>
 
@@ -190,13 +134,6 @@ export default function SignupForm() {
       </div>
 
       <GoogleSignInButton />
-
-      <p className="text-center text-sm text-muted-foreground">
-        {copy.hasAccount}{' '}
-        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
-          {copy.loginLink}
-        </Link>
-      </p>
     </div>
   )
 }

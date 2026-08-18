@@ -33,8 +33,8 @@ describe('ResetPasswordForm', () => {
 
     await user.type(screen.getByLabelText('Nueva contraseña'), 'abcdefgh')
 
-    expect(screen.getByText('Mínimo 8 caracteres').closest('div')).toHaveClass('bg-primary/10')
-    expect(screen.getByText('Una letra mayúscula').closest('div')).toHaveClass('bg-destructive/10')
+    expect(screen.getByText('Mínimo 8 caracteres').closest('li')).toHaveAttribute('data-met', 'true')
+    expect(screen.getByText('Una letra mayúscula').closest('li')).toHaveAttribute('data-met', 'false')
   })
 
   it('shows a mismatch message when confirm password differs', async () => {

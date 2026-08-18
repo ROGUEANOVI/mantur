@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import ResetPasswordForm from '@/components/auth/ResetPasswordForm'
+import AuthCard from '@/components/auth/AuthCard'
 import { authCopy } from '@/lib/copy/auth'
 import { createClient } from '@/lib/supabase/server'
 
@@ -20,15 +21,17 @@ export default async function RestablecerPasswordPage() {
   if (!user) redirect('/recuperar-password?error=expired')
 
   return (
-    <div className="space-y-6">
-      <div className="text-center space-y-1">
-        <h1 className="text-2xl font-bold text-foreground">
-          {authCopy.resetPassword.title}
-        </h1>
-        <p className="text-sm text-muted-foreground">{authCopy.resetPassword.subtitle}</p>
-      </div>
+    <AuthCard>
+      <div className="space-y-6">
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl font-bold text-foreground">
+            {authCopy.resetPassword.title}
+          </h1>
+          <p className="text-sm text-muted-foreground">{authCopy.resetPassword.subtitle}</p>
+        </div>
 
-      <ResetPasswordForm />
-    </div>
+        <ResetPasswordForm />
+      </div>
+    </AuthCard>
   )
 }

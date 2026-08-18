@@ -5,11 +5,11 @@ import { Check, X } from 'lucide-react'
 
 import { updatePassword } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
-import { isPasswordValid, PASSWORD_RULES } from '@/lib/password'
+import { isPasswordValid } from '@/lib/password'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import PasswordInput from '@/components/auth/PasswordInput'
+import PasswordRequirements from '@/components/auth/PasswordRequirements'
 
 type FormState = { error: string | null }
 
@@ -55,27 +55,8 @@ export default function ResetPasswordForm() {
           />
 
           {pwTouched && (
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
-              {PASSWORD_RULES.map(({ key, label, test }) => {
-                const met = test(password)
-                return (
-                  <div
-                    key={key}
-                    className={cn(
-                      'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
-                      met
-                        ? 'bg-primary/10 text-primary'
-                        : 'bg-destructive/10 text-destructive',
-                    )}
-                  >
-                    {met
-                      ? <Check className="size-3 shrink-0" aria-hidden="true" />
-                      : <X     className="size-3 shrink-0" aria-hidden="true" />
-                    }
-                    {label}
-                  </div>
-                )
-              })}
+            <div className="pt-1">
+              <PasswordRequirements password={password} />
             </div>
           )}
         </div>

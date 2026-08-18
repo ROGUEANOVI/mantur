@@ -7,11 +7,11 @@ export const authCopy = {
     divider: 'o continúa con',
   },
   login: {
-    title: 'Bienvenido de nuevo',
-    subtitle: 'Inicia sesión para explorar Manaure',
+    title: 'Ingresa a tu cuenta',
+    subtitle: 'Descubre y reserva experiencias en Manaure',
     email: 'Correo electrónico',
     password: 'Contraseña',
-    submit: 'Iniciar sesión',
+    submit: 'Ingresar',
     noAccount: '¿No tienes cuenta?',
     signupLink: 'Regístrate',
     forgotPasswordLink: '¿Olvidaste tu contraseña?',
@@ -30,7 +30,6 @@ export const authCopy = {
     fullName: 'Nombre completo',
     email: 'Correo electrónico',
     password: 'Contraseña',
-    confirmPassword: 'Confirmar contraseña',
     roles: {
       tourist: 'Turista',
       business_owner: 'Dueño de negocio',
@@ -39,11 +38,19 @@ export const authCopy = {
     submit: 'Crear cuenta',
     hasAccount: '¿Ya tienes cuenta?',
     loginLink: 'Inicia sesión',
+    legalConsent: {
+      prefix: 'Acepto los ',
+      terms: 'Términos y Condiciones',
+      middle: ' y autorizo el ',
+      privacy: 'Tratamiento de mis datos personales',
+      suffix: '.',
+    },
     confirmationSent: {
       title: 'Revisa tu correo',
       body: 'Te enviamos un enlace para confirmar tu cuenta. Ábrelo desde tu correo para poder iniciar sesión.',
     },
     passwordRules: {
+      title: 'Tu contraseña requiere:',
       minLength: 'Mínimo 8 caracteres',
       uppercase: 'Una letra mayúscula',
       digit: 'Un número',
@@ -52,7 +59,6 @@ export const authCopy = {
     errors: {
       emailInUse: 'Este correo ya está registrado',
       weakPassword: 'La contraseña no cumple los requisitos de seguridad',
-      passwordMismatch: 'Las contraseñas no coinciden',
       nameRequired: 'El nombre es obligatorio.',
       invalidName: 'El nombre solo puede contener letras y espacios.',
       generic: 'Ocurrió un error. Intenta de nuevo.',

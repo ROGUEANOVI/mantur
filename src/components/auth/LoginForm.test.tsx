@@ -31,7 +31,7 @@ describe('LoginForm', () => {
 
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), 'Secreta123!')
-    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
     expect(signInMock).toHaveBeenCalledTimes(1)
     const fd = signInMock.mock.calls[0][0] as FormData
@@ -46,7 +46,7 @@ describe('LoginForm', () => {
 
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), 'wrong')
-    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Correo o contraseña incorrectos')
   })
@@ -63,7 +63,7 @@ describe('LoginForm', () => {
 
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), 'Secreta123!')
-    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
     await waitFor(() => expect(signInMock).toHaveBeenCalled())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -77,16 +77,11 @@ describe('LoginForm', () => {
 
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), 'Secreta123!')
-    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
-    expect(await screen.findByRole('button', { name: 'Iniciando sesión...' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Ingresando...' })).toBeDisabled()
 
     resolveAction(undefined)
-  })
-
-  it('renders a link to the signup page', () => {
-    render(<LoginForm />)
-    expect(screen.getByRole('link', { name: 'Regístrate' })).toHaveAttribute('href', '/signup')
   })
 
   it('renders the Google sign-in button', () => {
@@ -154,7 +149,7 @@ describe('LoginForm', () => {
 
     await user.type(screen.getByLabelText('Correo electrónico'), 'ana@example.com')
     await user.type(screen.getByLabelText('Contraseña'), 'wrong-pass')
-    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+    await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
     await screen.findByRole('alert')
     expect(screen.getByLabelText('Correo electrónico')).toHaveValue('ana@example.com')
