@@ -34,6 +34,17 @@ export const transportRequestRateLimit = new Ratelimit({
   prefix: 'ratelimit:transport-request',
 })
 
+// Change-password current-password verification: keyed by user id. A
+// compromised-but-authenticated session (stolen cookie, shared device)
+// could otherwise throw unlimited current-password guesses at
+// signInWithPassword from the server side — this caps that independently
+// of Supabase's own IP-based limits.
+export const changePasswordRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '15 m'),
+  prefix: 'ratelimit:change-password',
+})
+
 // Client IP for unauthenticated actions (signIn/signUp), where there's no
 // user id yet to key on. Uses Vercel's own ipAddress() helper rather than
 // reading the x-forwarded-for header directly — that header can otherwise

@@ -12,6 +12,7 @@ vi.mock('@/app/(app)/mi-perfil/actions', () => ({
   updateProfile: (formData: FormData) => updateProfileMock(formData),
   uploadAvatar: (formData: FormData) => uploadAvatarMock(formData),
   removeAvatar: () => removeAvatarMock(),
+  changePassword: vi.fn(),
 }))
 
 vi.mock('sonner', () => ({
@@ -90,6 +91,11 @@ describe('EditProfileForm', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('El nombre es obligatorio.')
+  })
+
+  it('renders the change-password trigger', () => {
+    render(<EditProfileForm {...DEFAULT_PROPS} />)
+    expect(screen.getByRole('button', { name: 'Cambiar contraseña' })).toBeInTheDocument()
   })
 
   it('renders a back link to the homepage', () => {

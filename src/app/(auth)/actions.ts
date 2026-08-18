@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { authCopy } from '@/lib/copy/auth'
 import { authRateLimit, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { isValidFullName } from '@/lib/name'
+import { PASSWORD_RE } from '@/lib/password'
 
 type AuthResult = { error: string } | never
 
@@ -38,8 +39,6 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
 
   redirect('/')
 }
-
-const PASSWORD_RE = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/
 
 type SignUpResult = { error: string | null; pendingConfirmation?: boolean }
 

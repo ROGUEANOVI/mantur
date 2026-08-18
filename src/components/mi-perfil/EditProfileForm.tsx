@@ -9,6 +9,7 @@ import { profileCopy } from '@/lib/copy/profile'
 import { normalizeColombianPhone } from '@/lib/phone'
 import { isValidFullName } from '@/lib/name'
 import AvatarUploader from '@/components/shared/AvatarUploader'
+import ChangePasswordDialog from '@/components/mi-perfil/ChangePasswordDialog'
 
 type FormState = { error: string | null }
 
@@ -128,6 +129,8 @@ export default function EditProfileForm({ fullName, phone, email, avatarUrl }: P
           </div>
           <p className="text-xs text-muted-foreground">{copy.emailHint}</p>
         </div>
+
+        <ChangePasswordDialog />
 
         {state.error && (
           <p role="alert" className="text-sm text-destructive">{state.error}</p>

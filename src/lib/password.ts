@@ -1,5 +1,7 @@
 import { authCopy } from '@/lib/copy/auth'
 
+export const PASSWORD_RE = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/
+
 export const PASSWORD_RULES = [
   { key: 'minLength', label: authCopy.signup.passwordRules.minLength, test: (p: string) => p.length >= 8 },
   { key: 'uppercase', label: authCopy.signup.passwordRules.uppercase, test: (p: string) => /[A-Z]/.test(p) },
