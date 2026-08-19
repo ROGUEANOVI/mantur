@@ -206,6 +206,7 @@ export const adminCopy = {
     title: 'Tipos de servicio',
     subtitle: 'Gestiona los tipos de servicio que los negocios pueden ofrecer.',
     new: 'Nuevo tipo de servicio',
+    nameLabel: 'Nombre',
     namePlaceholder: 'Ej: Pasadía',
     pricingUnitLabel: 'Unidad de precio',
     pricingUnit: {
@@ -215,6 +216,7 @@ export const adminCopy = {
     } as Record<string, string>,
     add: 'Agregar',
     adding: 'Agregando...',
+    success: 'Tipo de servicio creado correctamente.',
     empty: 'No hay tipos de servicio registrados.',
     activate: 'Activar',
     deactivate: 'Desactivar',

@@ -1,18 +1,24 @@
 'use client'
 
 import { useActionState, useEffect, useRef } from 'react'
-import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
+import { Plus, Tag } from 'lucide-react'
 import { adminCopy } from '@/lib/copy/admin'
 import { createServiceType } from './actions'
 
-const initial = { error: undefined as string | undefined, success: false }
+const initial = { success: false }
 
 export default function CreateServiceTypeForm() {
   const copy = adminCopy.tiposServicio
   const [state, action, pending] = useActionState(
     async (_prev: typeof initial, formData: FormData) => {
       const result = await createServiceType(formData)
-      return { error: result.error, success: !!result.success }
+      if (result.error) {
+        toast.error(result.error)
+        return { success: false }
+      }
+      toast.success(copy.success)
+      return { success: true }
     },
     initial,
   )
@@ -23,51 +29,60 @@ export default function CreateServiceTypeForm() {
   }, [state.success])
 
   return (
-    <form
-      ref={formRef}
-      action={action}
-      className="rounded-2xl border border-dashed border-border bg-card shadow-sm p-4 space-y-3"
-    >
-      <p className="text-sm font-semibold text-foreground">{copy.new}</p>
+    <div className="rounded-2xl border border-border bg-card shadow-sm p-4 sm:p-5 space-y-4">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Tag className="size-4 text-primary" aria-hidden="true" strokeWidth={1.5} />
+        </div>
+        <p className="text-sm font-semibold text-foreground">{copy.new}</p>
+      </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <input
-          type="text"
-          name="name"
-          placeholder={copy.namePlaceholder}
-          required
-          className="flex-1 h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-ring"
-        />
-        <select
-          name="pricing_unit"
-          required
-          defaultValue=""
-          aria-label={copy.pricingUnitLabel}
-          className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-ring"
-        >
-          <option value="" disabled>
-            {copy.pricingUnitLabel}
-          </option>
-          <option value="per_person">{copy.pricingUnit.per_person}</option>
-          <option value="per_night">{copy.pricingUnit.per_night}</option>
-          <option value="fixed">{copy.pricingUnit.fixed}</option>
-        </select>
+      <form ref={formRef} action={action} className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label htmlFor="service-type-name" className="block text-sm font-medium text-foreground">
+              {copy.nameLabel}
+            </label>
+            <input
+              id="service-type-name"
+              type="text"
+              name="name"
+              placeholder={copy.namePlaceholder}
+              required
+              className="w-full min-h-11 rounded-xl border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="service-type-pricing-unit" className="block text-sm font-medium text-foreground">
+              {copy.pricingUnitLabel}
+            </label>
+            <select
+              id="service-type-pricing-unit"
+              name="pricing_unit"
+              required
+              defaultValue=""
+              className="w-full min-h-11 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="" disabled>
+                {copy.pricingUnitLabel}
+              </option>
+              <option value="per_person">{copy.pricingUnit.per_person}</option>
+              <option value="per_night">{copy.pricingUnit.per_night}</option>
+              <option value="fixed">{copy.pricingUnit.fixed}</option>
+            </select>
+          </div>
+        </div>
+
         <button
           type="submit"
           disabled={pending}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 h-9 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl bg-primary px-4 min-h-11 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
         >
           <Plus className="size-4" aria-hidden="true" />
           {pending ? copy.adding : copy.add}
         </button>
-      </div>
-
-      {state.error && (
-        <p className="text-xs text-destructive">{state.error}</p>
-      )}
-      {state.success && (
-        <p className="text-xs text-primary">Tipo de servicio creado correctamente.</p>
-      )}
-    </form>
+      </form>
+    </div>
   )
 }

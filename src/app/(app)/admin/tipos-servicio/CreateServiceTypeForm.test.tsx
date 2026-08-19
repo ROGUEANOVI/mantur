@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CreateServiceTypeForm from './CreateServiceTypeForm'
 
 const createServiceTypeMock = vi.fn()
+const toastSuccessMock = vi.fn()
+const toastErrorMock = vi.fn()
 
 vi.mock('./actions', () => ({
   createServiceType: (formData: FormData) => createServiceTypeMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccessMock(...args),
+    error: (...args: unknown[]) => toastErrorMock(...args),
+  },
 }))
 
 beforeEach(() => {
@@ -35,24 +44,30 @@ describe('CreateServiceTypeForm', () => {
     expect(fd.get('pricing_unit')).toBe('per_person')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error as a toast', async () => {
     createServiceTypeMock.mockResolvedValue({ error: 'Ya existe un tipo de servicio con ese slug.' })
     await fillAndSubmit('Pasadía', 'Por persona')
 
-    expect(await screen.findByText('Ya existe un tipo de servicio con ese slug.')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith('Ya existe un tipo de servicio con ese slug.'),
+    )
+    expect(toastSuccessMock).not.toHaveBeenCalled()
   })
 
-  it('shows a success message and clears the input after a successful submission', async () => {
+  it('shows a success toast and clears the input after a successful submission', async () => {
     createServiceTypeMock.mockResolvedValue({ success: true })
     await fillAndSubmit('Pasadía', 'Por persona')
 
-    expect(await screen.findByText('Tipo de servicio creado correctamente.')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(toastSuccessMock).toHaveBeenCalledWith('Tipo de servicio creado correctamente.'),
+    )
     expect(screen.getByPlaceholderText('Ej: Pasadía')).toHaveValue('')
   })
 
-  it('renders neither message before submission', () => {
+  it('shows no toast before submission', () => {
     render(<CreateServiceTypeForm />)
-    expect(screen.queryByText('Tipo de servicio creado correctamente.')).not.toBeInTheDocument()
+    expect(toastSuccessMock).not.toHaveBeenCalled()
+    expect(toastErrorMock).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {
