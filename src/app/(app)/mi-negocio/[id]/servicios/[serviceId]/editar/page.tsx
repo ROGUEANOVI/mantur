@@ -5,21 +5,21 @@ import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
 import {
-  uploadExperienceImage,
-  deleteExperienceImage,
-  requestExperienceVideoUpload,
-  confirmExperienceVideoUpload,
-  deleteExperienceVideo,
+  uploadServiceImage,
+  deleteServiceImage,
+  requestServiceVideoUpload,
+  confirmServiceVideoUpload,
+  deleteServiceVideo,
 } from '@/app/(app)/mi-negocio/actions'
-import EditExperienceForm from '@/components/mi-negocio/EditExperienceForm'
+import EditServiceForm from '@/components/mi-negocio/EditServiceForm'
 import MediaManager from '@/components/shared/MediaManager'
 
-export default async function EditExperiencePage({
+export default async function EditServicePage({
   params,
 }: {
-  params: Promise<{ id: string; expId: string }>
+  params: Promise<{ id: string; serviceId: string }>
 }) {
-  const { id, expId } = await params
+  const { id, serviceId } = await params
   const supabase = await createClient()
 
   const {
@@ -36,32 +36,42 @@ export default async function EditExperiencePage({
 
   if (!business) notFound()
 
-  // Verify experience belongs to this business
-  const { data: experience } = await supabase
-    .from('experiences')
-    .select('id, name, description, price, capacity, duration_minutes, images, videos')
-    .eq('id', expId)
+  // Verify service belongs to this business
+  const { data: service } = await supabase
+    .from('services')
+    .select('id, name, description, base_price, capacity, attributes, images, videos, service_types(slug, name, pricing_unit)')
+    .eq('id', serviceId)
     .eq('business_id', business.id)
-    .maybeSingle()
+    .maybeSingle<{
+      id: string
+      name: string
+      description: string | null
+      base_price: number | string
+      capacity: number | null
+      attributes: Record<string, unknown>
+      images: string[] | null
+      videos: string[] | null
+      service_types: { slug: string; name: string; pricing_unit: 'per_person' | 'per_night' | 'fixed' } | null
+    }>()
 
-  if (!experience) notFound()
+  if (!service || !service.service_types) notFound()
 
-  const copy = miNegocioCopy.experiences
-  const images: string[] = experience.images ?? []
-  const videos: string[] = experience.videos ?? []
+  const copy = miNegocioCopy.services
+  const images: string[] = service.images ?? []
+  const videos: string[] = service.videos ?? []
 
-  // Bind actions to this experience so MediaManager receives plain (formData) / (url) signatures
-  const boundUpload = uploadExperienceImage.bind(null, expId)
-  const boundDelete = deleteExperienceImage.bind(null, expId)
-  const boundRequestVideo = requestExperienceVideoUpload.bind(null, expId)
-  const boundConfirmVideo = confirmExperienceVideoUpload.bind(null, expId)
-  const boundDeleteVideo = deleteExperienceVideo.bind(null, expId)
+  // Bind actions to this service so MediaManager receives plain (formData) / (url) signatures
+  const boundUpload = uploadServiceImage.bind(null, serviceId)
+  const boundDelete = deleteServiceImage.bind(null, serviceId)
+  const boundRequestVideo = requestServiceVideoUpload.bind(null, serviceId)
+  const boundConfirmVideo = confirmServiceVideoUpload.bind(null, serviceId)
+  const boundDeleteVideo = deleteServiceVideo.bind(null, serviceId)
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg">
         <Link
-          href={`/mi-negocio/${id}/experiencias`}
+          href={`/mi-negocio/${id}/servicios`}
           className={cn(
             'inline-flex items-center gap-1.5 mb-6',
             'text-sm font-medium text-primary min-h-11 py-2',
@@ -69,7 +79,7 @@ export default async function EditExperiencePage({
           )}
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
-          {copy.backToExperiences}
+          {copy.backToServices}
         </Link>
 
         <h1 className="text-2xl font-bold text-foreground mb-6">{copy.editTitle}</h1>
@@ -80,14 +90,17 @@ export default async function EditExperiencePage({
             <Settings2 className="size-4 text-muted-foreground" aria-hidden="true" />
             <h2 className="text-base font-semibold text-foreground">{copy.editDetails}</h2>
           </div>
-          <EditExperienceForm
-            experienceId={expId}
+          <EditServiceForm
+            serviceId={serviceId}
+            serviceTypeName={service.service_types.name}
+            serviceTypeSlug={service.service_types.slug}
+            pricingUnit={service.service_types.pricing_unit}
             defaultValues={{
-              name: experience.name,
-              description: experience.description,
-              price: experience.price,
-              capacity: experience.capacity,
-              duration_minutes: experience.duration_minutes,
+              name: service.name,
+              description: service.description,
+              base_price: service.base_price,
+              capacity: service.capacity,
+              attributes: service.attributes ?? {},
             }}
           />
         </section>

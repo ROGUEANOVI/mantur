@@ -25,7 +25,7 @@ vi.mock('next/cache', () => ({
 
 const authGetUser = vi.fn()
 const profileSingle = vi.fn()
-const experienceSingle = vi.fn()
+const serviceSingle = vi.fn()
 const guideTourSingle = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -35,8 +35,8 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'profiles') {
         return { select: () => ({ eq: () => ({ single: profileSingle }) }) }
       }
-      if (table === 'experiences') {
-        return { select: () => ({ eq: () => ({ eq: () => ({ single: experienceSingle }) }) }) }
+      if (table === 'services') {
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: serviceSingle }) }) }) }
       }
       if (table === 'guide_tours') {
         return { select: () => ({ eq: () => ({ eq: () => ({ single: guideTourSingle }) }) }) }
@@ -48,8 +48,15 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const rpcMock = vi.fn()
 const bookingInsertSingle = vi.fn()
-const bookingInsertMock = vi.fn(() => ({ select: () => ({ single: bookingInsertSingle }) }))
-const txInsertMock = vi.fn()
+// Typed with an explicit payload param (rather than left inferred as a
+// zero-arg function) so `bookingInsertMock.mock.calls[0][0]` type-checks as
+// Record<string, unknown> instead of `undefined` — this was flagged as a
+// pre-existing TS gap in this file, unrelated to the experiences->services
+// rename, and is fixed here only because it blocks `tsc --noEmit`.
+const bookingInsertMock = vi.fn((_payload: Record<string, unknown>) => ({
+  select: () => ({ single: bookingInsertSingle }),
+}))
+const txInsertMock = vi.fn((_payload: Record<string, unknown>) => undefined as unknown)
 const bookingDeleteEq = vi.fn()
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -85,9 +92,30 @@ function formData(fields: Record<string, string>) {
   return fd
 }
 
-const EXP_ID = '11111111-1111-1111-1111-111111111111'
+const SERVICE_ID = '11111111-1111-1111-1111-111111111111'
 const TOUR_ID = '22222222-2222-2222-2222-222222222222'
 const FUTURE_DATE = '2099-01-01'
+
+function serviceRow(overrides: Partial<{
+  base_price: number
+  capacity: number | null
+  status: string
+  business_id: string
+  slug: string
+  pricing_unit: 'per_person' | 'per_night' | 'fixed'
+}> = {}) {
+  return {
+    id: SERVICE_ID,
+    base_price: overrides.base_price ?? 50000,
+    // 'capacity' in overrides (not ?? ) — capacity: null is a deliberate
+    // "no cap" override, and ?? would treat that null as absent and fall
+    // back to the default 10.
+    capacity: 'capacity' in overrides ? overrides.capacity : 10,
+    status: overrides.status ?? 'active',
+    business_id: overrides.business_id ?? 'biz-1',
+    service_types: { slug: overrides.slug ?? 'tour_activity', pricing_unit: overrides.pricing_unit ?? 'per_person' },
+  }
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -97,15 +125,15 @@ beforeEach(() => {
 })
 
 describe('rate limiting (shared by both booking actions)', () => {
-  it('createBooking returns a rate-limit error and never queries the experience when the limit is exceeded', async () => {
+  it('createBooking returns a rate-limit error and never queries the service when the limit is exceeded', async () => {
     checkRateLimitMock.mockResolvedValue(false)
-    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
 
     const result = await createBooking(fd)
 
     expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
     expect(checkRateLimitMock).toHaveBeenCalledWith({}, 'user-1')
-    expect(experienceSingle).not.toHaveBeenCalled()
+    expect(serviceSingle).not.toHaveBeenCalled()
   })
 
   it('createGuideTourBooking returns a rate-limit error and never queries the tour when the limit is exceeded', async () => {
@@ -122,95 +150,154 @@ describe('rate limiting (shared by both booking actions)', () => {
 describe('getAuthenticatedTourist guard (shared by both booking actions)', () => {
   it('redirects to /login when there is no authenticated user', async () => {
     authGetUser.mockResolvedValue({ data: { user: null } })
-    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
 
     await expect(createBooking(fd)).rejects.toThrow('redirect:/login')
-    expect(experienceSingle).not.toHaveBeenCalled()
+    expect(serviceSingle).not.toHaveBeenCalled()
   })
 
   it('redirects to / when the authenticated user is not a tourist', async () => {
     profileSingle.mockResolvedValue({ data: { role: 'business_owner' } })
-    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
 
     await expect(createBooking(fd)).rejects.toThrow('redirect:/')
-    expect(experienceSingle).not.toHaveBeenCalled()
+    expect(serviceSingle).not.toHaveBeenCalled()
   })
 })
 
 describe('createBooking', () => {
-  it('rejects a non-UUID experience id without querying the DB', async () => {
-    const fd = formData({ experience_id: 'not-a-uuid', people_count: '2', booking_date: FUTURE_DATE })
+  it('rejects a non-UUID service id without querying the DB', async () => {
+    const fd = formData({ service_id: 'not-a-uuid', quantity: '2', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
-    expect(experienceSingle).not.toHaveBeenCalled()
+    expect(result).toEqual({ error: 'No se encontró el servicio o tour seleccionado.' })
+    expect(serviceSingle).not.toHaveBeenCalled()
   })
 
-  it('rejects when the experience is missing or inactive', async () => {
-    experienceSingle.mockResolvedValue({ data: null })
-    const fd = formData({ experience_id: EXP_ID, people_count: '2', booking_date: FUTURE_DATE })
+  it('rejects when the service is missing or inactive', async () => {
+    serviceSingle.mockResolvedValue({ data: null })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '2', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
-    expect(result).toEqual({ error: 'Esta experiencia no está disponible en este momento.' })
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
   })
 
-  it('rejects zero people_count', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 10, status: 'active', business_id: 'biz-1' } })
-    const fd = formData({ experience_id: EXP_ID, people_count: '0', booking_date: FUTURE_DATE })
+  it('rejects when the service exists but has no resolvable service_types join', async () => {
+    serviceSingle.mockResolvedValue({ data: { id: SERVICE_ID, base_price: 50000, capacity: 10, status: 'active', business_id: 'biz-1', service_types: null } })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '2', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
-    expect(result).toEqual({ error: 'El número de personas debe ser al menos 1.' })
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
   })
 
-  it('rejects non-numeric people_count', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 10, status: 'active', business_id: 'biz-1' } })
-    const fd = formData({ experience_id: EXP_ID, people_count: 'abc', booking_date: FUTURE_DATE })
+  it('rejects zero quantity', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow() })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '0', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
-    expect(result).toEqual({ error: 'El número de personas debe ser al menos 1.' })
+    expect(result).toEqual({ error: 'La cantidad debe ser al menos 1.' })
   })
 
-  it('rejects people_count above capacity', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 4, status: 'active', business_id: 'biz-1' } })
-    const fd = formData({ experience_id: EXP_ID, people_count: '5', booking_date: FUTURE_DATE })
+  it('rejects non-numeric quantity', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow() })
+    const fd = formData({ service_id: SERVICE_ID, quantity: 'abc', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
-    expect(result).toEqual({ error: 'Supera el cupo máximo de esta experiencia.' })
+    expect(result).toEqual({ error: 'La cantidad debe ser al menos 1.' })
   })
 
-  it('allows people_count when capacity is null (no cap)', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 1000, capacity: null, status: 'active', business_id: 'biz-1' } })
+  it('rejects quantity above capacity', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ capacity: 4 }) })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '5', booking_date: FUTURE_DATE })
+    const result = await createBooking(fd)
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
+  })
+
+  it('allows quantity when capacity is null (no cap)', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 1000, capacity: null }) })
     rpcMock.mockResolvedValue({ data: 10, error: null })
     bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
     txInsertMock.mockResolvedValue({ error: null })
 
-    const fd = formData({ experience_id: EXP_ID, people_count: '500', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '500', booking_date: FUTURE_DATE })
     await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
   })
 
   it('rejects a booking date in the past', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 10, status: 'active', business_id: 'biz-1' } })
-    const fd = formData({ experience_id: EXP_ID, people_count: '2', booking_date: '2000-01-01' })
+    serviceSingle.mockResolvedValue({ data: serviceRow() })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '2', booking_date: '2000-01-01' })
     const result = await createBooking(fd)
     expect(result).toEqual({ error: 'La fecha debe ser hoy o en el futuro.' })
   })
 
-  it('computes total/cents/commission correctly and redirects to the confirmation page', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 45000, capacity: 10, status: 'active', business_id: 'biz-1' } })
+  it('computes total/cents/commission correctly for a per_person service and redirects to the confirmation page', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 45000, pricing_unit: 'per_person' }) })
     rpcMock.mockResolvedValue({ data: 10, error: null }) // 10% commission
     bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
     txInsertMock.mockResolvedValue({ error: null })
 
-    const fd = formData({ experience_id: EXP_ID, people_count: '3', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '3', booking_date: FUTURE_DATE })
     await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
-
-    expect(rpcMock).toHaveBeenCalledWith('get_commission_rate', { p_service_type: 'experience' })
 
     const bookingPayload = bookingInsertMock.mock.calls[0][0]
     expect(bookingPayload.total_amount).toBe(135_000) // 45000 * 3
+    expect(bookingPayload.quantity).toBe(3)
 
     const txPayload = txInsertMock.mock.calls[0][0]
     expect(txPayload.amount_in_cents).toBe(13_500_000) // 135000 * 100
     expect(txPayload.commission_amount_cents).toBe(1_350_000) // 10% of 13,500,000
   })
 
+  it('computes total as base_price * quantity for a per_night service', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 80000, capacity: 5, pricing_unit: 'per_night', slug: 'lodging' }) })
+    rpcMock.mockResolvedValue({ data: 10, error: null })
+    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-2' }, error: null })
+    txInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '3', booking_date: FUTURE_DATE })
+    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-2/confirmacion')
+
+    const bookingPayload = bookingInsertMock.mock.calls[0][0]
+    expect(bookingPayload.total_amount).toBe(240_000) // 80000 * 3 nights
+    expect(bookingPayload.quantity).toBe(3)
+  })
+
+  it('for a fixed-price service, total equals base_price regardless of quantity, and the stored quantity is forced to 1', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 300000, capacity: 20, pricing_unit: 'fixed', slug: 'event_rental' }) })
+    rpcMock.mockResolvedValue({ data: 12, error: null })
+    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-3' }, error: null })
+    txInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '5', booking_date: FUTURE_DATE })
+    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-3/confirmacion')
+
+    const bookingPayload = bookingInsertMock.mock.calls[0][0]
+    expect(bookingPayload.total_amount).toBe(300_000) // fixed — not multiplied by quantity
+    expect(bookingPayload.quantity).toBe(1) // forced to 1 regardless of the submitted quantity
+
+    const txPayload = txInsertMock.mock.calls[0][0]
+    expect(txPayload.amount_in_cents).toBe(30_000_000)
+  })
+
+  it('for a fixed-price service, the capacity check still runs against the real submitted quantity before it is forced to 1', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 300000, capacity: 2, pricing_unit: 'fixed', slug: 'event_rental' }) })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '5', booking_date: FUTURE_DATE })
+    const result = await createBooking(fd)
+
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
+    expect(bookingInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('calls get_commission_rate with the service\'s own dynamic service_types.slug, not a hardcoded string', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 45000, slug: 'lodging', pricing_unit: 'per_night' }) })
+    rpcMock.mockResolvedValue({ data: 10, error: null })
+    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-4' }, error: null })
+    txInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-4/confirmacion')
+
+    expect(rpcMock).toHaveBeenCalledWith('get_commission_rate', { p_service_type: 'lodging' })
+  })
+
   it('ignores a client-supplied price/total/commission override and always uses the server-fetched price', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 45000, capacity: 10, status: 'active', business_id: 'biz-1' } })
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 45000 }) })
     rpcMock.mockResolvedValue({ data: 10, error: null })
     bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
     txInsertMock.mockResolvedValue({ error: null })
@@ -219,8 +306,8 @@ describe('createBooking', () => {
     // exist in the real form, but a server action must ignore anything it
     // doesn't explicitly read, not just anything the UI happens to send.
     const fd = formData({
-      experience_id: EXP_ID,
-      people_count: '1',
+      service_id: SERVICE_ID,
+      quantity: '1',
       booking_date: FUTURE_DATE,
       price: '1',
       total_amount: '1',
@@ -241,12 +328,12 @@ describe('createBooking', () => {
     // price * 100 and commission math can both land on a .5-cent boundary;
     // this combination forces Math.round to round 99.9 up to 100 — a
     // Math.floor/ceil regression here would silently under/over-charge.
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 9.99, capacity: 10, status: 'active', business_id: 'biz-1' } })
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 9.99 }) })
     rpcMock.mockResolvedValue({ data: 10, error: null })
     bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
     txInsertMock.mockResolvedValue({ error: null })
 
-    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
     await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
 
     const txPayload = txInsertMock.mock.calls[0][0]
@@ -255,10 +342,10 @@ describe('createBooking', () => {
   })
 
   it('returns a generic error and never creates a booking when the commission RPC fails', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 10, status: 'active', business_id: 'biz-1' } })
+    serviceSingle.mockResolvedValue({ data: serviceRow() })
     rpcMock.mockResolvedValue({ data: null, error: { message: 'rpc failed' } })
 
-    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
@@ -266,12 +353,12 @@ describe('createBooking', () => {
   })
 
   it('rolls back (deletes) the booking when the transaction insert fails', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 10, status: 'active', business_id: 'biz-1' } })
+    serviceSingle.mockResolvedValue({ data: serviceRow() })
     rpcMock.mockResolvedValue({ data: 10, error: null })
     bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-99' }, error: null })
     txInsertMock.mockResolvedValue({ error: { message: 'insert failed' } })
 
-    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
@@ -279,11 +366,11 @@ describe('createBooking', () => {
   })
 
   it('returns a generic error when the booking insert itself fails', async () => {
-    experienceSingle.mockResolvedValue({ data: { id: EXP_ID, price: 50000, capacity: 10, status: 'active', business_id: 'biz-1' } })
+    serviceSingle.mockResolvedValue({ data: serviceRow() })
     rpcMock.mockResolvedValue({ data: 10, error: null })
     bookingInsertSingle.mockResolvedValue({ data: null, error: { message: 'db error' } })
 
-    const fd = formData({ experience_id: EXP_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
@@ -295,7 +382,7 @@ describe('createGuideTourBooking', () => {
   it('rejects a non-UUID guide_tour_id before querying the DB', async () => {
     const fd = formData({ guide_tour_id: 'not-a-uuid', people_count: '1', booking_date: FUTURE_DATE })
     const result = await createGuideTourBooking(fd)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(result).toEqual({ error: 'No se encontró el servicio o tour seleccionado.' })
     expect(guideTourSingle).not.toHaveBeenCalled()
   })
 
@@ -303,7 +390,7 @@ describe('createGuideTourBooking', () => {
     guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '0', booking_date: FUTURE_DATE })
     const result = await createGuideTourBooking(fd)
-    expect(result).toEqual({ error: 'El número de personas debe ser al menos 1.' })
+    expect(result).toEqual({ error: 'La cantidad debe ser al menos 1.' })
   })
 
   it('returns a generic error when the commission RPC fails', async () => {
@@ -329,7 +416,7 @@ describe('createGuideTourBooking', () => {
     expect(txInsertMock).not.toHaveBeenCalled()
   })
 
-  it('reads the commission rate for "guide_tour", not "experience"', async () => {
+  it('reads the commission rate for "guide_tour", not "experience", and inserts the booking with quantity (not people_count)', async () => {
     guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
     rpcMock.mockResolvedValue({ data: 15, error: null })
     bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-7' }, error: null })
@@ -344,6 +431,11 @@ describe('createGuideTourBooking', () => {
     expect(bookingPayload.notes).toBe('Punto de encuentro: parque')
     expect(bookingPayload.guide_id).toBe('guide-1')
     expect(bookingPayload.total_amount).toBe(40_000) // 20000 * 2
+    // The bookings table column is `quantity` (renamed from people_count) —
+    // this function's own formData field name is still people_count, but
+    // the inserted DB column key must be `quantity`.
+    expect(bookingPayload.quantity).toBe(2)
+    expect(bookingPayload).not.toHaveProperty('people_count')
 
     const txPayload = txInsertMock.mock.calls[0][0]
     expect(txPayload.amount_in_cents).toBe(4_000_000)
@@ -354,14 +446,14 @@ describe('createGuideTourBooking', () => {
     guideTourSingle.mockResolvedValue({ data: null })
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
     const result = await createGuideTourBooking(fd)
-    expect(result).toEqual({ error: 'Esta experiencia no está disponible en este momento.' })
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
   })
 
   it('rejects people_count above the tour capacity', async () => {
     guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 4, status: 'active', guide_id: 'guide-1' } })
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '5', booking_date: FUTURE_DATE })
     const result = await createGuideTourBooking(fd)
-    expect(result).toEqual({ error: 'Supera el cupo máximo de esta experiencia.' })
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
   })
 
   it('rejects a booking date in the past', async () => {

@@ -1,23 +1,23 @@
 'use client'
 
 import { useTransition } from 'react'
-import { toggleExperienceStatus } from '@/app/(app)/mi-negocio/actions'
+import { toggleServiceStatus } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { Button } from '@/components/ui/button'
 
 type Props = {
-  experienceId: string
+  serviceId: string
   currentStatus: 'active' | 'inactive'
 }
 
-const copy = miNegocioCopy.experiences
+const copy = miNegocioCopy.services
 
-export function ToggleExperienceButton({ experienceId, currentStatus }: Props) {
+export function ToggleServiceButton({ serviceId, currentStatus }: Props) {
   const [isPending, startTransition] = useTransition()
 
   function handleToggle() {
     startTransition(async () => {
-      await toggleExperienceStatus(experienceId, currentStatus)
+      await toggleServiceStatus(serviceId, currentStatus)
     })
   }
 
@@ -31,7 +31,7 @@ export function ToggleExperienceButton({ experienceId, currentStatus }: Props) {
       size="sm"
       onClick={handleToggle}
       disabled={isPending}
-      aria-label={`${label} experiencia`}
+      aria-label={`${label} servicio`}
       className="min-h-11 min-w-[44px] rounded-xl"
     >
       {isPending ? copy.toggling : label}

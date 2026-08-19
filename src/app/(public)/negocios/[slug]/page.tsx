@@ -39,7 +39,7 @@ export async function generateMetadata({
   const seoTitle = `${data.name} en Manaure Balcón del Cesar`
   const description =
     data.description ??
-    `Reserva experiencias en ${data.name} en Manaure Balcón del Cesar.`
+    `Reserva servicios en ${data.name} en Manaure Balcón del Cesar.`
   const image = (data.images as string[] | null)?.[0]
   const url = `https://mantur.co/negocios/${data.slug}`
 
@@ -62,15 +62,16 @@ export async function generateMetadata({
   }
 }
 
-type ExperienceRow = {
+type ServiceRow = {
   id: string
   name: string
   description: string | null
-  price: string | number
+  base_price: string | number
   capacity: number | null
-  duration_minutes: number | null
+  attributes: Record<string, unknown>
   images: string[] | null
   status: string
+  service_types: { slug: string; pricing_unit: 'per_person' | 'per_night' | 'fixed' } | null
 }
 
 type BusinessDetail = {
@@ -85,7 +86,7 @@ type BusinessDetail = {
   videos: string[] | null
   lat: number | null
   lng: number | null
-  experiences: ExperienceRow[]
+  services: ServiceRow[]
 }
 
 export default async function NegocioDetailPage({
@@ -112,7 +113,7 @@ export default async function NegocioDetailPage({
   const { data: business, error } = await supabase
     .from('businesses')
     .select(
-      'id, slug, name, description, type, address, phone, images, videos, lat, lng, experiences(id, name, description, price, capacity, duration_minutes, images, status)'
+      'id, slug, name, description, type, address, phone, images, videos, lat, lng, services(id, name, description, base_price, capacity, attributes, images, status, service_types(slug, pricing_unit))'
     )
     .eq(isLegacyId ? 'id' : 'slug', slug)
     .eq('verified', true)
@@ -124,13 +125,13 @@ export default async function NegocioDetailPage({
     throw new Error(error.message)
   }
 
-  const b = business as BusinessDetail
+  const b = business as unknown as BusinessDetail
 
   if (isLegacyId) permanentRedirect(`/negocios/${b.slug}`)
 
-  const copyExp = businessesCopy.experiences
+  const copySvc = businessesCopy.services
 
-  const activeExperiences = (b.experiences ?? []).filter((e) => e.status === 'active')
+  const activeServices = (b.services ?? []).filter((s) => s.status === 'active')
 
   const businessJsonLd = {
     '@context': 'https://schema.org',
@@ -212,19 +213,19 @@ export default async function NegocioDetailPage({
           )}
         </section>
 
-        {/* Experiences */}
+        {/* Services */}
         <section className="px-4 mt-8">
-          <h2 className="text-base font-semibold text-foreground mb-3">{copyExp.sectionTitle}</h2>
-          {activeExperiences.length === 0 ? (
+          <h2 className="text-base font-semibold text-foreground mb-3">{copySvc.sectionTitle}</h2>
+          {activeServices.length === 0 ? (
             <div className="rounded-2xl border border-border p-6 text-center">
-              <p className="text-sm text-muted-foreground">{copyExp.empty}</p>
+              <p className="text-sm text-muted-foreground">{copySvc.empty}</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {activeExperiences.map((exp, i) => (
-                <Reveal key={exp.id} delay={Math.min(i, 8) * 60}>
-                  <ExperienceCard
-                    experience={exp}
+              {activeServices.map((svc, i) => (
+                <Reveal key={svc.id} delay={Math.min(i, 8) * 60}>
+                  <ServiceCard
+                    service={svc}
                     businessSlug={b.slug}
                     isTourist={isTourist}
                     isGuest={isGuest}
@@ -239,25 +240,26 @@ export default async function NegocioDetailPage({
   )
 }
 
-function ExperienceCard({
-  experience: exp,
+function ServiceCard({
+  service: svc,
   businessSlug,
   isTourist,
   isGuest,
 }: {
-  experience: ExperienceRow
+  service: ServiceRow
   businessSlug: string
   isTourist: boolean
   isGuest: boolean
 }) {
-  const copy = businessesCopy.experiences
-  const imageUrl = exp.images?.[0]
-  const detailHref = `/negocios/${businessSlug}/actividades/${exp.id}`
+  const copy = businessesCopy.services
+  const imageUrl = svc.images?.[0]
+  const detailHref = `/negocios/${businessSlug}/servicios/${svc.id}`
+  const durationMinutes = svc.attributes?.duration_minutes as number | undefined
 
   return (
     <div className="relative rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 has-[a:active]:scale-[0.98] transition-all bg-card border border-border flex">
-      <Link href={detailHref} className="absolute inset-0 z-0" aria-label={exp.name}>
-        <span className="sr-only">{exp.name}</span>
+      <Link href={detailHref} className="absolute inset-0 z-0" aria-label={svc.name}>
+        <span className="sr-only">{svc.name}</span>
       </Link>
 
       <div
@@ -267,7 +269,7 @@ function ExperienceCard({
         )}
       >
         {imageUrl ? (
-          <Image src={imageUrl} alt={exp.name} fill sizes="96px" className="object-cover" />
+          <Image src={imageUrl} alt={svc.name} fill sizes="96px" className="object-cover" />
         ) : (
           <div className="h-full min-h-[96px] flex items-center justify-center">
             <Store className="size-6 text-primary/50" aria-hidden="true" strokeWidth={1.5} />
@@ -277,34 +279,34 @@ function ExperienceCard({
 
       <div className="flex-1 min-w-0 p-4 space-y-1.5">
         <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
-          {exp.name}
+          {svc.name}
         </h3>
-        {exp.description && (
+        {svc.description && (
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-            {exp.description}
+            {svc.description}
           </p>
         )}
         <p className="text-base font-semibold text-accent">
-          ${Number(exp.price).toLocaleString('es-CO')} COP
+          ${Number(svc.base_price).toLocaleString('es-CO')} COP
         </p>
         <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
-          {exp.duration_minutes != null && (
+          {durationMinutes != null && (
             <span className="flex items-center gap-1">
               <Clock className="size-3" aria-hidden="true" />
-              {exp.duration_minutes}&nbsp;{copy.minutes}
+              {durationMinutes}&nbsp;{copy.minutes}
             </span>
           )}
-          {exp.capacity != null && (
+          {svc.capacity != null && (
             <span className="flex items-center gap-1">
               <Users className="size-3" aria-hidden="true" />
-              {exp.capacity}&nbsp;{copy.people}
+              {svc.capacity}&nbsp;{copy.people}
             </span>
           )}
         </div>
 
         {isTourist ? (
           <Link
-            href={`/reservas/nueva?exp=${exp.id}`}
+            href={`/reservas/nueva?service=${svc.id}`}
             className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 active:scale-[0.98] transition-all"
           >
             {copy.book}

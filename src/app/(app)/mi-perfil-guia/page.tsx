@@ -30,7 +30,7 @@ type Tour = {
 type BookingRow = {
   id: string
   booking_date: string
-  people_count: number
+  quantity: number
   total_amount: number
   status: string
   notes: string | null
@@ -70,7 +70,7 @@ export default async function MiPerfilGuiaPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('bookings')
-      .select('id, booking_date, people_count, total_amount, status, notes, guide_tours(name), profiles!tourist_id(full_name)')
+      .select('id, booking_date, quantity, total_amount, status, notes, guide_tours(name), profiles!tourist_id(full_name)')
       .eq('guide_id', guide.id)
       .order('created_at', { ascending: false })
       .limit(10),
@@ -267,7 +267,7 @@ export default async function MiPerfilGuiaPage() {
                     </span>
                     <span className="flex items-center gap-1">
                       <Users className="size-3.5" aria-hidden="true" />
-                      {b.people_count}&nbsp;{copy.people}
+                      {b.quantity}&nbsp;{copy.people}
                     </span>
                     <span className="flex items-center gap-1 text-primary font-semibold">
                       <Banknote className="size-3.5" aria-hidden="true" />

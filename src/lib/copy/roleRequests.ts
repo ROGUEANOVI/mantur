@@ -13,7 +13,7 @@ export const roleRequestsCopy = {
   roleCards: {
     business_owner: {
       hook:  '¿Tienes un negocio en Manaure?',
-      value: 'Publica tu negocio, gestiona experiencias y recibe reservas directas de turistas.',
+      value: 'Publica tu negocio, gestiona servicios y recibe reservas directas de turistas.',
       cta:   'Quiero registrar mi negocio',
     },
     transporter: {

@@ -36,26 +36,33 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   const allowed = await checkRateLimit(bookingRateLimit, userId)
   if (!allowed) return { error: bookingsCopy.errors.rateLimited }
 
-  const experienceId = formData.get('experience_id') as string
-  if (!UUID_RE.test(experienceId)) return { error: bookingsCopy.errors.notFound }
+  const serviceId = formData.get('service_id') as string
+  if (!UUID_RE.test(serviceId)) return { error: bookingsCopy.errors.notFound }
 
-  // Read experience from DB — price and business_id are NEVER taken from FormData.
-  // Filtering by status='active' ensures tourists can't book inactive experiences.
-  const { data: exp } = await supabase
-    .from('experiences')
-    .select('id, price, capacity, status, business_id')
-    .eq('id', experienceId)
+  // Read service from DB — price and business_id are NEVER taken from FormData.
+  // Filtering by status='active' ensures tourists can't book inactive services.
+  const { data: service } = await supabase
+    .from('services')
+    .select('id, base_price, capacity, status, business_id, service_types(slug, pricing_unit)')
+    .eq('id', serviceId)
     .eq('status', 'active')
-    .single()
+    .single<{
+      id: string
+      base_price: number
+      capacity: number | null
+      status: string
+      business_id: string
+      service_types: { slug: string; pricing_unit: 'per_person' | 'per_night' | 'fixed' } | null
+    }>()
 
-  if (!exp) return { error: bookingsCopy.errors.experienceUnavailable }
+  if (!service || !service.service_types) return { error: bookingsCopy.errors.unavailable }
 
-  const rawPeople = formData.get('people_count') as string
-  const peopleCount = parseInt(rawPeople, 10)
-  if (!Number.isInteger(peopleCount) || peopleCount < 1) {
-    return { error: bookingsCopy.errors.invalidPeople }
+  const rawQuantity = formData.get('quantity') as string
+  const quantity = parseInt(rawQuantity, 10)
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    return { error: bookingsCopy.errors.invalidQuantity }
   }
-  if (exp.capacity !== null && peopleCount > exp.capacity) {
+  if (service.capacity !== null && quantity > service.capacity) {
     return { error: bookingsCopy.errors.capacityExceeded }
   }
 
@@ -67,15 +74,24 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
     return { error: bookingsCopy.errors.invalidDate }
   }
 
+  const pricingUnit = service.service_types.pricing_unit
+
   // Total is calculated server-side only — clients cannot influence the price.
-  const totalAmount = Number(exp.price) * peopleCount
+  // 'fixed' services are priced as a whole regardless of headcount/nights; the
+  // stored quantity is forced to 1 so it stays a meaningful "units purchased"
+  // value (the capacity check above still ran against the real submitted
+  // quantity, e.g. attendee count for an event rental).
+  const totalAmount = pricingUnit === 'fixed' ? Number(service.base_price) : Number(service.base_price) * quantity
+  const storedQuantity = pricingUnit === 'fixed' ? 1 : quantity
   const amountInCents = Math.round(totalAmount * 100)
 
   const admin = createAdminClient()
 
   // Commission rate is read via service_role RPC (EXECUTE revoked from PUBLIC).
+  // Keyed by the service's own type slug, so admin can set a different
+  // commission % per service type via /admin/comisiones.
   const { data: commissionRate, error: rateError } = await admin.rpc('get_commission_rate', {
-    p_service_type: 'experience',
+    p_service_type: service.service_types.slug,
   })
   if (rateError || commissionRate === null) return { error: bookingsCopy.errors.generic }
 
@@ -86,10 +102,10 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   const { data: booking, error: bookingError } = await admin
     .from('bookings')
     .insert({
-      experience_id: experienceId,
+      service_id: serviceId,
       tourist_id: userId,
-      business_id: exp.business_id,
-      people_count: peopleCount,
+      business_id: service.business_id,
+      quantity: storedQuantity,
       booking_date: bookingDate,
       total_amount: totalAmount,
       status: 'confirmed',
@@ -134,12 +150,12 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
     .eq('status', 'active')
     .single()
 
-  if (!tour) return { error: bookingsCopy.errors.experienceUnavailable }
+  if (!tour) return { error: bookingsCopy.errors.unavailable }
 
   const rawPeople = formData.get('people_count') as string
   const peopleCount = parseInt(rawPeople, 10)
   if (!Number.isInteger(peopleCount) || peopleCount < 1) {
-    return { error: bookingsCopy.errors.invalidPeople }
+    return { error: bookingsCopy.errors.invalidQuantity }
   }
   if (tour.capacity !== null && peopleCount > tour.capacity) {
     return { error: bookingsCopy.errors.capacityExceeded }
@@ -171,7 +187,7 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
       guide_tour_id: guideTourId,
       guide_id: tour.guide_id,
       tourist_id: userId,
-      people_count: peopleCount,
+      quantity: peopleCount,
       booking_date: bookingDate,
       total_amount: totalAmount,
       status: 'confirmed',

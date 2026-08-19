@@ -8,11 +8,11 @@ import { cn } from '@/lib/utils'
 type BookingItem = {
   id: string
   booking_date: string
-  people_count: number
+  quantity: number
   total_amount: number
   status: string
   created_at: string
-  experiences: {
+  services: {
     name: string
     businesses: { name: string } | null
   } | null
@@ -38,7 +38,7 @@ export default async function MisReservasPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, people_count, total_amount, status, created_at, experiences(name, businesses(name)), guide_tours(name, tourist_guides(profiles(full_name)))',
+      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles(full_name)))',
     )
     .order('created_at', { ascending: false })
 
@@ -93,16 +93,16 @@ export default async function MisReservasPage() {
                   href={`/reservas/${booking.id}/confirmacion`}
                   className="block rounded-2xl border border-border bg-card shadow-sm p-4 hover:shadow-md transition-shadow"
                 >
-                  {/* Experience / guide tour name + entity */}
+                  {/* Service / guide tour name + entity */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
-                        {booking.guide_tours?.name ?? booking.experiences?.name ?? '—'}
+                        {booking.guide_tours?.name ?? booking.services?.name ?? '—'}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                         {booking.guide_tours
                           ? (booking.guide_tours.tourist_guides?.profiles?.full_name ?? '—')
-                          : (booking.experiences?.businesses?.name ?? '—')}
+                          : (booking.services?.businesses?.name ?? '—')}
                       </p>
                     </div>
                     <span
@@ -123,7 +123,7 @@ export default async function MisReservasPage() {
                     </span>
                     <span className="flex items-center gap-1">
                       <Users className="size-3.5" aria-hidden="true" />
-                      {booking.people_count}&nbsp;{bookingsCopy.list.people}
+                      {booking.quantity}&nbsp;{bookingsCopy.list.quantity}
                     </span>
                     <span className="flex items-center gap-1 text-primary font-semibold">
                       <Banknote className="size-3.5" aria-hidden="true" />

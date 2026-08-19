@@ -66,7 +66,7 @@ export const descubreCopy = {
   dondeComer: {
     title: 'Dónde comer y descansar en Manaure',
     intro:
-      'Restaurantes, balnearios, fincas y estaderos verificados de Manaure Balcón del Cesar, agrupados por tipo. Cada negocio tiene su propia página con fotos, actividades y forma de contacto.',
+      'Restaurantes, balnearios, fincas y estaderos verificados de Manaure Balcón del Cesar, agrupados por tipo. Cada negocio tiene su propia página con fotos, servicios y forma de contacto.',
     empty:
       'Estamos verificando los negocios de Manaure. Vuelve pronto o revisa el listado completo de negocios.',
     viewAllLabel: 'Ver todos los negocios',

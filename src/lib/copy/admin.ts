@@ -5,6 +5,7 @@ export const adminCopy = {
     lugares: 'Lugares',
     comisiones: 'Comisiones',
     categorias: 'Categorías',
+    tiposServicio: 'Tipos de servicio',
     solicitudes: 'Solicitudes',
   },
 
@@ -50,7 +51,7 @@ export const adminCopy = {
       activeBusinesses: 'Activos',
       totalBookings: 'Reservas totales',
       totalLugares: 'Lugares turísticos',
-      commissionRate: 'Comisión experiencias',
+      commissionRate: 'Comisión actividades/tours',
     },
     sections: {
       businesses: 'Gestión de negocios',
@@ -128,7 +129,11 @@ export const adminCopy = {
     title: 'Tasas de comisión',
     subtitle: 'Porcentaje que retiene ManTur sobre el monto total de cada transacción.',
     serviceType: {
-      experience: 'Experiencias',
+      tour_activity: 'Actividades/Tours',
+      lodging: 'Hospedaje',
+      event_rental: 'Alquiler para eventos',
+      pasadia: 'Pasadía',
+      guide_tour: 'Tours de guía',
       transport: 'Transporte',
       business: 'Negocios',
     } as Record<string, string>,
@@ -204,6 +209,30 @@ export const adminCopy = {
         categories: 'Categorías de negocios',
         categoriesDesc: 'Agregar o desactivar tipos de negocio disponibles',
       },
+    },
+  },
+
+  tiposServicio: {
+    title: 'Tipos de servicio',
+    subtitle: 'Gestiona los tipos de servicio que los negocios pueden ofrecer.',
+    new: 'Nuevo tipo de servicio',
+    namePlaceholder: 'Ej: Pasadía',
+    pricingUnitLabel: 'Unidad de precio',
+    pricingUnit: {
+      per_person: 'Por persona',
+      per_night: 'Por noche',
+      fixed: 'Precio fijo',
+    } as Record<string, string>,
+    add: 'Agregar',
+    adding: 'Agregando...',
+    empty: 'No hay tipos de servicio registrados.',
+    activate: 'Activar',
+    deactivate: 'Desactivar',
+    errors: {
+      nameRequired: 'El nombre es obligatorio.',
+      pricingUnitRequired: 'La unidad de precio es obligatoria.',
+      slugTaken: 'Ya existe un tipo de servicio con ese slug.',
+      generic: 'Error al guardar. Intenta de nuevo.',
     },
   },
 

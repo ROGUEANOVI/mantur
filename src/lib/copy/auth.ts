@@ -11,7 +11,7 @@ export const authCopy = {
   },
   login: {
     title: 'Ingresa a tu cuenta',
-    subtitle: 'Descubre y reserva experiencias en Manaure',
+    subtitle: 'Descubre y reserva servicios en Manaure',
     email: 'Correo electrónico',
     password: 'Contraseña',
     submit: 'Ingresar',

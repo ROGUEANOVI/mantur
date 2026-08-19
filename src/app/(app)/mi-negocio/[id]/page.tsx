@@ -149,16 +149,16 @@ export default async function MiNegocioDetailPage({
           </p>
         </div>
 
-        {/* Experiences link */}
+        {/* Services link */}
         <Link
-          href={`/mi-negocio/${b.id}/experiencias`}
+          href={`/mi-negocio/${b.id}/servicios`}
           className={cn(
             'flex items-center justify-between rounded-2xl border border-border bg-card p-5 shadow-sm',
             'hover:shadow-md transition-shadow min-h-[72px]',
           )}
         >
           <div className="min-w-0 mr-3">
-            <p className="font-semibold text-foreground">{miNegocioCopy.nav.experiences}</p>
+            <p className="font-semibold text-foreground">{miNegocioCopy.nav.services}</p>
             <p className="text-sm text-muted-foreground mt-0.5">
               {miNegocioCopy.overview.experiencesSubtitle}
             </p>
