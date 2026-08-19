@@ -1,18 +1,24 @@
 'use client'
 
 import { useActionState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { Plus, Tag } from 'lucide-react'
 import { adminCopy } from '@/lib/copy/admin'
 import { createServiceType } from './actions'
 
-const initial = { error: undefined as string | undefined, success: false }
+const initial = { success: false }
 
 export default function CreateServiceTypeForm() {
   const copy = adminCopy.tiposServicio
   const [state, action, pending] = useActionState(
     async (_prev: typeof initial, formData: FormData) => {
       const result = await createServiceType(formData)
-      return { error: result.error, success: !!result.success }
+      if (result.error) {
+        toast.error(result.error)
+        return { success: false }
+      }
+      toast.success(copy.success)
+      return { success: true }
     },
     initial,
   )
@@ -77,17 +83,6 @@ export default function CreateServiceTypeForm() {
           {pending ? copy.adding : copy.add}
         </button>
       </form>
-
-      {state.error && (
-        <p role="alert" className="text-xs font-medium text-destructive">
-          {state.error}
-        </p>
-      )}
-      {state.success && (
-        <p role="status" className="text-xs font-medium text-green-600 dark:text-green-400">
-          {copy.success}
-        </p>
-      )}
     </div>
   )
 }
