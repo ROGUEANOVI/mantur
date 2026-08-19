@@ -1,29 +1,8 @@
 'use client'
 
-import { LayoutDashboard, Building2, TreePine, Percent, Tag, Layers, Users, Car } from 'lucide-react'
 import NavLink from './NavLink'
 import { cn } from '@/lib/utils'
-
-const NAV_GROUPS = [
-  [
-    { href: '/admin', label: 'Dashboard', exact: true, Icon: LayoutDashboard },
-  ],
-  [
-    { href: '/admin/solicitudes', label: 'Solicitudes', exact: false, Icon: Users },
-  ],
-  [
-    { href: '/admin/negocios',   label: 'Negocios',   exact: false, Icon: Building2 },
-    { href: '/admin/categorias', label: 'Categorías', exact: false, Icon: Tag },
-    { href: '/admin/tipos-servicio', label: 'Tipos de servicio', exact: false, Icon: Layers },
-  ],
-  [
-    { href: '/admin/lugares',     label: 'Lugares',      exact: false, Icon: TreePine },
-    { href: '/admin/transportes', label: 'Transportes',  exact: false, Icon: Car },
-  ],
-  [
-    { href: '/admin/comisiones', label: 'Comisiones', exact: false, Icon: Percent },
-  ],
-]
+import { ADMIN_NAV_GROUPS } from './admin-nav'
 
 const Divider = () => (
   <div className="my-1.5 mx-2 border-t border-border" />
@@ -33,7 +12,7 @@ export default function AdminSidebar() {
   return (
     <aside className="group hidden lg:flex flex-col bg-background border-r border-t border-border fixed left-0 top-14 h-[calc(100vh-3.5rem)] z-20 overflow-hidden w-14 hover:w-56 transition-[width] duration-300 ease-in-out">
       <nav className="p-2 pt-2 flex-1">
-        {NAV_GROUPS.map((group, gi) => (
+        {ADMIN_NAV_GROUPS.map((group, gi) => (
           <div key={gi}>
             {gi > 0 && <Divider />}
             <div className="space-y-0.5">

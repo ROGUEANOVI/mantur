@@ -1,14 +1,4 @@
 export const adminCopy = {
-  nav: {
-    dashboard: 'Admin',
-    negocios: 'Negocios',
-    lugares: 'Lugares',
-    comisiones: 'Comisiones',
-    categorias: 'Categorías',
-    tiposServicio: 'Tipos de servicio',
-    solicitudes: 'Solicitudes',
-  },
-
   solicitudes: {
     title: 'Solicitudes de rol',
     subtitle: 'Revisa y gestiona las solicitudes de cambio de rol de los usuarios.',
