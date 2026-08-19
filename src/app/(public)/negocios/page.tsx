@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { Store, MapPin, SlidersHorizontal } from 'lucide-react'
+import { Store, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 
@@ -16,12 +16,14 @@ export const metadata: Metadata = {
     url: 'https://mantur.co/negocios',
   },
 }
-import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
 import EntityListMapToggle from '@/components/shared/EntityListMapToggle'
 import type { EntityMapMarker } from '@/components/shared/EntityMap'
 import Reveal from '@/components/shared/Reveal'
 import PaginationNav from '@/components/shared/PaginationNav'
+import HeroControlCard from '@/components/shared/HeroControlCard'
+import FilterPillsRail from '@/components/shared/FilterPillsRail'
+import AuroraHero from '@/components/shared/AuroraHero'
 
 const PAGE_SIZE = 12
 
@@ -140,81 +142,42 @@ export default async function NegociosPage({
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      {/* Hero + search + pills — franja ámbar, mismo lenguaje de la sección "Únete" */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-accent via-accent to-[#c9860f]">
-        <div className="pointer-events-none absolute -top-16 -right-10 size-64 rounded-full bg-white/20 blur-2xl" />
-        {/* Town/building silhouette — tone-on-tone against the amber, not white */}
-        <svg
-          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.10]"
-          viewBox="0 0 1200 80"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M0,80 L0,55 L60,55 L60,40 L80,40 L80,30 L100,30 L100,40 L130,40 L130,55
-               L200,55 L200,35 L215,35 L215,20 L230,20 L230,35 L260,35 L260,55
-               L320,55 L320,45 L345,45 L345,55 L400,55 L400,38 L420,38 L420,25 L440,25 L440,38 L470,38 L470,55
-               L540,55 L540,42 L560,42 L560,55 L600,55 L600,30 L618,30 L618,18 L636,18 L636,30 L660,30 L660,55
-               L720,55 L720,45 L750,45 L750,55 L800,55 L800,35 L820,35 L820,22 L840,22 L840,35 L870,35 L870,55
-               L930,55 L930,42 L950,42 L950,55 L1000,55 L1000,40 L1020,40 L1020,28 L1045,28 L1045,40 L1070,40 L1070,55
-               L1140,55 L1140,45 L1165,45 L1165,55 L1200,55 L1200,80 Z"
-            fill="#0a2b1e"
-          />
-        </svg>
-        {/* Título y buscador */}
-        <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-5 text-center space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold text-[#0a2b1e]">{copy.pageTitle}</h1>
-            <p className="mt-1 text-sm text-[#0a2b1e]/70">{copy.pageSubtitle}</p>
-          </div>
-          <Suspense fallback={<div className="h-10 w-full rounded-xl bg-white/50 animate-pulse" />}>
-            <SearchInput placeholder="Buscar negocio..." />
-          </Suspense>
-        </div>
+      {/* Hero — degradé orgánico de marca (verde/salvia/ámbar), sin silueta plana */}
+      <AuroraHero>
+        <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
+        <p className="mt-1 text-sm text-white/85">{copy.pageSubtitle}</p>
+      </AuroraHero>
+      <div className="hero-weave-edge" />
 
-        {/* Pills de tipo — driven by business_categories table */}
-        <div className="border-t border-[#0a2b1e]/10 py-3">
-          <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-[#0a2b1e]/60 mb-2">
-            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-            {copy.filterLabel}
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
-            <Link
-              href={search ? `/negocios?q=${encodeURIComponent(search)}` : '/negocios'}
-              className={cn(
-                'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
-                !activeCategory
-                  ? 'border-[#0a2b1e] bg-[#0a2b1e] text-white'
-                  : 'border-[#0a2b1e]/25 bg-white/40 text-[#0a2b1e] hover:bg-white/60',
-              )}
-            >
-              Todos
-            </Link>
-            {categories.map((cat) => {
-              const href = search
-                ? `/negocios?type=${cat.slug}&q=${encodeURIComponent(search)}`
-                : `/negocios?type=${cat.slug}`
-              return (
-                <Link
-                  key={cat.slug}
-                  href={href}
-                  className={cn(
-                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
-                    activeCategory?.slug === cat.slug
-                      ? 'border-[#0a2b1e] bg-[#0a2b1e] text-white'
-                      : 'border-[#0a2b1e]/25 bg-white/40 text-[#0a2b1e] hover:bg-white/60',
-                  )}
-                >
-                  {cat.name}
-                </Link>
-              )
-            })}
-          </div>
+      {/* Buscador + filtros agrupados en la tarjeta de control flotante,
+          compartida con /lugares, /transportistas y /guias */}
+      <HeroControlCard>
+        <Suspense fallback={<div className="h-10 w-full rounded-xl bg-muted animate-pulse" />}>
+          <SearchInput placeholder="Buscar negocio..." />
+        </Suspense>
+        <div className="mt-3">
+          <FilterPillsRail
+            items={[
+              {
+                key: 'all',
+                label: 'Todos',
+                href: search ? `/negocios?q=${encodeURIComponent(search)}` : '/negocios',
+              },
+              ...categories.map((cat) => ({
+                key: cat.slug,
+                label: cat.name,
+                href: search
+                  ? `/negocios?type=${cat.slug}&q=${encodeURIComponent(search)}`
+                  : `/negocios?type=${cat.slug}`,
+              })),
+            ]}
+            activeKey={activeCategory?.slug ?? 'all'}
+          />
         </div>
-      </section>
+      </HeroControlCard>
 
       <div className="max-w-5xl mx-auto w-full">
-        <div className="mt-4 px-4">
+        <div className="mt-6 px-4">
         {/* Results count */}
         {/* Business grid */}
           {!businesses || businesses.length === 0 ? (

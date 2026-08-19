@@ -3,6 +3,8 @@ export const guidesCopy = {
     pageTitle: 'Guías turísticos locales',
     pageSubtitle: 'Conoce Manaure de la mano de expertos locales',
     available: 'Disponible',
+    availableNowLabel: 'guías disponibles',
+    availableNowLabelSingular: 'guía disponible',
     empty: 'No hay guías disponibles en este momento.',
     specialtiesLabel: 'Especialidades',
     languagesLabel: 'Idiomas',

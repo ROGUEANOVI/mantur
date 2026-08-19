@@ -1,11 +1,16 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { Compass } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import Reveal from '@/components/shared/Reveal'
 import Avatar from '@/components/shared/Avatar'
+import SearchInput from '@/components/shared/SearchInput'
+import HeroControlCard from '@/components/shared/HeroControlCard'
+import FilterPillsRail from '@/components/shared/FilterPillsRail'
+import IllustratedHero from '@/components/shared/IllustratedHero'
 
 export const metadata: Metadata = {
   title: 'Guías Turísticos',
@@ -28,50 +33,101 @@ type GuideRow = {
   guide_tours: { id: string }[]
 }
 
-export default async function GuiasPage() {
+const SPECIALTY_ENTRIES = Object.entries(
+  roleRequestsCopy.form.touristGuide.specialtyOptions,
+) as [string, string][]
+
+export default async function GuiasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; specialty?: string }>
+}) {
+  const { q: rawQ, specialty: rawSpecialty } = await searchParams
+  const search = rawQ?.trim().slice(0, 100) ?? ''
+  const specialty =
+    SPECIALTY_ENTRIES.find(([slug]) => slug === rawSpecialty)?.[0] ?? null
+
   const admin = createAdminClient()
 
-  const { data } = await admin
+  // !inner is required to filter on the joined profiles.full_name column,
+  // same pattern /transportistas and /negocios use for their own joins.
+  const selectClause = search
+    ? 'id, slug, specialties, languages, bio, profiles!inner(full_name, avatar_url), guide_tours(id)'
+    : 'id, slug, specialties, languages, bio, profiles(full_name, avatar_url), guide_tours(id)'
+
+  let guidesQuery = admin
     .from('tourist_guides')
-    .select('id, slug, specialties, languages, bio, profiles(full_name, avatar_url), guide_tours(id)')
+    .select(selectClause)
     .eq('is_available', true)
     .order('created_at', { ascending: true })
+
+  if (search) guidesQuery = guidesQuery.filter('profiles.full_name', 'ilike', `%${search}%`)
+  if (specialty) guidesQuery = guidesQuery.contains('specialties', [specialty])
+
+  const { data } = await guidesQuery
 
   const guides = (data ?? []) as unknown as GuideRow[]
   const copy = guidesCopy.publicPage
 
+  const baseParams: Record<string, string> = {}
+  if (search) baseParams.q = search
+  function withSpecialty(slug: string | null) {
+    const params = new URLSearchParams(baseParams)
+    if (slug) params.set('specialty', slug)
+    const qs = params.toString()
+    return qs ? `/guias?${qs}` : '/guias'
+  }
+
   return (
     <main className="min-h-screen bg-background pb-10">
-      <section className="relative overflow-hidden bg-linear-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
-        {/* Compass rose — same motif as /solicitar-rol's tourist_guide step,
-            so the hero already speaks the language of "local knowledge". */}
-        <svg
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-6 -bottom-6 w-48 opacity-[0.12]"
-          viewBox="0 0 100 100"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.5"
-        >
-          <circle cx="50" cy="50" r="40" />
-          <circle cx="50" cy="50" r="28" />
-          <line x1="50" y1="10" x2="50" y2="20" />
-          <line x1="50" y1="80" x2="50" y2="90" />
-          <line x1="10" y1="50" x2="20" y2="50" />
-          <line x1="80" y1="50" x2="90" y2="50" />
-          <polygon points="50,26 54,44 50,48 46,44" fill="white" stroke="none" opacity="0.6" />
-          <polygon points="50,72 46,54 50,50 54,54" fill="white" stroke="none" opacity="0.3" />
-        </svg>
-        <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-8 text-center">
-          <Compass
-            className="mx-auto mb-3 size-10 text-white/80"
-            strokeWidth={1.5}
+      <IllustratedHero
+        title={copy.pageTitle}
+        subtitle={copy.pageSubtitle}
+        className="bg-linear-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]"
+        textClassName="text-white"
+        panelClassName="bg-[#0a2b1e]"
+        stat={
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
+            <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
+            {guides.length} {guides.length === 1 ? copy.availableNowLabelSingular : copy.availableNowLabel}
+          </span>
+        }
+        illustration={
+          <svg
             aria-hidden="true"
+            className="absolute inset-0 size-full"
+            viewBox="0 0 100 100"
+            fill="none"
+            stroke="white"
+          >
+            <circle cx="50" cy="50" r="40" strokeWidth="1.5" opacity="0.5" />
+            <circle cx="30" cy="35" r="4" fill="#e8a020" stroke="none" />
+            <circle cx="66" cy="30" r="4" fill="#e8a020" stroke="none" />
+            <circle cx="58" cy="68" r="4" fill="#e8a020" stroke="none" />
+            <path d="M30,35 L66,30 L58,68 Z" strokeWidth="1.2" strokeDasharray="1 6" opacity="0.7" />
+          </svg>
+        }
+      />
+      <div className="hero-weave-edge" />
+
+      <HeroControlCard>
+        <Suspense fallback={<div className="h-10 w-full rounded-xl bg-muted animate-pulse" />}>
+          <SearchInput placeholder="Buscar guía..." />
+        </Suspense>
+        <div className="mt-3">
+          <FilterPillsRail
+            items={[
+              { key: 'all', label: 'Todos', href: withSpecialty(null) },
+              ...SPECIALTY_ENTRIES.map(([slug, label]) => ({
+                key: slug,
+                label,
+                href: withSpecialty(slug),
+              })),
+            ]}
+            activeKey={specialty ?? 'all'}
           />
-          <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
-          <p className="mt-2 text-sm text-white/70">{copy.pageSubtitle}</p>
         </div>
-      </section>
+      </HeroControlCard>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
         {guides.length === 0 ? (

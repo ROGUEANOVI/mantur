@@ -171,4 +171,15 @@
   .animate-fade-up {
     animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+
+  /* Thin woven "trim" strip marking the transition at the bottom of a
+     hero, right where the floating control card overlaps it. */
+  .hero-weave-edge {
+    height: 14px;
+    margin-top: -14px;
+    background-color: #0a2b1e;
+    background-image:
+      repeating-linear-gradient(45deg, transparent 0 7px, rgba(255, 255, 255, 0.85) 7px 8.5px, transparent 8.5px 16px),
+      repeating-linear-gradient(-45deg, transparent 0 7px, rgba(255, 255, 255, 0.85) 7px 8.5px, transparent 8.5px 16px);
+  }
 }
