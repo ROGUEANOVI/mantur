@@ -245,7 +245,7 @@ otp_expiry = 3600
 
 [auth.email.template.recovery]
 subject = "Restablece tu contraseña de ManTur"
-content_path = "./templates/recovery.html"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
