@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePrice, parsePositiveInt } from './parsers'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { getAttributeFields, parseAttributes } from '@/lib/services/attributeConfig'
 
 type ActionResult = { error: string } | void
 
@@ -179,7 +180,7 @@ export async function toggleBusinessStatus(
   return { error: 'No se pudo actualizar el estado del negocio.' }
 }
 
-export async function createExperience(formData: FormData): Promise<ActionResult> {
+export async function createService(formData: FormData): Promise<ActionResult> {
   const { supabase, userId } = await getAuthenticatedOwner()
 
   const businessId = formData.get('business_id') as string
@@ -195,81 +196,109 @@ export async function createExperience(formData: FormData): Promise<ActionResult
 
   if (!business) return { error: 'Negocio no encontrado.' }
 
+  const serviceTypeId = formData.get('service_type_id') as string
+  if (!UUID_RE.test(serviceTypeId)) return { error: 'Tipo de servicio no válido.' }
+
+  // service_type_id is locked at creation — fetch its slug to know which
+  // attribute fields to parse. Not trusting a client-supplied slug avoids
+  // an attributes payload shaped for a type the id doesn't actually match.
+  const { data: serviceType } = await supabase
+    .from('service_types')
+    .select('slug')
+    .eq('id', serviceTypeId)
+    .eq('is_active', true)
+    .single()
+
+  if (!serviceType) return { error: 'Tipo de servicio no válido.' }
+
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
 
   // Price is parsed and validated server-side — never trust the raw client value.
   // parsePrice rejects NaN, Infinity, negatives, and unreasonable amounts.
-  const price = parsePrice(formData.get('price') as string)
-  if (!name || price === null) {
+  const base_price = parsePrice(formData.get('base_price') as string)
+  if (!name || base_price === null) {
     return { error: 'Nombre y precio son requeridos. El precio no puede ser negativo.' }
   }
 
   const capacity = parsePositiveInt(formData.get('capacity') as string | null)
   if (capacity === false) return { error: 'El cupo debe ser un número positivo.' }
 
-  const duration_minutes = parsePositiveInt(formData.get('duration_minutes') as string | null)
-  if (duration_minutes === false) return { error: 'La duración debe ser un número positivo.' }
+  const fields = getAttributeFields(serviceType.slug)
+  const parsed = parseAttributes(fields, formData)
+  if ('error' in parsed) return { error: parsed.error }
 
-  const { error } = await supabase.from('experiences').insert({
+  const { error } = await supabase.from('services').insert({
     business_id: businessId,
+    service_type_id: serviceTypeId,
     name,
     description,
-    price,
+    base_price,
     capacity,
-    duration_minutes,
+    attributes: parsed.attributes,
     status: 'active',
   })
 
-  if (error) return { error: 'No se pudo crear la experiencia. Intenta de nuevo.' }
+  if (error) return { error: 'No se pudo crear el servicio. Intenta de nuevo.' }
 
   revalidatePath('/mi-negocio', 'layout')
-  redirect(`/mi-negocio/${businessId}/experiencias`)
+  redirect(`/mi-negocio/${businessId}/servicios`)
 }
 
-export async function updateExperience(
-  experienceId: string,
+export async function updateService(
+  serviceId: string,
   formData: FormData,
 ): Promise<ActionResult> {
-  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  if (!UUID_RE.test(serviceId)) return { error: 'Servicio no encontrado.' }
 
   const { supabase } = await getAuthenticatedOwner()
+
+  // service_type_id is locked after creation — re-read it (rather than
+  // trusting the form) to know which attribute fields apply on this edit.
+  const { data: existing } = await supabase
+    .from('services')
+    .select('service_types(slug)')
+    .eq('id', serviceId)
+    .single<{ service_types: { slug: string } | null }>()
+
+  if (!existing?.service_types) return { error: 'Servicio no encontrado.' }
 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
 
-  const price = parsePrice(formData.get('price') as string)
-  if (!name || price === null) {
+  const base_price = parsePrice(formData.get('base_price') as string)
+  if (!name || base_price === null) {
     return { error: 'Nombre y precio son requeridos. El precio no puede ser negativo.' }
   }
 
   const capacity = parsePositiveInt(formData.get('capacity') as string | null)
   if (capacity === false) return { error: 'El cupo debe ser un número positivo.' }
 
-  const duration_minutes = parsePositiveInt(formData.get('duration_minutes') as string | null)
-  if (duration_minutes === false) return { error: 'La duración debe ser un número positivo.' }
+  const fields = getAttributeFields(existing.service_types.slug)
+  const parsed = parseAttributes(fields, formData)
+  if ('error' in parsed) return { error: parsed.error }
 
   // RLS UPDATE policy verifies ownership via the businesses table.
   // .select('id') forces PostgREST to return the modified row so we can
   // detect a silent RLS block (0 rows updated) vs a real error.
   const { data, error } = await supabase
-    .from('experiences')
-    .update({ name, description, price, capacity, duration_minutes })
-    .eq('id', experienceId)
+    .from('services')
+    .update({ name, description, base_price, capacity, attributes: parsed.attributes })
+    .eq('id', serviceId)
     .select('id')
 
   if (error || !data?.length) {
-    return { error: 'No se pudo actualizar la experiencia. Intenta de nuevo.' }
+    return { error: 'No se pudo actualizar el servicio. Intenta de nuevo.' }
   }
 
   revalidatePath('/mi-negocio', 'layout')
 }
 
-export async function toggleExperienceStatus(
-  experienceId: string,
+export async function toggleServiceStatus(
+  serviceId: string,
   currentStatus: 'active' | 'inactive',
 ): Promise<ActionResult> {
-  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  if (!UUID_RE.test(serviceId)) return { error: 'Servicio no encontrado.' }
 
   const { supabase } = await getAuthenticatedOwner()
 
@@ -277,9 +306,9 @@ export async function toggleExperienceStatus(
 
   // .select('id') detects silent RLS blocks (0 rows updated)
   const { data, error } = await supabase
-    .from('experiences')
+    .from('services')
     .update({ status: newStatus })
-    .eq('id', experienceId)
+    .eq('id', serviceId)
     .select('id')
 
   if (error || !data?.length) {
@@ -294,7 +323,7 @@ export async function toggleExperienceStatus(
 const BUSINESS_BUCKET = 'business-images'
 const BUSINESS_VIDEO_BUCKET = 'business-videos'
 const MAX_BUSINESS_MEDIA = 10
-const MAX_EXPERIENCE_MEDIA = 10
+const MAX_SERVICE_MEDIA = 10
 
 const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024
@@ -489,34 +518,34 @@ export async function deleteBusinessVideo(
   revalidatePath(`/negocios/${owned.slug}`)
 }
 
-export async function uploadExperienceImage(
-  experienceId: string,
+export async function uploadServiceImage(
+  serviceId: string,
   formData: FormData,
 ): Promise<ActionResult> {
-  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  if (!UUID_RE.test(serviceId)) return { error: 'Servicio no encontrado.' }
   const { supabase, userId } = await getAuthenticatedOwner()
 
-  // Verify the experience belongs to a business owned by this user.
-  const { data: exp } = await supabase
-    .from('experiences')
+  // Verify the service belongs to a business owned by this user.
+  const { data: service } = await supabase
+    .from('services')
     .select('id, images, videos, business_id')
-    .eq('id', experienceId)
+    .eq('id', serviceId)
     .maybeSingle()
 
-  if (!exp) return { error: 'Experiencia no encontrada.' }
+  if (!service) return { error: 'Servicio no encontrado.' }
 
   const { data: owned } = await supabase
     .from('businesses')
     .select('id, slug')
-    .eq('id', exp.business_id)
+    .eq('id', service.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
 
-  if (!owned) return { error: 'Experiencia no encontrada.' }
+  if (!owned) return { error: 'Servicio no encontrado.' }
 
-  const currentImages: string[] = exp.images ?? []
-  if (currentImages.length + (exp.videos ?? []).length >= MAX_EXPERIENCE_MEDIA) {
-    return { error: `Máximo ${MAX_EXPERIENCE_MEDIA} fotos y videos por actividad.` }
+  const currentImages: string[] = service.images ?? []
+  if (currentImages.length + (service.videos ?? []).length >= MAX_SERVICE_MEDIA) {
+    return { error: `Máximo ${MAX_SERVICE_MEDIA} fotos y videos por servicio.` }
   }
 
   const file = formData.get('image') as File | null
@@ -524,7 +553,7 @@ export async function uploadExperienceImage(
   if (fileError) return { error: fileError }
 
   const admin = createAdminClient()
-  const path = `experiences/${experienceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`
+  const path = `services/${serviceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`
 
   const { error: uploadError } = await admin.storage
     .from(BUSINESS_BUCKET)
@@ -535,9 +564,9 @@ export async function uploadExperienceImage(
   const { data: { publicUrl } } = admin.storage.from(BUSINESS_BUCKET).getPublicUrl(path)
 
   const { error: updateError } = await admin
-    .from('experiences')
+    .from('services')
     .update({ images: [...currentImages, publicUrl] })
-    .eq('id', experienceId)
+    .eq('id', serviceId)
 
   if (updateError) {
     await admin.storage.from(BUSINESS_BUCKET).remove([path])
@@ -548,29 +577,29 @@ export async function uploadExperienceImage(
   revalidatePath(`/negocios/${owned.slug}`)
 }
 
-export async function deleteExperienceImage(
-  experienceId: string,
+export async function deleteServiceImage(
+  serviceId: string,
   imageUrl: string,
 ): Promise<ActionResult> {
-  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  if (!UUID_RE.test(serviceId)) return { error: 'Servicio no encontrado.' }
   const { supabase, userId } = await getAuthenticatedOwner()
 
-  const { data: exp } = await supabase
-    .from('experiences')
+  const { data: service } = await supabase
+    .from('services')
     .select('id, images, business_id')
-    .eq('id', experienceId)
+    .eq('id', serviceId)
     .maybeSingle()
 
-  if (!exp) return { error: 'Experiencia no encontrada.' }
+  if (!service) return { error: 'Servicio no encontrado.' }
 
   const { data: owned } = await supabase
     .from('businesses')
     .select('id, slug')
-    .eq('id', exp.business_id)
+    .eq('id', service.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
 
-  if (!owned) return { error: 'Experiencia no encontrada.' }
+  if (!owned) return { error: 'Servicio no encontrado.' }
 
   const admin = createAdminClient()
   const storagePath = extractStoragePath(imageUrl, BUSINESS_BUCKET)
@@ -578,49 +607,49 @@ export async function deleteExperienceImage(
     await admin.storage.from(BUSINESS_BUCKET).remove([storagePath])
   }
 
-  const newImages = (exp.images ?? []).filter((u: string) => u !== imageUrl)
-  await admin.from('experiences').update({ images: newImages }).eq('id', experienceId)
+  const newImages = (service.images ?? []).filter((u: string) => u !== imageUrl)
+  await admin.from('services').update({ images: newImages }).eq('id', serviceId)
 
   revalidatePath('/mi-negocio', 'layout')
   revalidatePath(`/negocios/${owned.slug}`)
 }
 
-export async function requestExperienceVideoUpload(
-  experienceId: string,
+export async function requestServiceVideoUpload(
+  serviceId: string,
   fileName: string,
   fileType: string,
   fileSize: number,
 ): Promise<SignedUploadResult> {
-  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  if (!UUID_RE.test(serviceId)) return { error: 'Servicio no encontrado.' }
   const { supabase, userId } = await getAuthenticatedOwner()
 
-  const { data: exp } = await supabase
-    .from('experiences')
+  const { data: service } = await supabase
+    .from('services')
     .select('id, images, videos, business_id')
-    .eq('id', experienceId)
+    .eq('id', serviceId)
     .maybeSingle()
 
-  if (!exp) return { error: 'Experiencia no encontrada.' }
+  if (!service) return { error: 'Servicio no encontrado.' }
 
   const { data: owned } = await supabase
     .from('businesses')
     .select('id')
-    .eq('id', exp.business_id)
+    .eq('id', service.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
 
-  if (!owned) return { error: 'Experiencia no encontrada.' }
+  if (!owned) return { error: 'Servicio no encontrado.' }
 
-  const currentCount = (exp.images ?? []).length + (exp.videos ?? []).length
-  if (currentCount >= MAX_EXPERIENCE_MEDIA) {
-    return { error: `Máximo ${MAX_EXPERIENCE_MEDIA} fotos y videos por actividad.` }
+  const currentCount = (service.images ?? []).length + (service.videos ?? []).length
+  if (currentCount >= MAX_SERVICE_MEDIA) {
+    return { error: `Máximo ${MAX_SERVICE_MEDIA} fotos y videos por servicio.` }
   }
 
   const fileError = validateVideoMeta(fileType, fileSize)
   if (fileError) return { error: fileError }
 
   const admin = createAdminClient()
-  const path = `experiences/${experienceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${videoExtension(fileType)}`
+  const path = `services/${serviceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${videoExtension(fileType)}`
 
   const { data, error } = await admin.storage.from(BUSINESS_VIDEO_BUCKET).createSignedUploadUrl(path)
   if (error || !data) return { error: 'No se pudo iniciar la subida del video. Intenta de nuevo.' }
@@ -630,46 +659,46 @@ export async function requestExperienceVideoUpload(
   return { token: data.token, path: data.path, publicUrl }
 }
 
-export async function confirmExperienceVideoUpload(
-  experienceId: string,
+export async function confirmServiceVideoUpload(
+  serviceId: string,
   path: string,
 ): Promise<ActionResult> {
-  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  if (!UUID_RE.test(serviceId)) return { error: 'Servicio no encontrado.' }
   // See confirmBusinessVideoUpload: confirm never trusts a client-supplied
-  // URL directly, only a path scoped to this experience's own folder.
-  if (!path.startsWith(`experiences/${experienceId}/`)) return { error: 'Video no válido.' }
+  // URL directly, only a path scoped to this service's own folder.
+  if (!path.startsWith(`services/${serviceId}/`)) return { error: 'Video no válido.' }
 
   const { supabase, userId } = await getAuthenticatedOwner()
 
-  const { data: exp } = await supabase
-    .from('experiences')
+  const { data: service } = await supabase
+    .from('services')
     .select('id, images, videos, business_id')
-    .eq('id', experienceId)
+    .eq('id', serviceId)
     .maybeSingle()
 
-  if (!exp) return { error: 'Experiencia no encontrada.' }
+  if (!service) return { error: 'Servicio no encontrado.' }
 
   const { data: owned } = await supabase
     .from('businesses')
     .select('id, slug')
-    .eq('id', exp.business_id)
+    .eq('id', service.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
 
-  if (!owned) return { error: 'Experiencia no encontrada.' }
+  if (!owned) return { error: 'Servicio no encontrado.' }
 
-  const currentVideos: string[] = exp.videos ?? []
-  if ((exp.images ?? []).length + currentVideos.length >= MAX_EXPERIENCE_MEDIA) {
-    return { error: `Máximo ${MAX_EXPERIENCE_MEDIA} fotos y videos por actividad.` }
+  const currentVideos: string[] = service.videos ?? []
+  if ((service.images ?? []).length + currentVideos.length >= MAX_SERVICE_MEDIA) {
+    return { error: `Máximo ${MAX_SERVICE_MEDIA} fotos y videos por servicio.` }
   }
 
   const admin = createAdminClient()
   const { data: { publicUrl } } = admin.storage.from(BUSINESS_VIDEO_BUCKET).getPublicUrl(path)
 
   const { error: updateError } = await admin
-    .from('experiences')
+    .from('services')
     .update({ videos: [...currentVideos, publicUrl] })
-    .eq('id', experienceId)
+    .eq('id', serviceId)
 
   if (updateError) return { error: 'No se pudo guardar el video.' }
 
@@ -677,29 +706,29 @@ export async function confirmExperienceVideoUpload(
   revalidatePath(`/negocios/${owned.slug}`)
 }
 
-export async function deleteExperienceVideo(
-  experienceId: string,
+export async function deleteServiceVideo(
+  serviceId: string,
   videoUrl: string,
 ): Promise<ActionResult> {
-  if (!UUID_RE.test(experienceId)) return { error: 'Experiencia no encontrada.' }
+  if (!UUID_RE.test(serviceId)) return { error: 'Servicio no encontrado.' }
   const { supabase, userId } = await getAuthenticatedOwner()
 
-  const { data: exp } = await supabase
-    .from('experiences')
+  const { data: service } = await supabase
+    .from('services')
     .select('id, videos, business_id')
-    .eq('id', experienceId)
+    .eq('id', serviceId)
     .maybeSingle()
 
-  if (!exp) return { error: 'Experiencia no encontrada.' }
+  if (!service) return { error: 'Servicio no encontrado.' }
 
   const { data: owned } = await supabase
     .from('businesses')
     .select('id, slug')
-    .eq('id', exp.business_id)
+    .eq('id', service.business_id)
     .eq('owner_id', userId)
     .maybeSingle()
 
-  if (!owned) return { error: 'Experiencia no encontrada.' }
+  if (!owned) return { error: 'Servicio no encontrado.' }
 
   const admin = createAdminClient()
   const storagePath = extractStoragePath(videoUrl, BUSINESS_VIDEO_BUCKET)
@@ -707,8 +736,8 @@ export async function deleteExperienceVideo(
     await admin.storage.from(BUSINESS_VIDEO_BUCKET).remove([storagePath])
   }
 
-  const newVideos = (exp.videos ?? []).filter((u: string) => u !== videoUrl)
-  await admin.from('experiences').update({ videos: newVideos }).eq('id', experienceId)
+  const newVideos = (service.videos ?? []).filter((u: string) => u !== videoUrl)
+  await admin.from('services').update({ videos: newVideos }).eq('id', serviceId)
 
   revalidatePath('/mi-negocio', 'layout')
   revalidatePath(`/negocios/${owned.slug}`)

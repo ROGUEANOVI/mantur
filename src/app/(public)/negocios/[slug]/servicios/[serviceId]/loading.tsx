@@ -1,4 +1,4 @@
-export default function ActividadDetailLoading() {
+export default function ServicioDetailLoading() {
   return (
     <main className="min-h-screen bg-background pb-10">
       <div className="px-4 pt-4">

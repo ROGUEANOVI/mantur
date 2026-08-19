@@ -5,45 +5,48 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { businessesCopy } from '@/lib/copy/businesses'
+import { PRICING_UNIT_LABELS, type PricingUnit } from '@/lib/services/attributeConfig'
 import BookingForm from '@/components/reservas/BookingForm'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-type ExperienceWithBusiness = {
+type ServiceWithBusiness = {
   id: string
   name: string
-  price: number
+  base_price: number
   capacity: number | null
   status: string
   business_id: string
   businesses: { name: string } | null
+  service_types: { pricing_unit: PricingUnit } | null
 }
 
 export default async function NuevaReservaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ exp?: string }>
+  searchParams: Promise<{ service?: string }>
 }) {
-  const { exp: expId } = await searchParams
+  const { service: serviceId } = await searchParams
 
-  if (!expId || !UUID_RE.test(expId)) {
+  if (!serviceId || !UUID_RE.test(serviceId)) {
     redirect('/negocios')
   }
 
   const supabase = await createClient()
 
-  const { data: experience, error } = await supabase
-    .from('experiences')
-    .select('id, name, price, capacity, status, business_id, businesses(name)')
-    .eq('id', expId)
+  const { data: serviceRow, error } = await supabase
+    .from('services')
+    .select('id, name, base_price, capacity, status, business_id, businesses(name), service_types(pricing_unit)')
+    .eq('id', serviceId)
     .eq('status', 'active')
     .single()
 
-  if (error || !experience) notFound()
+  if (error || !serviceRow) notFound()
 
-  const exp = experience as unknown as ExperienceWithBusiness
-  const businessName = exp.businesses?.name ?? ''
+  const service = serviceRow as unknown as ServiceWithBusiness
+  const businessName = service.businesses?.name ?? ''
+  const pricingUnit = service.service_types?.pricing_unit ?? 'per_person'
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -67,26 +70,27 @@ export default async function NuevaReservaPage({
           )}
         </div>
 
-        {/* Price per person callout */}
+        {/* Price callout */}
         <div className="rounded-2xl border border-border bg-card shadow-sm p-4 mb-5">
           <p className="text-sm text-muted-foreground">
-            {bookingsCopy.form.perPerson}
+            {PRICING_UNIT_LABELS[pricingUnit]}
           </p>
           <p className="text-xl font-semibold text-primary mt-0.5">
-            ${Number(exp.price).toLocaleString('es-CO')} COP
+            ${Number(service.base_price).toLocaleString('es-CO')} COP
           </p>
           <p className="text-sm font-semibold text-foreground mt-1 line-clamp-1">
-            {exp.name}
+            {service.name}
           </p>
         </div>
 
         {/* Booking form */}
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
           <BookingForm
-            experienceId={exp.id}
-            price={Number(exp.price)}
-            capacity={exp.capacity}
-            experienceName={exp.name}
+            serviceId={service.id}
+            price={Number(service.base_price)}
+            capacity={service.capacity}
+            serviceName={service.name}
+            pricingUnit={pricingUnit}
           />
         </div>
       </div>

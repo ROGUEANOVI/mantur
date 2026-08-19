@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Covers the business/experience CRUD and image actions a business owner
+// Covers the business/service CRUD and image actions a business owner
 // uses. The recurring pattern worth protecting here is ownership: every
-// mutation must be scoped to businesses/experiences the caller actually
+// mutation must be scoped to businesses/services the caller actually
 // owns, either via an explicit .eq('owner_id', userId) filter (checked
 // here) or by relying on RLS and detecting a silent block via an empty
 // returned row set (also checked here, since that detection logic is easy
@@ -26,13 +26,42 @@ vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
 }))
 
+// SERVICE_TYPE_ATTRIBUTE_FIELDS is real (imported actual) so createService's
+// parseAttributes() behavior is exercised against the genuine field configs.
+// One synthetic slug ('__test_required__') is added on top, purely so the
+// "a required attribute field left blank returns an error" codepath can be
+// exercised — none of the real slugs (tour_activity/lodging/event_rental/
+// pasadia) currently mark any field `required: true`, so that branch of
+// parseAttributes is otherwise unreachable through real data today.
+vi.mock('@/lib/services/attributeConfig', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/services/attributeConfig')>(
+    '@/lib/services/attributeConfig',
+  )
+  const extendedFields = {
+    ...actual.SERVICE_TYPE_ATTRIBUTE_FIELDS,
+    __test_required__: [
+      { key: 'required_field', label: 'Campo requerido', kind: 'text' as const, required: true },
+    ],
+  }
+  return {
+    ...actual,
+    SERVICE_TYPE_ATTRIBUTE_FIELDS: extendedFields,
+    // getAttributeFields is a real function closing over the real (non-mocked)
+    // SERVICE_TYPE_ATTRIBUTE_FIELDS constant, so spreading ...actual alone
+    // would ignore the extended map above — re-implement it here against
+    // extendedFields so createService actually sees __test_required__.
+    getAttributeFields: (slug: string) =>
+      Object.hasOwn(extendedFields, slug) ? extendedFields[slug as keyof typeof extendedFields] : [],
+  }
+})
+
 const authGetUser = vi.fn()
 const profileSingle = vi.fn()
 
 const businessInsertSingle = vi.fn()
 const businessUpdateMock = vi.fn()
 const businessDeleteEq = vi.fn()
-const businessOwnershipSingle = vi.fn() // select('id').eq(id).eq(owner_id).single() — createExperience
+const businessOwnershipSingle = vi.fn() // select('id').eq(id).eq(owner_id).single() — createService
 const businessReactivateMaybeSingle = vi.fn() // select('id, verified')... .maybeSingle() — toggleBusinessStatus (activate path)
 const businessImagesMaybeSingle = vi.fn() // select('id, images')... .maybeSingle() — deleteBusinessImage
 const businessMediaMaybeSingle = vi.fn() // select('id, images, videos')... .maybeSingle() — upload/requestBusinessVideoUpload/confirmBusinessVideoUpload
@@ -41,9 +70,11 @@ const businessVideosMaybeSingle = vi.fn() // select('id, videos')... .maybeSingl
 const categoryLinksInsertMock = vi.fn()
 const categoryLinksDeleteMock = vi.fn()
 
-const experienceInsertMock = vi.fn()
-const experienceUpdateSelect = vi.fn()
-const experienceMaybeSingle = vi.fn() // select(...).eq(id).maybeSingle() — upload/deleteExperienceImage
+const serviceTypeSingle = vi.fn() // service_types: select('slug').eq(id).eq(is_active).single() — createService
+const serviceInsertMock = vi.fn()
+const serviceUpdateSelect = vi.fn()
+const serviceMaybeSingle = vi.fn() // select(...).eq(id).maybeSingle() — upload/deleteServiceImage, request/confirmServiceVideoUpload, deleteServiceVideo
+const existingServiceSingle = vi.fn() // select('service_types(slug)').eq(id).single() — updateService
 
 function businessesUserTable() {
   return {
@@ -58,14 +89,14 @@ function businessesUserTable() {
         return { eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: businessReactivateMaybeSingle }) }) }) }
       }
       if (cols === 'id') {
-        // createExperience uses .single(), requestExperienceVideoUpload uses
+        // createService uses .single(), requestServiceVideoUpload uses
         // .maybeSingle() for the same "is this business mine" check — neither
         // revalidates a public negocio path, so no slug is needed here.
         return { eq: () => ({ eq: () => ({ single: businessOwnershipSingle, maybeSingle: businessOwnershipSingle }) }) }
       }
       if (cols === 'id, slug') {
-        // uploadExperienceImage/deleteExperienceImage/confirmExperienceVideoUpload/
-        // deleteExperienceVideo — same ownership check as above, but these do
+        // uploadServiceImage/deleteServiceImage/confirmServiceVideoUpload/
+        // deleteServiceVideo — same ownership check as above, but these do
         // revalidatePath(`/negocios/${owned.slug}`), so the select needs slug.
         return { eq: () => ({ eq: () => ({ maybeSingle: businessOwnershipSingle }) }) }
       }
@@ -88,13 +119,26 @@ function businessesUserTable() {
   }
 }
 
-function experiencesUserTable() {
+function servicesUserTable() {
   return {
-    insert: (payload: unknown) => experienceInsertMock(payload),
+    insert: (payload: unknown) => serviceInsertMock(payload),
     update: (payload: unknown) => ({
-      eq: (col: string, val: string) => ({ select: () => experienceUpdateSelect(payload, col, val) }),
+      eq: (col: string, val: string) => ({ select: () => serviceUpdateSelect(payload, col, val) }),
     }),
-    select: () => ({ eq: () => ({ maybeSingle: experienceMaybeSingle }) }),
+    select: (cols: string) => {
+      if (cols === 'service_types(slug)') {
+        // updateService re-reads the immutable service type slug via a join
+        // instead of trusting a service_type_id on the update payload.
+        return { eq: () => ({ single: existingServiceSingle }) }
+      }
+      return { eq: () => ({ maybeSingle: serviceMaybeSingle }) }
+    },
+  }
+}
+
+function serviceTypesUserTable() {
+  return {
+    select: () => ({ eq: () => ({ eq: () => ({ single: serviceTypeSingle }) }) }),
   }
 }
 
@@ -112,14 +156,15 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'profiles') return { select: () => ({ eq: () => ({ single: profileSingle }) }) }
       if (table === 'businesses') return businessesUserTable()
       if (table === 'business_category_links') return categoryLinksUserTable()
-      if (table === 'experiences') return experiencesUserTable()
+      if (table === 'services') return servicesUserTable()
+      if (table === 'service_types') return serviceTypesUserTable()
       throw new Error(`unexpected table on user client: ${table}`)
     },
   })),
 }))
 
 const adminBusinessesUpdate = vi.fn()
-const adminExperiencesUpdate = vi.fn()
+const adminServicesUpdate = vi.fn()
 const storageUpload = vi.fn()
 const storageGetPublicUrl = vi.fn()
 const storageRemove = vi.fn()
@@ -131,8 +176,8 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'businesses') {
         return { update: (payload: unknown) => ({ eq: (col: string, val: string) => adminBusinessesUpdate(payload, col, val) }) }
       }
-      if (table === 'experiences') {
-        return { update: (payload: unknown) => ({ eq: (col: string, val: string) => adminExperiencesUpdate(payload, col, val) }) }
+      if (table === 'services') {
+        return { update: (payload: unknown) => ({ eq: (col: string, val: string) => adminServicesUpdate(payload, col, val) }) }
       }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
@@ -151,19 +196,19 @@ const {
   createBusiness,
   updateBusiness,
   toggleBusinessStatus,
-  createExperience,
-  updateExperience,
-  toggleExperienceStatus,
+  createService,
+  updateService,
+  toggleServiceStatus,
   uploadBusinessImage,
-  uploadExperienceImage,
-  deleteExperienceImage,
+  uploadServiceImage,
+  deleteServiceImage,
   deleteBusinessImage,
   requestBusinessVideoUpload,
   confirmBusinessVideoUpload,
   deleteBusinessVideo,
-  requestExperienceVideoUpload,
-  confirmExperienceVideoUpload,
-  deleteExperienceVideo,
+  requestServiceVideoUpload,
+  confirmServiceVideoUpload,
+  deleteServiceVideo,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[]>) {
@@ -183,9 +228,10 @@ function fakeImageFile(overrides: Partial<{ type: string; size: number }> = {}) 
 
 const BIZ_ID = '11111111-1111-1111-1111-111111111111'
 const BIZ_SLUG = 'finca-la-esperanza'
-const EXP_ID = '22222222-2222-2222-2222-222222222222'
+const SERVICE_ID = '22222222-2222-2222-2222-222222222222'
 const CAT_ID_1 = '33333333-3333-3333-3333-333333333333'
 const CAT_ID_2 = '44444444-4444-4444-4444-444444444444'
+const SERVICE_TYPE_ID = '55555555-5555-5555-5555-555555555555'
 const USER_ID = 'owner-1'
 
 beforeEach(() => {
@@ -427,133 +473,227 @@ describe('toggleBusinessStatus', () => {
   })
 })
 
-describe('createExperience', () => {
+describe('createService', () => {
   it('rejects a non-UUID business_id before querying the DB', async () => {
-    const fd = formData({ business_id: 'not-a-uuid', name: 'Tour', price: '10000' })
-    const result = await createExperience(fd)
+    const fd = formData({ business_id: 'not-a-uuid', name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
     expect(result).toEqual({ error: 'Negocio no encontrado.' })
     expect(businessOwnershipSingle).not.toHaveBeenCalled()
   })
 
   it('rejects when the business is not owned by the caller', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: null })
-    const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000' })
-    const result = await createExperience(fd)
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
     expect(result).toEqual({ error: 'Negocio no encontrado.' })
-    expect(experienceInsertMock).not.toHaveBeenCalled()
+    expect(serviceInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing/invalid service_type_id, without querying service_types', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: 'not-a-uuid' })
+    const result = await createService(fd)
+    expect(result).toEqual({ error: 'Tipo de servicio no válido.' })
+    expect(serviceTypeSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown or inactive service_type_id', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    serviceTypeSingle.mockResolvedValue({ data: null })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
+    expect(result).toEqual({ error: 'Tipo de servicio no válido.' })
+    expect(serviceInsertMock).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid price', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '-5' })
-    const result = await createExperience(fd)
+    serviceTypeSingle.mockResolvedValue({ data: { slug: 'tour_activity' } })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '-5', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
     expect(result).toEqual({ error: 'Nombre y precio son requeridos. El precio no puede ser negativo.' })
   })
 
   it('rejects an invalid capacity', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000', capacity: '0' })
-    const result = await createExperience(fd)
+    serviceTypeSingle.mockResolvedValue({ data: { slug: 'tour_activity' } })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', capacity: '0', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
     expect(result).toEqual({ error: 'El cupo debe ser un número positivo.' })
   })
 
-  it('rejects an invalid duration', async () => {
+  it('parses attr_* fields scoped to the resolved slug into the attributes column', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000', duration_minutes: '0' })
-    const result = await createExperience(fd)
-    expect(result).toEqual({ error: 'La duración debe ser un número positivo.' })
+    serviceTypeSingle.mockResolvedValue({ data: { slug: 'tour_activity' } })
+    serviceInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({
+      business_id: BIZ_ID, name: 'Tour por el río', base_price: '15000', capacity: '10',
+      service_type_id: SERVICE_TYPE_ID, attr_duration_minutes: '90', attr_meeting_point: 'Parque principal',
+    })
+    await expect(createService(fd)).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}/servicios`)
+
+    expect(serviceInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        business_id: BIZ_ID,
+        service_type_id: SERVICE_TYPE_ID,
+        name: 'Tour por el río',
+        base_price: 15000,
+        capacity: 10,
+        attributes: { duration_minutes: 90, meeting_point: 'Parque principal' },
+        status: 'active',
+      }),
+    )
+  })
+
+  it('ignores attr_* fields that belong to a different service type than the resolved slug', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    serviceTypeSingle.mockResolvedValue({ data: { slug: 'tour_activity' } })
+    serviceInsertMock.mockResolvedValue({ error: null })
+
+    // attr_rooms belongs to the 'lodging' field config, not 'tour_activity' —
+    // parseAttributes only reads keys defined for the resolved slug.
+    const fd = formData({
+      business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID,
+      attr_rooms: '3',
+    })
+    await expect(createService(fd)).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}/servicios`)
+
+    expect(serviceInsertMock).toHaveBeenCalledWith(expect.objectContaining({ attributes: {} }))
+  })
+
+  it('returns the field-specific error when a required attribute field is left blank', async () => {
+    // No real service type currently marks a field required — this exercises
+    // that (real, unmodified) parseAttributes codepath via a synthetic slug
+    // added only in this test file's mock of attributeConfig.
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    serviceTypeSingle.mockResolvedValue({ data: { slug: '__test_required__' } })
+
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
+
+    expect(result).toEqual({ error: 'Campo requerido es requerido.' })
+    expect(serviceInsertMock).not.toHaveBeenCalled()
   })
 
   it('returns a generic error when the insert fails', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    experienceInsertMock.mockResolvedValue({ error: { message: 'db error' } })
-    const fd = formData({ business_id: BIZ_ID, name: 'Tour', price: '10000' })
-    const result = await createExperience(fd)
-    expect(result).toEqual({ error: 'No se pudo crear la experiencia. Intenta de nuevo.' })
+    serviceTypeSingle.mockResolvedValue({ data: { slug: 'tour_activity' } })
+    serviceInsertMock.mockResolvedValue({ error: { message: 'db error' } })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
+    expect(result).toEqual({ error: 'No se pudo crear el servicio. Intenta de nuevo.' })
   })
 
-  it('creates the experience scoped to the owned business and redirects', async () => {
+  it('creates the service scoped to the owned business and redirects', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    experienceInsertMock.mockResolvedValue({ error: null })
+    serviceTypeSingle.mockResolvedValue({ data: { slug: 'tour_activity' } })
+    serviceInsertMock.mockResolvedValue({ error: null })
 
-    const fd = formData({ business_id: BIZ_ID, name: 'Tour por el río', price: '15000', capacity: '10', duration_minutes: '60' })
-    await expect(createExperience(fd)).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}/experiencias`)
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour por el río', base_price: '15000', capacity: '10', service_type_id: SERVICE_TYPE_ID })
+    await expect(createService(fd)).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}/servicios`)
 
-    expect(experienceInsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({ business_id: BIZ_ID, name: 'Tour por el río', price: 15000, capacity: 10, duration_minutes: 60, status: 'active' }),
+    expect(serviceInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        business_id: BIZ_ID, service_type_id: SERVICE_TYPE_ID, name: 'Tour por el río', base_price: 15000, capacity: 10, status: 'active',
+      }),
     )
   })
 })
 
-describe('updateExperience', () => {
-  it('rejects a non-UUID experienceId', async () => {
-    const fd = formData({ name: 'X', price: '1000' })
-    const result = await updateExperience('bad-id', fd)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+describe('updateService', () => {
+  it('rejects a non-UUID serviceId', async () => {
+    const fd = formData({ name: 'X', base_price: '1000' })
+    const result = await updateService('bad-id', fd)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(authGetUser).not.toHaveBeenCalled()
   })
 
+  it('rejects when the service (or its service type join) cannot be resolved', async () => {
+    existingServiceSingle.mockResolvedValue({ data: null })
+    const fd = formData({ name: 'X', base_price: '1000' })
+    const result = await updateService(SERVICE_ID, fd)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
+    expect(serviceUpdateSelect).not.toHaveBeenCalled()
+  })
+
   it('rejects an invalid price', async () => {
-    const fd = formData({ name: 'X', price: 'abc' })
-    const result = await updateExperience(EXP_ID, fd)
+    existingServiceSingle.mockResolvedValue({ data: { service_types: { slug: 'tour_activity' } } })
+    const fd = formData({ name: 'X', base_price: 'abc' })
+    const result = await updateService(SERVICE_ID, fd)
     expect(result).toEqual({ error: 'Nombre y precio son requeridos. El precio no puede ser negativo.' })
   })
 
   it('updates on success (row returned) with no redirect, just revalidation', async () => {
-    experienceUpdateSelect.mockResolvedValue({ data: [{ id: EXP_ID }], error: null })
-    const fd = formData({ name: 'Tour actualizado', price: '20000' })
+    existingServiceSingle.mockResolvedValue({ data: { service_types: { slug: 'tour_activity' } } })
+    serviceUpdateSelect.mockResolvedValue({ data: [{ id: SERVICE_ID }], error: null })
+    const fd = formData({ name: 'Tour actualizado', base_price: '20000' })
 
-    await updateExperience(EXP_ID, fd)
+    await updateService(SERVICE_ID, fd)
 
-    expect(experienceUpdateSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Tour actualizado', price: 20000 }), 'id', EXP_ID,
+    expect(serviceUpdateSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Tour actualizado', base_price: 20000 }), 'id', SERVICE_ID,
     )
     expect(revalidatePathMock).toHaveBeenCalledWith('/mi-negocio', 'layout')
     expect(redirectMock).not.toHaveBeenCalled()
   })
 
   it('treats a silent RLS block (no error, zero rows) as a failure', async () => {
-    experienceUpdateSelect.mockResolvedValue({ data: [], error: null })
-    const fd = formData({ name: 'Tour actualizado', price: '20000' })
+    existingServiceSingle.mockResolvedValue({ data: { service_types: { slug: 'tour_activity' } } })
+    serviceUpdateSelect.mockResolvedValue({ data: [], error: null })
+    const fd = formData({ name: 'Tour actualizado', base_price: '20000' })
 
-    const result = await updateExperience(EXP_ID, fd)
-    expect(result).toEqual({ error: 'No se pudo actualizar la experiencia. Intenta de nuevo.' })
+    const result = await updateService(SERVICE_ID, fd)
+    expect(result).toEqual({ error: 'No se pudo actualizar el servicio. Intenta de nuevo.' })
   })
 
   it('rejects an invalid capacity', async () => {
-    const fd = formData({ name: 'Tour', price: '20000', capacity: '0' })
-    const result = await updateExperience(EXP_ID, fd)
+    existingServiceSingle.mockResolvedValue({ data: { service_types: { slug: 'tour_activity' } } })
+    const fd = formData({ name: 'Tour', base_price: '20000', capacity: '0' })
+    const result = await updateService(SERVICE_ID, fd)
     expect(result).toEqual({ error: 'El cupo debe ser un número positivo.' })
   })
 
-  it('rejects an invalid duration', async () => {
-    const fd = formData({ name: 'Tour', price: '20000', duration_minutes: '0' })
-    const result = await updateExperience(EXP_ID, fd)
-    expect(result).toEqual({ error: 'La duración debe ser un número positivo.' })
+  it('re-reads the service type slug from the existing row rather than trusting the form — the type is immutable after creation', async () => {
+    existingServiceSingle.mockResolvedValue({ data: { service_types: { slug: 'lodging' } } })
+    serviceUpdateSelect.mockResolvedValue({ data: [{ id: SERVICE_ID }], error: null })
+
+    // A client-supplied service_type_id (and attrs for a type other than the
+    // real one) must be ignored — only attr_* fields for the real ('lodging')
+    // slug are parsed.
+    const fd = formData({
+      name: 'Cabaña', base_price: '80000', service_type_id: SERVICE_TYPE_ID,
+      attr_rooms: '2', attr_beds: '4', attr_duration_minutes: '999',
+    })
+    await updateService(SERVICE_ID, fd)
+
+    expect(serviceUpdateSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ attributes: { rooms: 2, beds: 4 } }), 'id', SERVICE_ID,
+    )
   })
 })
 
-describe('toggleExperienceStatus', () => {
-  it('rejects a non-UUID experienceId', async () => {
-    const result = await toggleExperienceStatus('bad-id', 'active')
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+describe('toggleServiceStatus', () => {
+  it('rejects a non-UUID serviceId', async () => {
+    const result = await toggleServiceStatus('bad-id', 'active')
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
   })
 
   it('flips active to inactive', async () => {
-    experienceUpdateSelect.mockResolvedValue({ data: [{ id: EXP_ID }], error: null })
-    await toggleExperienceStatus(EXP_ID, 'active')
-    expect(experienceUpdateSelect).toHaveBeenCalledWith({ status: 'inactive' }, 'id', EXP_ID)
+    serviceUpdateSelect.mockResolvedValue({ data: [{ id: SERVICE_ID }], error: null })
+    await toggleServiceStatus(SERVICE_ID, 'active')
+    expect(serviceUpdateSelect).toHaveBeenCalledWith({ status: 'inactive' }, 'id', SERVICE_ID)
   })
 
   it('flips inactive to active', async () => {
-    experienceUpdateSelect.mockResolvedValue({ data: [{ id: EXP_ID }], error: null })
-    await toggleExperienceStatus(EXP_ID, 'inactive')
-    expect(experienceUpdateSelect).toHaveBeenCalledWith({ status: 'active' }, 'id', EXP_ID)
+    serviceUpdateSelect.mockResolvedValue({ data: [{ id: SERVICE_ID }], error: null })
+    await toggleServiceStatus(SERVICE_ID, 'inactive')
+    expect(serviceUpdateSelect).toHaveBeenCalledWith({ status: 'active' }, 'id', SERVICE_ID)
   })
 
   it('treats a silent RLS block as a failure', async () => {
-    experienceUpdateSelect.mockResolvedValue({ data: [], error: null })
-    const result = await toggleExperienceStatus(EXP_ID, 'active')
+    serviceUpdateSelect.mockResolvedValue({ data: [], error: null })
+    const result = await toggleServiceStatus(SERVICE_ID, 'active')
     expect(result).toEqual({ error: 'No se pudo actualizar el estado. Intenta de nuevo.' })
   })
 })
@@ -827,313 +967,313 @@ describe('deleteBusinessVideo', () => {
   })
 })
 
-describe('uploadExperienceImage / deleteExperienceImage — two-level ownership (experience -> business)', () => {
-  it('uploadExperienceImage rejects a non-UUID experienceId before any auth check', async () => {
+describe('uploadServiceImage / deleteServiceImage — two-level ownership (service -> business)', () => {
+  it('uploadServiceImage rejects a non-UUID serviceId before any auth check', async () => {
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    const result = await uploadExperienceImage('not-a-uuid', fd)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    const result = await uploadServiceImage('not-a-uuid', fd)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(authGetUser).not.toHaveBeenCalled()
   })
 
-  it('uploadExperienceImage rejects an invalid file type', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], business_id: BIZ_ID } })
+  it('uploadServiceImage rejects an invalid file type', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
 
     const fd = formData({})
     fd.set('image', fakeImageFile({ type: 'application/pdf' }))
-    const result = await uploadExperienceImage(EXP_ID, fd)
+    const result = await uploadServiceImage(SERVICE_ID, fd)
 
     expect(result).toEqual({ error: 'Formato no válido. Usa JPEG, PNG o WebP.' })
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
-  it('treats an experience with no images field yet as having zero images', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: undefined, business_id: BIZ_ID } })
+  it('treats a service with no images field yet as having zero images', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: undefined, business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
     storageUpload.mockResolvedValue({ error: null })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    await uploadExperienceImage(EXP_ID, fd)
+    await uploadServiceImage(SERVICE_ID, fd)
 
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith(
-      { images: ['https://cdn.example.com/photo.webp'] }, 'id', EXP_ID,
+    expect(adminServicesUpdate).toHaveBeenCalledWith(
+      { images: ['https://cdn.example.com/photo.webp'] }, 'id', SERVICE_ID,
     )
   })
 
-  it('uploadExperienceImage returns an error when the storage upload itself fails', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], business_id: BIZ_ID } })
+  it('uploadServiceImage returns an error when the storage upload itself fails', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
     storageUpload.mockResolvedValue({ error: { message: 'storage down' } })
 
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    const result = await uploadExperienceImage(EXP_ID, fd)
+    const result = await uploadServiceImage(SERVICE_ID, fd)
 
     expect(result).toEqual({ error: 'No se pudo subir la imagen. Intenta de nuevo.' })
-    expect(adminExperiencesUpdate).not.toHaveBeenCalled()
+    expect(adminServicesUpdate).not.toHaveBeenCalled()
   })
 
-  it('uploadExperienceImage rejects when the experience does not exist', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: null })
+  it('uploadServiceImage rejects when the service does not exist', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: null })
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    const result = await uploadExperienceImage(EXP_ID, fd)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    const result = await uploadServiceImage(SERVICE_ID, fd)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
-  it('uploadExperienceImage rejects when the experience exists but its business is not owned by the caller', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], business_id: BIZ_ID } })
+  it('uploadServiceImage rejects when the service exists but its business is not owned by the caller', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: null })
 
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    const result = await uploadExperienceImage(EXP_ID, fd)
+    const result = await uploadServiceImage(SERVICE_ID, fd)
 
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
-  it('rejects once the experience already has 10 combined photos and videos', async () => {
-    experienceMaybeSingle.mockResolvedValue({
-      data: { id: EXP_ID, images: Array(6).fill('https://x/img.webp'), videos: Array(4).fill('https://x/vid.mp4'), business_id: BIZ_ID },
+  it('rejects once the service already has 10 combined photos and videos', async () => {
+    serviceMaybeSingle.mockResolvedValue({
+      data: { id: SERVICE_ID, images: Array(6).fill('https://x/img.webp'), videos: Array(4).fill('https://x/vid.mp4'), business_id: BIZ_ID },
     })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
 
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    const result = await uploadExperienceImage(EXP_ID, fd)
+    const result = await uploadServiceImage(SERVICE_ID, fd)
 
-    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por actividad.' })
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por servicio.' })
     expect(storageUpload).not.toHaveBeenCalled()
   })
 
-  it('uploadExperienceImage appends the new URL to the experience images array on success', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: ['https://x/old.webp'], business_id: BIZ_ID } })
+  it('uploadServiceImage appends the new URL to the service images array on success', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: ['https://x/old.webp'], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
     storageUpload.mockResolvedValue({ error: null })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    await uploadExperienceImage(EXP_ID, fd)
+    await uploadServiceImage(SERVICE_ID, fd)
 
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith(
-      { images: ['https://x/old.webp', 'https://cdn.example.com/photo.webp'] }, 'id', EXP_ID,
+    expect(adminServicesUpdate).toHaveBeenCalledWith(
+      { images: ['https://x/old.webp', 'https://cdn.example.com/photo.webp'] }, 'id', SERVICE_ID,
     )
     expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
-  it('uploadExperienceImage removes the just-uploaded file from storage when saving the DB row fails (rollback)', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], business_id: BIZ_ID } })
+  it('uploadServiceImage removes the just-uploaded file from storage when saving the DB row fails (rollback)', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
     storageUpload.mockResolvedValue({ error: null })
-    adminExperiencesUpdate.mockResolvedValue({ error: { message: 'db error' } })
+    adminServicesUpdate.mockResolvedValue({ error: { message: 'db error' } })
 
     const fd = formData({})
     fd.set('image', fakeImageFile())
-    const result = await uploadExperienceImage(EXP_ID, fd)
+    const result = await uploadServiceImage(SERVICE_ID, fd)
 
     expect(result).toEqual({ error: 'No se pudo guardar la imagen.' })
     expect(storageRemove).toHaveBeenCalled()
   })
 
-  it('deleteExperienceImage removes the file from storage and filters the URL out of the images array', async () => {
-    experienceMaybeSingle.mockResolvedValue({
-      data: { id: EXP_ID, business_id: BIZ_ID, images: ['https://x.supabase.co/storage/v1/object/public/business-images/experiences/e1/a.webp', 'https://x/keep.webp'] },
+  it('deleteServiceImage removes the file from storage and filters the URL out of the images array', async () => {
+    serviceMaybeSingle.mockResolvedValue({
+      data: { id: SERVICE_ID, business_id: BIZ_ID, images: ['https://x.supabase.co/storage/v1/object/public/business-images/services/s1/a.webp', 'https://x/keep.webp'] },
     })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
-    await deleteExperienceImage(EXP_ID, 'https://x.supabase.co/storage/v1/object/public/business-images/experiences/e1/a.webp')
+    await deleteServiceImage(SERVICE_ID, 'https://x.supabase.co/storage/v1/object/public/business-images/services/s1/a.webp')
 
-    expect(storageRemove).toHaveBeenCalledWith('business-images', ['experiences/e1/a.webp'])
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', EXP_ID)
+    expect(storageRemove).toHaveBeenCalledWith('business-images', ['services/s1/a.webp'])
+    expect(adminServicesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', SERVICE_ID)
     expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
-  it('deleteExperienceImage rejects when the caller does not own the experience\'s business', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, business_id: BIZ_ID, images: [] } })
+  it('deleteServiceImage rejects when the caller does not own the service\'s business', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, business_id: BIZ_ID, images: [] } })
     businessOwnershipSingle.mockResolvedValue({ data: null })
 
-    const result = await deleteExperienceImage(EXP_ID, 'https://x/a.webp')
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
-    expect(adminExperiencesUpdate).not.toHaveBeenCalled()
+    const result = await deleteServiceImage(SERVICE_ID, 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
+    expect(adminServicesUpdate).not.toHaveBeenCalled()
   })
 
-  it('deleteExperienceImage rejects a non-UUID experienceId before any auth check', async () => {
-    const result = await deleteExperienceImage('not-a-uuid', 'https://x/a.webp')
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+  it('deleteServiceImage rejects a non-UUID serviceId before any auth check', async () => {
+    const result = await deleteServiceImage('not-a-uuid', 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(authGetUser).not.toHaveBeenCalled()
   })
 
-  it('deleteExperienceImage rejects when the experience does not exist', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: null })
-    const result = await deleteExperienceImage(EXP_ID, 'https://x/a.webp')
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+  it('deleteServiceImage rejects when the service does not exist', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: null })
+    const result = await deleteServiceImage(SERVICE_ID, 'https://x/a.webp')
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(storageRemove).not.toHaveBeenCalled()
   })
 
-  it('deleteExperienceImage skips storage removal when the URL does not match the bucket path (still filters it out)', async () => {
-    experienceMaybeSingle.mockResolvedValue({
-      data: { id: EXP_ID, business_id: BIZ_ID, images: ['https://cdn.other.com/random.webp', 'https://x/keep.webp'] },
+  it('deleteServiceImage skips storage removal when the URL does not match the bucket path (still filters it out)', async () => {
+    serviceMaybeSingle.mockResolvedValue({
+      data: { id: SERVICE_ID, business_id: BIZ_ID, images: ['https://cdn.other.com/random.webp', 'https://x/keep.webp'] },
     })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
-    await deleteExperienceImage(EXP_ID, 'https://cdn.other.com/random.webp')
+    await deleteServiceImage(SERVICE_ID, 'https://cdn.other.com/random.webp')
 
     expect(storageRemove).not.toHaveBeenCalled()
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', EXP_ID)
+    expect(adminServicesUpdate).toHaveBeenCalledWith({ images: ['https://x/keep.webp'] }, 'id', SERVICE_ID)
   })
 
-  it('deleteExperienceImage treats a missing images field as an empty array', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, business_id: BIZ_ID, images: undefined } })
+  it('deleteServiceImage treats a missing images field as an empty array', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, business_id: BIZ_ID, images: undefined } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
-    await deleteExperienceImage(EXP_ID, 'https://x/whatever.webp')
+    await deleteServiceImage(SERVICE_ID, 'https://x/whatever.webp')
 
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ images: [] }, 'id', EXP_ID)
+    expect(adminServicesUpdate).toHaveBeenCalledWith({ images: [] }, 'id', SERVICE_ID)
   })
 })
 
-describe('requestExperienceVideoUpload', () => {
-  it('rejects a non-UUID experienceId before any auth check', async () => {
+describe('requestServiceVideoUpload', () => {
+  it('rejects a non-UUID serviceId before any auth check', async () => {
     const { fileName, fileType, fileSize } = fakeVideoMeta()
-    const result = await requestExperienceVideoUpload('not-a-uuid', fileName, fileType, fileSize)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    const result = await requestServiceVideoUpload('not-a-uuid', fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(authGetUser).not.toHaveBeenCalled()
   })
 
-  it('rejects when the experience does not exist', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: null })
+  it('rejects when the service does not exist', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: null })
     const { fileName, fileType, fileSize } = fakeVideoMeta()
-    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    const result = await requestServiceVideoUpload(SERVICE_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
   })
 
-  it('rejects when the experience exists but its business is not owned by the caller', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+  it('rejects when the service exists but its business is not owned by the caller', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], videos: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: null })
     const { fileName, fileType, fileSize } = fakeVideoMeta()
-    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
+    const result = await requestServiceVideoUpload(SERVICE_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
     expect(storageCreateSignedUploadUrl).not.toHaveBeenCalled()
   })
 
-  it('rejects once the experience already has 10 combined photos and videos', async () => {
-    experienceMaybeSingle.mockResolvedValue({
-      data: { id: EXP_ID, images: Array(10).fill('https://x/img.webp'), videos: [], business_id: BIZ_ID },
+  it('rejects once the service already has 10 combined photos and videos', async () => {
+    serviceMaybeSingle.mockResolvedValue({
+      data: { id: SERVICE_ID, images: Array(10).fill('https://x/img.webp'), videos: [], business_id: BIZ_ID },
     })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
     const { fileName, fileType, fileSize } = fakeVideoMeta()
-    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
-    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por actividad.' })
+    const result = await requestServiceVideoUpload(SERVICE_ID, fileName, fileType, fileSize)
+    expect(result).toEqual({ error: 'Máximo 10 fotos y videos por servicio.' })
   })
 
   it('rejects a video with an unsupported mime type', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], videos: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
     const { fileName, fileSize } = fakeVideoMeta()
-    const result = await requestExperienceVideoUpload(EXP_ID, fileName, 'video/avi', fileSize)
+    const result = await requestServiceVideoUpload(SERVICE_ID, fileName, 'video/avi', fileSize)
     expect(result).toEqual({ error: 'Formato no válido. Usa MP4, WebM o QuickTime.' })
   })
 
   it('returns the signed upload token, path, and public URL on success', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], videos: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
     storageCreateSignedUploadUrl.mockResolvedValue({
-      data: { token: 'tok-1', path: `experiences/${EXP_ID}/clip.mp4`, signedUrl: 'https://x/signed' },
+      data: { token: 'tok-1', path: `services/${SERVICE_ID}/clip.mp4`, signedUrl: 'https://x/signed' },
       error: null,
     })
     const { fileName, fileType, fileSize } = fakeVideoMeta()
-    const result = await requestExperienceVideoUpload(EXP_ID, fileName, fileType, fileSize)
+    const result = await requestServiceVideoUpload(SERVICE_ID, fileName, fileType, fileSize)
 
     expect(result).toEqual({
       token: 'tok-1',
-      path: `experiences/${EXP_ID}/clip.mp4`,
+      path: `services/${SERVICE_ID}/clip.mp4`,
       publicUrl: 'https://cdn.example.com/photo.webp',
     })
-    expect(storageCreateSignedUploadUrl).toHaveBeenCalledWith('business-videos', expect.stringContaining(`experiences/${EXP_ID}/`))
+    expect(storageCreateSignedUploadUrl).toHaveBeenCalledWith('business-videos', expect.stringContaining(`services/${SERVICE_ID}/`))
   })
 })
 
-describe('confirmExperienceVideoUpload', () => {
-  it('rejects a path that does not belong to this experience, before any auth check', async () => {
-    const result = await confirmExperienceVideoUpload(EXP_ID, 'experiences/some-other-id/clip.mp4')
+describe('confirmServiceVideoUpload', () => {
+  it('rejects a path that does not belong to this service, before any auth check', async () => {
+    const result = await confirmServiceVideoUpload(SERVICE_ID, 'services/some-other-id/clip.mp4')
     expect(result).toEqual({ error: 'Video no válido.' })
     expect(authGetUser).not.toHaveBeenCalled()
   })
 
-  it('rejects when the experience exists but its business is not owned by the caller', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+  it('rejects when the service exists but its business is not owned by the caller', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], videos: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: null })
-    const result = await confirmExperienceVideoUpload(EXP_ID, `experiences/${EXP_ID}/clip.mp4`)
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
-    expect(adminExperiencesUpdate).not.toHaveBeenCalled()
+    const result = await confirmServiceVideoUpload(SERVICE_ID, `services/${SERVICE_ID}/clip.mp4`)
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
+    expect(adminServicesUpdate).not.toHaveBeenCalled()
   })
 
   it('appends the server-derived public URL (not the raw path) to the existing videos array on success', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: ['https://x/old.mp4'], business_id: BIZ_ID } })
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], videos: ['https://x/old.mp4'], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
-    await confirmExperienceVideoUpload(EXP_ID, `experiences/${EXP_ID}/new.mp4`)
+    await confirmServiceVideoUpload(SERVICE_ID, `services/${SERVICE_ID}/new.mp4`)
 
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith(
-      { videos: ['https://x/old.mp4', 'https://cdn.example.com/photo.webp'] }, 'id', EXP_ID,
+    expect(adminServicesUpdate).toHaveBeenCalledWith(
+      { videos: ['https://x/old.mp4', 'https://cdn.example.com/photo.webp'] }, 'id', SERVICE_ID,
     )
     expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('returns an error when saving the DB row fails', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, images: [], videos: [], business_id: BIZ_ID } })
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, images: [], videos: [], business_id: BIZ_ID } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    adminExperiencesUpdate.mockResolvedValue({ error: { message: 'db error' } })
+    adminServicesUpdate.mockResolvedValue({ error: { message: 'db error' } })
 
-    const result = await confirmExperienceVideoUpload(EXP_ID, `experiences/${EXP_ID}/new.mp4`)
+    const result = await confirmServiceVideoUpload(SERVICE_ID, `services/${SERVICE_ID}/new.mp4`)
 
     expect(result).toEqual({ error: 'No se pudo guardar el video.' })
   })
 })
 
-describe('deleteExperienceVideo', () => {
-  it('rejects when the caller does not own the experience\'s business', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, business_id: BIZ_ID, videos: [] } })
+describe('deleteServiceVideo', () => {
+  it('rejects when the caller does not own the service\'s business', async () => {
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, business_id: BIZ_ID, videos: [] } })
     businessOwnershipSingle.mockResolvedValue({ data: null })
 
-    const result = await deleteExperienceVideo(EXP_ID, 'https://x/a.mp4')
-    expect(result).toEqual({ error: 'Experiencia no encontrada.' })
-    expect(adminExperiencesUpdate).not.toHaveBeenCalled()
+    const result = await deleteServiceVideo(SERVICE_ID, 'https://x/a.mp4')
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
+    expect(adminServicesUpdate).not.toHaveBeenCalled()
   })
 
   it('removes the file from the video bucket and filters the URL out of the videos array', async () => {
-    experienceMaybeSingle.mockResolvedValue({
-      data: { id: EXP_ID, business_id: BIZ_ID, videos: ['https://x.supabase.co/storage/v1/object/public/business-videos/experiences/e1/a.mp4', 'https://x/keep.mp4'] },
+    serviceMaybeSingle.mockResolvedValue({
+      data: { id: SERVICE_ID, business_id: BIZ_ID, videos: ['https://x.supabase.co/storage/v1/object/public/business-videos/services/s1/a.mp4', 'https://x/keep.mp4'] },
     })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID, slug: BIZ_SLUG } })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
-    await deleteExperienceVideo(EXP_ID, 'https://x.supabase.co/storage/v1/object/public/business-videos/experiences/e1/a.mp4')
+    await deleteServiceVideo(SERVICE_ID, 'https://x.supabase.co/storage/v1/object/public/business-videos/services/s1/a.mp4')
 
-    expect(storageRemove).toHaveBeenCalledWith('business-videos', ['experiences/e1/a.mp4'])
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ videos: ['https://x/keep.mp4'] }, 'id', EXP_ID)
+    expect(storageRemove).toHaveBeenCalledWith('business-videos', ['services/s1/a.mp4'])
+    expect(adminServicesUpdate).toHaveBeenCalledWith({ videos: ['https://x/keep.mp4'] }, 'id', SERVICE_ID)
     expect(revalidatePathMock).toHaveBeenCalledWith(`/negocios/${BIZ_SLUG}`)
   })
 
   it('treats a missing videos field as an empty array', async () => {
-    experienceMaybeSingle.mockResolvedValue({ data: { id: EXP_ID, business_id: BIZ_ID, videos: undefined } })
+    serviceMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, business_id: BIZ_ID, videos: undefined } })
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
-    adminExperiencesUpdate.mockResolvedValue({ error: null })
+    adminServicesUpdate.mockResolvedValue({ error: null })
 
-    await deleteExperienceVideo(EXP_ID, 'https://x/whatever.mp4')
+    await deleteServiceVideo(SERVICE_ID, 'https://x/whatever.mp4')
 
-    expect(adminExperiencesUpdate).toHaveBeenCalledWith({ videos: [] }, 'id', EXP_ID)
+    expect(adminServicesUpdate).toHaveBeenCalledWith({ videos: [] }, 'id', SERVICE_ID)
   })
 })
 

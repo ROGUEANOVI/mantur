@@ -32,7 +32,7 @@ type RecentBooking = {
   status: string
   booking_date: string
   created_at: string
-  experiences: { name: string } | null
+  services: { name: string } | null
   profiles: { full_name: string | null } | null
 }
 
@@ -88,12 +88,12 @@ export default async function AdminPage() {
       .limit(3),
     admin
       .from('bookings')
-      .select('id, total_amount, status, booking_date, created_at, experiences(name), profiles!tourist_id(full_name)')
+      .select('id, total_amount, status, booking_date, created_at, services(name), profiles!tourist_id(full_name)')
       .order('created_at', { ascending: false })
       .limit(5),
   ])
 
-  const experienceRate = commissions?.find((c) => c.service_type === 'experience')?.rate ?? '—'
+  const tourActivityRate = commissions?.find((c) => c.service_type === 'tour_activity')?.rate ?? '—'
   const totalRevenueCents = (paidTransactions ?? []).reduce(
     (sum, t) => sum + Number(t.amount_in_cents),
     0,
@@ -175,7 +175,7 @@ export default async function AdminPage() {
         <div className="flex items-center gap-3 rounded-2xl border border-border bg-card shadow-sm px-4 py-3">
           <Percent className="size-4 text-primary shrink-0" strokeWidth={1.5} aria-hidden="true" />
           <p className="text-sm text-muted-foreground">{adminCopy.dashboard.stats.commissionRate}</p>
-          <span className="ml-auto text-lg font-bold text-foreground">{experienceRate}%</span>
+          <span className="ml-auto text-lg font-bold text-foreground">{tourActivityRate}%</span>
           <Link
             href="/admin/comisiones"
             className="text-xs text-primary font-medium hover:underline"
@@ -259,7 +259,7 @@ export default async function AdminPage() {
                       <div className="flex items-center gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground line-clamp-1">
-                            {booking.experiences?.name ?? '—'}
+                            {booking.services?.name ?? '—'}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {booking.profiles?.full_name ?? '—'} · {formatDate(booking.booking_date)}

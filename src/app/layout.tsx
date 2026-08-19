@@ -10,7 +10,7 @@ const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 const APP_URL = 'https://mantur.co'
 const DESCRIPTION =
-  'Descubre Manaure Balcón del Cesar. Reserva experiencias en negocios locales, contrata guías turísticos y encuentra transporte con alma local.'
+  'Descubre Manaure Balcón del Cesar. Reserva servicios en negocios locales, contrata guías turísticos y encuentra transporte con alma local.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),

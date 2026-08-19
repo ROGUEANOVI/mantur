@@ -5,18 +5,26 @@ import Link from 'next/link'
 
 import { createBooking } from '@/app/(app)/reservas/actions'
 import { bookingsCopy } from '@/lib/copy/bookings'
+import { QUANTITY_LABELS, type PricingUnit } from '@/lib/services/attributeConfig'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 type Props = {
-  experienceId: string
+  serviceId: string
   price: number
   capacity: number | null
-  experienceName: string
+  serviceName: string
+  pricingUnit: PricingUnit
 }
 
 type FormState = { error: string } | undefined
+
+const UNIT_SUFFIX: Record<PricingUnit, string> = {
+  per_person: 'por persona',
+  per_night: 'por noche',
+  fixed: 'precio fijo',
+}
 
 async function bookingFormAction(
   _prevState: FormState,
@@ -26,32 +34,33 @@ async function bookingFormAction(
 }
 
 export default function BookingForm({
-  experienceId,
+  serviceId,
   price,
   capacity,
+  pricingUnit,
 }: Props) {
   const today = new Date().toISOString().split('T')[0]
-  const [peopleCount, setPeopleCount] = useState(1)
+  const [quantity, setQuantity] = useState(1)
 
   const [state, formAction, isPending] = useActionState<FormState, FormData>(
     bookingFormAction,
     undefined,
   )
 
-  const total = price * peopleCount
+  const total = pricingUnit === 'fixed' ? price : price * quantity
 
-  function handlePeopleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleQuantityChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseInt(e.target.value, 10)
     if (!Number.isNaN(val) && val >= 1) {
       const capped = capacity !== null ? Math.min(val, capacity) : val
-      setPeopleCount(capped)
+      setQuantity(capped)
     }
   }
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {/* Hidden experience ID — never taken from the URL on the server */}
-      <input type="hidden" name="experience_id" value={experienceId} />
+      {/* Hidden service ID — never taken from the URL on the server */}
+      <input type="hidden" name="service_id" value={serviceId} />
 
       {/* Date */}
       <div className="space-y-1.5">
@@ -67,19 +76,19 @@ export default function BookingForm({
         />
       </div>
 
-      {/* People count */}
+      {/* Quantity */}
       <div className="space-y-1.5">
-        <Label htmlFor="people-count" className="text-sm font-medium">
-          {bookingsCopy.form.people}
+        <Label htmlFor="quantity" className="text-sm font-medium">
+          {QUANTITY_LABELS[pricingUnit]}
         </Label>
         <Input
-          id="people-count"
+          id="quantity"
           type="number"
-          name="people_count"
+          name="quantity"
           min="1"
           max={capacity ?? undefined}
-          value={peopleCount}
-          onChange={handlePeopleChange}
+          value={quantity}
+          onChange={handleQuantityChange}
         />
       </div>
 
@@ -94,8 +103,9 @@ export default function BookingForm({
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          ${price.toLocaleString('es-CO')} × {peopleCount}{' '}
-          {bookingsCopy.form.perPerson}
+          {pricingUnit === 'fixed'
+            ? `${UNIT_SUFFIX.fixed}`
+            : `$${price.toLocaleString('es-CO')} × ${quantity} ${UNIT_SUFFIX[pricingUnit]}`}
         </p>
       </div>
 

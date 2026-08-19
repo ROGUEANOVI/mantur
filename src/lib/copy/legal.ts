@@ -138,7 +138,7 @@ export const legalCopy = {
       {
         title: 'Cómo funciona',
         body:
-          'Los turistas exploran negocios, lugares, guías y transportadores, y reservan experiencias directamente desde la plataforma. Los negocios y guías publican sus servicios; los transportadores locales facilitan moverse dentro del municipio.',
+          'Los turistas exploran negocios, lugares, guías y transportadores, y reservan servicios directamente desde la plataforma. Los negocios y guías publican sus servicios; los transportadores locales facilitan moverse dentro del municipio.',
       },
       {
         title: 'Nuestro compromiso',

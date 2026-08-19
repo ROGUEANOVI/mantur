@@ -12,12 +12,12 @@ const UUID_RE =
 type BookingDetail = {
   id: string
   booking_date: string
-  people_count: number
+  quantity: number
   total_amount: number
   status: string
   created_at: string
   notes: string | null
-  experiences: {
+  services: {
     name: string
     businesses: { name: string } | null
   } | null
@@ -80,7 +80,7 @@ export default async function ConfirmacionPage({
   const { data: booking, error } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, people_count, total_amount, status, created_at, notes, experiences(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles(full_name)))',
+      'id, booking_date, quantity, total_amount, status, created_at, notes, services(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles(full_name)))',
     )
     .eq('id', bookingId)
     .single()
@@ -98,12 +98,12 @@ export default async function ConfirmacionPage({
   const iconClass = STATUS_ICON_CLASS[b.status] ?? STATUS_ICON_CLASS.pending_payment
 
   const isGuideTour = b.guide_tours != null
-  const experienceName = isGuideTour
+  const serviceName = isGuideTour
     ? (b.guide_tours?.name ?? '—')
-    : (b.experiences?.name ?? '—')
+    : (b.services?.name ?? '—')
   const businessName = isGuideTour
     ? (b.guide_tours?.tourist_guides?.profiles?.full_name ?? '—')
-    : (b.experiences?.businesses?.name ?? '—')
+    : (b.services?.businesses?.name ?? '—')
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -159,10 +159,10 @@ export default async function ConfirmacionPage({
 
             <div className="flex items-start justify-between gap-3">
               <dt className="text-sm text-muted-foreground shrink-0">
-                {isGuideTour ? 'Tour' : bookingsCopy.confirmation.experienceLabel}
+                {isGuideTour ? 'Tour' : bookingsCopy.confirmation.serviceLabel}
               </dt>
               <dd className="text-sm font-medium text-foreground text-right">
-                {experienceName}
+                {serviceName}
               </dd>
             </div>
 
@@ -186,10 +186,10 @@ export default async function ConfirmacionPage({
 
             <div className="flex items-center justify-between gap-3">
               <dt className="text-sm text-muted-foreground shrink-0">
-                {bookingsCopy.confirmation.people}
+                {bookingsCopy.confirmation.quantity}
               </dt>
               <dd className="text-sm font-medium text-foreground">
-                {b.people_count}
+                {b.quantity}
               </dd>
             </div>
 

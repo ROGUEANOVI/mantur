@@ -17,13 +17,13 @@ beforeEach(() => {
 
 describe('CommissionForm', () => {
   it('renders the known service-type label and the current rate', () => {
-    render(<CommissionForm configId={CONFIG_ID} serviceType="experience" currentRate={10} />)
-    expect(screen.getByLabelText('Experiencias')).toHaveValue(10)
+    render(<CommissionForm configId={CONFIG_ID} serviceType="tour_activity" currentRate={10} />)
+    expect(screen.getByLabelText('Actividades/Tours')).toHaveValue(10)
   })
 
   it('falls back to the raw serviceType string when it is not in the known map', () => {
-    render(<CommissionForm configId={CONFIG_ID} serviceType="guide_tour" currentRate={15} />)
-    expect(screen.getByLabelText('guide_tour')).toHaveValue(15)
+    render(<CommissionForm configId={CONFIG_ID} serviceType="unknown_type" currentRate={15} />)
+    expect(screen.getByLabelText('unknown_type')).toHaveValue(15)
   })
 
   it('submits configId and the updated rate', async () => {

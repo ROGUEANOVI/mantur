@@ -34,11 +34,11 @@ import HeroSlideshow from '@/components/shared/HeroSlideshow'
 
 export const metadata: Metadata = {
   title: 'ManTur — Turismo con alma local',
-  description: 'Descubre Manaure Balcón del Cesar. Reserva experiencias en negocios locales, contrata guías turísticos y encuentra transporte con alma local.',
+  description: 'Descubre Manaure Balcón del Cesar. Reserva servicios en negocios locales, contrata guías turísticos y encuentra transporte con alma local.',
   alternates: { canonical: 'https://mantur.co' },
   openGraph: {
     title: 'ManTur — Turismo con alma local',
-    description: 'Descubre Manaure Balcón del Cesar. Reserva experiencias, guías y transporte local.',
+    description: 'Descubre Manaure Balcón del Cesar. Reserva servicios, guías y transporte local.',
     url: 'https://mantur.co',
   },
 }

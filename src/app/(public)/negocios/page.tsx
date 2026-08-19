@@ -8,7 +8,7 @@ import { businessesCopy } from '@/lib/copy/businesses'
 
 export const metadata: Metadata = {
   title: 'Negocios',
-  description: 'Explora restaurantes, balnearios, fincas y más en Manaure Balcón del Cesar. Reserva experiencias únicas con negocios locales.',
+  description: 'Explora restaurantes, balnearios, fincas y más en Manaure Balcón del Cesar. Reserva servicios únicos con negocios locales.',
   alternates: { canonical: 'https://mantur.co/negocios' },
   openGraph: {
     title: 'Negocios locales en Manaure | ManTur',
