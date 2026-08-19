@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { authCopy } from '@/lib/copy/auth'
 import { Button } from '@/components/ui/button'
 
-export default function GoogleSignInButton() {
+export default function GoogleSignInButton({ mode }: { mode: 'login' | 'signup' }) {
   async function handleClick() {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
@@ -16,7 +16,7 @@ export default function GoogleSignInButton() {
   return (
     <Button type="button" variant="outline" className="w-full" onClick={handleClick}>
       <GoogleIcon className="size-4" />
-      {authCopy.oauth.google}
+      {authCopy.oauth.google[mode]}
     </Button>
   )
 }

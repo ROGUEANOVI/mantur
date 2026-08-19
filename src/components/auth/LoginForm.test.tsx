@@ -86,7 +86,7 @@ describe('LoginForm', () => {
 
   it('renders the Google sign-in button', () => {
     render(<LoginForm />)
-    expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Iniciar sesión con Google' })).toBeInTheDocument()
   })
 
   it('shows the oauth error message when authError is "oauth"', () => {

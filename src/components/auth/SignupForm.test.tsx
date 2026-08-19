@@ -151,7 +151,7 @@ describe('SignupForm', () => {
 
   it('renders the Google sign-in button alongside the form', () => {
     render(<SignupForm />)
-    expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Regístrate con Google' })).toBeInTheDocument()
   })
 
   it('shows the "check your email" message instead of the form when signUp returns pendingConfirmation', async () => {

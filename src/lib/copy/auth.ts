@@ -3,8 +3,11 @@ export const authCopy = {
     tagline: 'Turismo con alma local',
   },
   oauth: {
-    google: 'Continuar con Google',
-    divider: 'o continúa con',
+    google: {
+      login: 'Iniciar sesión con Google',
+      signup: 'Regístrate con Google',
+    },
+    divider: 'O',
   },
   login: {
     title: 'Ingresa a tu cuenta',
