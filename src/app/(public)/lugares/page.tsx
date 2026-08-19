@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark, SlidersHorizontal } from 'lucide-react'
+import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 
@@ -16,12 +16,14 @@ export const metadata: Metadata = {
     url: 'https://mantur.co/lugares',
   },
 }
-import { cn } from '@/lib/utils'
 import SearchInput from '@/components/shared/SearchInput'
 import PaginationNav from '@/components/shared/PaginationNav'
 import Reveal from '@/components/shared/Reveal'
 import EntityListMapToggle from '@/components/shared/EntityListMapToggle'
 import type { EntityMapMarker } from '@/components/shared/EntityMap'
+import HeroControlCard from '@/components/shared/HeroControlCard'
+import FilterPillsRail from '@/components/shared/FilterPillsRail'
+import AuroraHero from '@/components/shared/AuroraHero'
 
 const PAGE_SIZE = 15
 
@@ -110,81 +112,38 @@ export default async function LugaresPage({
 
   return (
     <main className="min-h-screen bg-background pb-10">
-      {/* Hero + search + pills — zona oscura unificada */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
-        {/* Mountain silhouette — Serranía del Perijá */}
-        <svg
-          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.13]"
-          viewBox="0 0 1200 90"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M0,90 L120,52 L240,70 L380,28 L500,55 L620,10 L740,42 L860,18 L980,48 L1100,22 L1200,38 L1200,90 Z"
-            fill="white"
-          />
-        </svg>
-        {/* Faint place-marker watermark — "lugares" is about points on the map */}
-        <div className="pointer-events-none absolute -top-6 right-6 opacity-[0.10]">
-          <MapPin className="size-44 text-white" strokeWidth={0.75} />
-        </div>
-        {/* Sunrise-over-the-viewpoint accent */}
-        <div className="pointer-events-none absolute top-6 left-8 size-3 rounded-full bg-accent/70 blur-[1px]" />
-        <div className="pointer-events-none absolute top-10 left-14 size-1.5 rounded-full bg-accent/50" />
-        {/* Título y buscador */}
-        <div className="relative max-w-2xl mx-auto px-4 pt-10 pb-5 text-center space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
-            <p className="mt-1 text-sm text-white/70">{copy.pageSubtitle}</p>
-          </div>
-          <Suspense fallback={<div className="h-10 w-full rounded-xl bg-white/20 animate-pulse" />}>
-            <SearchInput placeholder="Buscar lugar..." dark />
-          </Suspense>
-        </div>
+      {/* Hero — mismo degradé orgánico que /negocios; el copy y las fotos diferencian la página */}
+      <AuroraHero>
+        <h1 className="text-2xl font-bold text-white">{copy.pageTitle}</h1>
+        <p className="mt-1 text-sm text-white/85">{copy.pageSubtitle}</p>
+      </AuroraHero>
+      <div className="hero-weave-edge" />
 
-        {/* Pills de tipo sobre el mismo fondo oscuro */}
-        <div className="border-t border-white/10 py-3">
-          <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-white/60 mb-2">
-            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-            {copy.filterLabel}
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
-            <Link
-              href={search ? `/lugares?q=${encodeURIComponent(search)}` : '/lugares'}
-              className={cn(
-                'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
-                !typeFilter
-                  ? 'border-white bg-white text-primary'
-                  : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
-              )}
-            >
-              Todos
-            </Link>
-            {VALID_TYPES.map((t) => {
-              const href = search
-                ? `/lugares?type=${t}&q=${encodeURIComponent(search)}`
-                : `/lugares?type=${t}`
-              return (
-                <Link
-                  key={t}
-                  href={href}
-                  className={cn(
-                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap',
-                    typeFilter === t
-                      ? 'border-white bg-white text-primary'
-                      : 'border-white/30 bg-white/10 text-white hover:bg-white/20',
-                  )}
-                >
-                  {copy.types[t]}
-                </Link>
-              )
-            })}
-          </div>
+      <HeroControlCard>
+        <Suspense fallback={<div className="h-10 w-full rounded-xl bg-muted animate-pulse" />}>
+          <SearchInput placeholder="Buscar lugar..." />
+        </Suspense>
+        <div className="mt-3">
+          <FilterPillsRail
+            items={[
+              {
+                key: 'all',
+                label: 'Todos',
+                href: search ? `/lugares?q=${encodeURIComponent(search)}` : '/lugares',
+              },
+              ...VALID_TYPES.map((t) => ({
+                key: t,
+                label: copy.types[t],
+                href: search ? `/lugares?type=${t}&q=${encodeURIComponent(search)}` : `/lugares?type=${t}`,
+              })),
+            ]}
+            activeKey={typeFilter ?? 'all'}
+          />
         </div>
-      </section>
+      </HeroControlCard>
 
       <div className="max-w-5xl mx-auto w-full">
-        <div className="mt-4 px-4">
+        <div className="mt-6 px-4">
         {/* Results count */}
         {/* Place grid */}
           {!places || places.length === 0 ? (

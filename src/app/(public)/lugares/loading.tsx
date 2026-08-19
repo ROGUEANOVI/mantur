@@ -1,35 +1,28 @@
+import AuroraHero from '@/components/shared/AuroraHero'
+import HeroControlCard from '@/components/shared/HeroControlCard'
+
 export default function LugaresLoading() {
   return (
     <main className="min-h-screen bg-background pb-10">
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a2b1e] via-[#0e7a54] to-[#0d3d28]">
-        <svg
-          className="pointer-events-none absolute bottom-0 left-0 w-full opacity-[0.13]"
-          viewBox="0 0 1200 90"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M0,90 L120,52 L240,70 L380,28 L500,55 L620,10 L740,42 L860,18 L980,48 L1100,22 L1200,38 L1200,90 Z"
-            fill="white"
-          />
-        </svg>
-        <div className="max-w-2xl mx-auto px-4 pt-10 pb-5 text-center space-y-4">
-          <div className="space-y-2">
-            <div className="h-7 w-52 rounded-lg bg-white/20 animate-pulse mx-auto" />
-            <div className="h-4 w-72 rounded-lg bg-white/10 animate-pulse mx-auto" />
-          </div>
-          <div className="h-10 w-full rounded-xl bg-white/15 animate-pulse" />
-        </div>
-        <div className="border-t border-white/10 py-3">
-          <div className="flex flex-wrap justify-center gap-2 px-4 max-w-4xl mx-auto">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-8 w-20 rounded-full bg-white/15 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      </section>
+      <AuroraHero>
+        <div className="h-7 w-52 rounded-lg bg-white/20 animate-pulse mx-auto" />
+        <div className="mt-2 h-4 w-72 rounded-lg bg-white/15 animate-pulse mx-auto" />
+      </AuroraHero>
+      <div className="hero-weave-edge" />
 
-      <div className="max-w-5xl mx-auto w-full mt-4 px-4">
+      <HeroControlCard>
+        <div className="h-10 w-full rounded-xl bg-muted animate-pulse" />
+        <div className="mt-3 flex gap-2 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-8 w-20 shrink-0 rounded-full bg-muted animate-pulse" />
+          ))}
+        </div>
+      </HeroControlCard>
+
+      <div className="max-w-5xl mx-auto w-full mt-6 px-4">
+        <div className="flex justify-center mb-4">
+          <div className="h-9 w-40 rounded-full bg-muted animate-pulse" />
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
