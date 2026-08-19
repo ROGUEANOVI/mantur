@@ -7,7 +7,7 @@ project_id = "vayatur"
 [api]
 enabled = true
 # Port to use for the API URL.
-port = 54321
+port = 55321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
 schemas = ["public", "graphql_public"]
@@ -32,7 +32,7 @@ enabled = false
 
 [db]
 # Port to use for the local database URL.
-port = 54322
+port = 55322
 # Port used by db diff command to initialize the shadow database.
 shadow_port = 54320
 # Maximum amount of time to wait for health check when starting the local database.
@@ -245,7 +245,7 @@ otp_expiry = 3600
 
 [auth.email.template.recovery]
 subject = "Restablece tu contraseña de ManTur"
-content_path = "./templates/recovery.html"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

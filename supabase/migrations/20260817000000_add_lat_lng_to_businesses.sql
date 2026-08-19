@@ -17,6 +17,10 @@
 -- places.lat/places.lng.
 -- =============================================================
 
+-- IF NOT EXISTS: the businesses table already declares lat/lng inline in its
+-- original CREATE TABLE (20260730000000_create_businesses_places_experiences.sql),
+-- so on a fresh `supabase db reset` this migration would otherwise fail with
+-- "column already exists". Idempotent either way.
 ALTER TABLE public.businesses
-  ADD COLUMN lat numeric(10,7),
-  ADD COLUMN lng numeric(10,7);
+  ADD COLUMN IF NOT EXISTS lat numeric(10,7),
+  ADD COLUMN IF NOT EXISTS lng numeric(10,7);

@@ -27,3 +27,6 @@ test-results/
 playwright-report/
 coverage/
 .gstack/
+
+# Local db dumps/backups — never commit real production data
+backups/
