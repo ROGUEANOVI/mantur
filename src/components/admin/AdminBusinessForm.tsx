@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
 import LocationPicker from '@/components/shared/LocationPicker'
+import TextareaWithCounter from '@/components/shared/TextareaWithCounter'
 
 type ActionResult = { error: string } | { success: true }
 type FormState = ActionResult | undefined
@@ -122,12 +124,13 @@ export default function AdminBusinessForm({ action, owners }: Props) {
         <label className="block text-sm font-medium text-foreground" htmlFor="description">
           {copy.description}
         </label>
-        <textarea
+        <TextareaWithCounter
           id="description"
           name="description"
           placeholder={copy.descriptionPlaceholder}
           rows={3}
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+          maxLength={DESCRIPTION_MAX_LENGTH}
+          textareaClassName="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 resize-none"
         />
       </div>
 

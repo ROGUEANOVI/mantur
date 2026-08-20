@@ -57,25 +57,38 @@ export default async function PublicNav() {
       primaryLink = { label: copy.myBookings, href: '/mis-reservas' }
       secondaryLinks = [
         { label: copy.myProfile, href: '/mi-perfil' },
+        { label: copy.myFavorites, href: '/mis-favoritos' },
         { label: copy.myTrips, href: '/mis-viajes' },
         { label: copy.joinMantur, href: '/solicitar-rol', accent: true },
       ]
       break
     case 'transporter':
       primaryLink = { label: copy.myTransport, href: '/mi-perfil-transporte' }
-      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
+      secondaryLinks = [
+        { label: copy.myProfile, href: '/mi-perfil' },
+        { label: copy.myFavorites, href: '/mis-favoritos' },
+      ]
       break
     case 'tourist_guide':
       primaryLink = { label: copy.myGuidePanel, href: '/mi-perfil-guia' }
-      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
+      secondaryLinks = [
+        { label: copy.myProfile, href: '/mi-perfil' },
+        { label: copy.myFavorites, href: '/mis-favoritos' },
+      ]
       break
     case 'business_owner':
       primaryLink = { label: copy.myBusiness, href: '/mi-negocio' }
-      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
+      secondaryLinks = [
+        { label: copy.myProfile, href: '/mi-perfil' },
+        { label: copy.myFavorites, href: '/mis-favoritos' },
+      ]
       break
     case 'admin':
       primaryLink = { label: copy.admin, href: '/admin', isAdmin: true }
-      secondaryLinks = [{ label: copy.myProfile, href: '/mi-perfil' }]
+      secondaryLinks = [
+        { label: copy.myProfile, href: '/mi-perfil' },
+        { label: copy.myFavorites, href: '/mis-favoritos' },
+      ]
       break
     default:
       break

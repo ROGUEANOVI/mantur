@@ -980,6 +980,16 @@ describe('createBusinessAsAdmin', () => {
     expect(businessInsertAwait).not.toHaveBeenCalled()
   })
 
+  it('rejects a description over 1200 characters, without inserting', async () => {
+    const fd = formData({
+      name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID, description: 'a'.repeat(1201),
+    })
+    const result = await createBusinessAsAdmin(fd)
+
+    expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
+    expect(businessInsertAwait).not.toHaveBeenCalled()
+  })
+
   it('redirects to / when a non-admin calls createBusinessAsAdmin', async () => {
     adminProfileSingle.mockResolvedValue({ data: { role: 'business_owner' } })
     const fd = formData({ name: 'Finca X', type: 'restaurant', ownerId: OWNER_ID })
@@ -1052,6 +1062,13 @@ describe('createPlace / updatePlace / deletePlace', () => {
     expect(placeInsertAwait).toHaveBeenCalledWith(expect.objectContaining({ description: null }))
   })
 
+  it('createPlace rejects a description over 1200 characters, without inserting', async () => {
+    const fd = formData({ name: 'Pozo Azul', type: 'river', description: 'a'.repeat(1201) })
+    const result = await createPlace(fd)
+    expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
+    expect(placeInsertAwait).not.toHaveBeenCalled()
+  })
+
   it('redirects to / when a non-admin calls createPlace', async () => {
     adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
     const fd = formData({ name: 'Pozo Azul', type: 'river' })
@@ -1117,6 +1134,13 @@ describe('createPlace / updatePlace / deletePlace', () => {
     fd.set('type', 'river')
     await expect(updatePlace(fd)).rejects.toThrow('redirect:/admin/lugares')
     expect(placeUpdateSelect).toHaveBeenCalledWith(expect.objectContaining({ description: null }), 'id', PLACE_ID)
+  })
+
+  it('updatePlace rejects a description over 1200 characters, without updating', async () => {
+    const fd = formData({ placeId: PLACE_ID, name: 'Pozo Azul', type: 'river', description: 'a'.repeat(1201) })
+    const result = await updatePlace(fd)
+    expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
+    expect(placeUpdateSelect).not.toHaveBeenCalled()
   })
 
   it('redirects to / when a non-admin calls updatePlace', async () => {

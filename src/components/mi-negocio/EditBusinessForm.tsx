@@ -6,10 +6,12 @@ import { updateBusiness } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import LocationPicker from '@/components/shared/LocationPicker'
+import TextareaWithCounter from '@/components/shared/TextareaWithCounter'
 
 const INVALID_PHONE = 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'
 
@@ -110,13 +112,14 @@ export default function EditBusinessForm({
         <Label htmlFor="biz-description" className="text-sm font-medium">
           {copy.form.description}
         </Label>
-        <textarea
+        <TextareaWithCounter
           id="biz-description"
           name="description"
           rows={3}
           defaultValue={defaultValues.description ?? ''}
           placeholder={copy.form.businessDescriptionPlaceholder}
-          className={cn(
+          maxLength={DESCRIPTION_MAX_LENGTH}
+          textareaClassName={cn(
             'w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-base shadow-xs',
             'placeholder:text-muted-foreground transition-[color,box-shadow] outline-none resize-none',
             'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',

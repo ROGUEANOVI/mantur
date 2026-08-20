@@ -341,6 +341,14 @@ describe('createBusiness', () => {
     expect(result).toEqual({ error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' })
     expect(businessInsertSingle).not.toHaveBeenCalled()
   })
+
+  it('rejects a description over 1200 characters, without inserting', async () => {
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], description: 'a'.repeat(1201) })
+    const result = await createBusiness(fd)
+
+    expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
+    expect(businessInsertSingle).not.toHaveBeenCalled()
+  })
 })
 
 describe('updateBusiness', () => {
@@ -409,6 +417,17 @@ describe('updateBusiness', () => {
     const fd = formData({ name: 'Nuevo nombre', category_ids: ['not-a-uuid'] })
     const result = await updateBusiness(BIZ_ID, fd)
     expect(result).toEqual({ error: 'Selecciona al menos una categoría.' })
+    expect(businessUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a description over 1200 characters, without updating', async () => {
+    const fd = formData({
+      name: 'Nuevo nombre',
+      category_ids: [CAT_ID_1],
+      description: 'a'.repeat(1201),
+    })
+    const result = await updateBusiness(BIZ_ID, fd)
+    expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
     expect(businessUpdateMock).not.toHaveBeenCalled()
   })
 })
@@ -599,6 +618,23 @@ describe('createService', () => {
       }),
     )
   })
+
+  it('rejects a description over 1200 characters, without inserting', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    serviceTypeSingle.mockResolvedValue({ data: { slug: 'tour_activity' } })
+
+    const fd = formData({
+      business_id: BIZ_ID,
+      name: 'Tour',
+      base_price: '10000',
+      service_type_id: SERVICE_TYPE_ID,
+      description: 'a'.repeat(1201),
+    })
+    const result = await createService(fd)
+
+    expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
+    expect(serviceInsertMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('updateService', () => {
@@ -652,6 +688,14 @@ describe('updateService', () => {
     const fd = formData({ name: 'Tour', base_price: '20000', capacity: '0' })
     const result = await updateService(SERVICE_ID, fd)
     expect(result).toEqual({ error: 'El cupo debe ser un número positivo.' })
+  })
+
+  it('rejects a description over 1200 characters, without updating', async () => {
+    existingServiceSingle.mockResolvedValue({ data: { service_types: { slug: 'tour_activity' } } })
+    const fd = formData({ name: 'Tour', base_price: '20000', description: 'a'.repeat(1201) })
+    const result = await updateService(SERVICE_ID, fd)
+    expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
+    expect(serviceUpdateSelect).not.toHaveBeenCalled()
   })
 
   it('re-reads the service type slug from the existing row rather than trusting the form — the type is immutable after creation', async () => {

@@ -100,6 +100,20 @@ describe('PublicNav — tourist', () => {
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
   })
 
+  it('shows "Mis favoritos" in the avatar menu', async () => {
+    const user = userEvent.setup()
+    authGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'ana@example.com' } } })
+    profileSingle.mockResolvedValue({ data: { role: 'tourist', full_name: 'Ana Pérez' } })
+    await renderPublicNav()
+
+    await openUserMenu(user, 'Ana Pérez')
+
+    expect(await screen.findByRole('menuitem', { name: 'Mis favoritos' })).toHaveAttribute(
+      'href',
+      '/mis-favoritos',
+    )
+  })
+
   it('shows the role label "Turista" in the dropdown header', async () => {
     const user = userEvent.setup()
     authGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'ana@example.com' } } })
@@ -141,6 +155,7 @@ describe('PublicNav — transporter', () => {
     await openUserMenu(user, 'Carlos Ruiz')
 
     expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('menuitem', { name: 'Mis favoritos' })).toHaveAttribute('href', '/mis-favoritos')
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Transportador')).toBeInTheDocument()
   })
@@ -158,6 +173,7 @@ describe('PublicNav — tourist_guide', () => {
     await openUserMenu(user, 'Guía Local')
 
     expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('menuitem', { name: 'Mis favoritos' })).toHaveAttribute('href', '/mis-favoritos')
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Guía turístico')).toBeInTheDocument()
   })
@@ -175,6 +191,7 @@ describe('PublicNav — business_owner', () => {
     await openUserMenu(user, 'Dueño Negocio')
 
     expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('menuitem', { name: 'Mis favoritos' })).toHaveAttribute('href', '/mis-favoritos')
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Dueño de negocio')).toBeInTheDocument()
   })
@@ -192,6 +209,7 @@ describe('PublicNav — admin', () => {
     await openUserMenu(user, 'Admin User')
 
     expect(await screen.findByRole('menuitem', { name: 'Mi perfil' })).toHaveAttribute('href', '/mi-perfil')
+    expect(screen.getByRole('menuitem', { name: 'Mis favoritos' })).toHaveAttribute('href', '/mis-favoritos')
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
     expect(screen.getByText('Administrador')).toBeInTheDocument()
   })

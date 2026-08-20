@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
-import Image from 'next/image'
 import { Suspense } from 'react'
-import { Store, MapPin } from 'lucide-react'
+import { Store } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 
@@ -24,6 +22,7 @@ import PaginationNav from '@/components/shared/PaginationNav'
 import HeroControlCard from '@/components/shared/HeroControlCard'
 import FilterPillsRail from '@/components/shared/FilterPillsRail'
 import AuroraHero from '@/components/shared/AuroraHero'
+import BusinessCard, { type BusinessCardRow } from '@/components/shared/BusinessCard'
 
 const PAGE_SIZE = 12
 
@@ -31,15 +30,7 @@ type CategoryLink = {
   business_categories: { name: string; slug: string } | null
 }
 
-type BusinessRow = {
-  id: string
-  slug: string
-  name: string
-  description: string | null
-  images: string[] | null
-  address: string | null
-  business_category_links: CategoryLink[]
-}
+type BusinessRow = BusinessCardRow
 
 type CategoryRow = { id: string; slug: string; name: string }
 
@@ -66,6 +57,10 @@ export default async function NegociosPage({
   const to = from + PAGE_SIZE - 1
 
   const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // Fetch active categories — drives filter pills and slug→id lookup
   const { data: categoriesData } = await supabase
@@ -98,6 +93,19 @@ export default async function NegociosPage({
     .range(from, to)
 
   if (error) throw new Error(error.message)
+
+  const businessRows = (businesses ?? []) as unknown as BusinessRow[]
+
+  let favoritedIds = new Set<string>()
+  if (user && businessRows.length > 0) {
+    const { data: favorites } = await supabase
+      .from('favorites')
+      .select('entity_id')
+      .eq('user_id', user.id)
+      .eq('entity_type', 'business')
+      .in('entity_id', businessRows.map((b) => b.id))
+    favoritedIds = new Set((favorites ?? []).map((f) => f.entity_id))
+  }
 
   const mapSelectClause = activeCategory
     ? 'id, slug, name, images, lat, lng, business_category_links!inner(business_categories(name, slug))'
@@ -190,9 +198,13 @@ export default async function NegociosPage({
               mapLabel={copy.mapLabel}
             >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(businesses as unknown as BusinessRow[]).map((business, i) => (
+                {businessRows.map((business, i) => (
                   <Reveal key={business.id} delay={Math.min(i, 8) * 50}>
-                    <BusinessCard business={business} />
+                    <BusinessCard
+                      business={business}
+                      isFavorited={favoritedIds.has(business.id)}
+                      isGuest={!user}
+                    />
                   </Reveal>
                 ))}
               </div>
@@ -209,66 +221,6 @@ export default async function NegociosPage({
         </div>
       </div>
     </main>
-  )
-}
-
-function BusinessCard({ business }: { business: BusinessRow }) {
-  const imageUrl = business.images?.[0]
-  const categoryNames = business.business_category_links
-    .map((l) => l.business_categories?.name)
-    .filter((n): n is string => Boolean(n))
-    .slice(0, 2)
-
-  return (
-    <Link
-      href={`/negocios/${business.slug}`}
-      className="group h-full rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all
-                 flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
-    >
-      {/* Image — compact square on mobile, wide top image on sm+ */}
-      <div className="relative size-24 rounded-xl overflow-hidden shrink-0 sm:size-auto sm:rounded-none sm:aspect-[4/3]">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={business.name}
-            fill
-            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 96px"
-            className="object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-            <Store className="size-8 sm:size-12 text-primary/60" aria-hidden="true" strokeWidth={1.5} />
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0 py-0.5 sm:p-4 sm:flex sm:flex-col sm:gap-1.5">
-        {categoryNames.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-1 sm:mb-0">
-            {categoryNames.map((name) => (
-              <span key={name} className="text-xs font-medium text-accent bg-accent/10 px-2 py-0.5 rounded-full">
-                {name}
-              </span>
-            ))}
-          </div>
-        )}
-        <h3 className="font-semibold text-foreground text-sm sm:text-base leading-snug line-clamp-1">
-          {business.name}
-        </h3>
-        {business.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-3 leading-relaxed mt-0.5 sm:mt-0">
-            {business.description}
-          </p>
-        )}
-        {business.address && (
-          <div className="flex items-center gap-1 mt-1.5 sm:mt-auto sm:pt-2">
-            <MapPin className="size-3 text-muted-foreground shrink-0" aria-hidden="true" />
-            <span className="text-xs text-muted-foreground line-clamp-1">{business.address}</span>
-          </div>
-        )}
-      </div>
-    </Link>
   )
 }
 
