@@ -10,6 +10,7 @@ export const landingCopy = {
     signout: 'Cerrar sesión',
     admin: 'Admin',
     myProfile: 'Mi perfil',
+    myFavorites: 'Mis favoritos',
     myBookings: 'Mis reservas',
     myTrips: 'Mis traslados',
     myBusiness: 'Mis negocios',

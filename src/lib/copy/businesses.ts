@@ -103,6 +103,8 @@ export const businessesCopy = {
     viewMap: 'Ver en el mapa',
     listLabel: 'Lista',
     mapLabel: 'Mapa',
+    nearbyBusinessesTitle: 'Negocios cerca de este lugar',
+    similarPlacesTitle: 'Otros lugares imperdibles',
     types: {
       waterfall: 'Cascada',
       river: 'Río',

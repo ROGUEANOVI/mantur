@@ -8,7 +8,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import { cn } from '@/lib/utils'
-import BusinessImageCarousel from '@/components/shared/BusinessImageCarousel'
+import MediaGallery from '@/components/shared/MediaGallery'
+import DetailSplitLayout from '@/components/shared/DetailSplitLayout'
+import FavoriteButton from '@/components/shared/FavoriteButton'
+import ExpandableText from '@/components/shared/ExpandableText'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
@@ -133,6 +136,18 @@ export default async function NegocioDetailPage({
 
   const activeServices = (b.services ?? []).filter((s) => s.status === 'active')
 
+  let isFavorited = false
+  if (user) {
+    const { data: favorite } = await supabase
+      .from('favorites')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('entity_type', 'business')
+      .eq('entity_id', b.id)
+      .maybeSingle()
+    isFavorited = Boolean(favorite)
+  }
+
   const businessJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
@@ -159,47 +174,82 @@ export default async function NegocioDetailPage({
   return (
     <main className="min-h-screen bg-background pb-10">
       <script {...jsonLdScriptProps(businessJsonLd)} />
-      <div className="max-w-2xl mx-auto">
-        <Breadcrumbs
-          items={[
-            { label: breadcrumbsCopy.home, href: '/' },
-            { label: breadcrumbsCopy.businesses, href: '/negocios' },
-            { label: b.name },
-          ]}
-        />
+      <div className="max-w-5xl mx-auto px-4">
+        <DetailSplitLayout
+          gallery={
+            <>
+              <Breadcrumbs
+                items={[
+                  { label: breadcrumbsCopy.home, href: '/' },
+                  { label: breadcrumbsCopy.businesses, href: '/negocios' },
+                  { label: b.name },
+                ]}
+              />
 
-        {/* Image carousel */}
-        <BusinessImageCarousel images={b.images ?? []} videos={b.videos ?? []} name={b.name} />
+              <MediaGallery images={b.images ?? []} videos={b.videos ?? []} name={b.name} />
 
-        {/* Business name + type */}
-        <section className="px-4 mt-4">
-          <p className="text-xs font-medium text-accent uppercase tracking-wide mb-0.5">
-            {businessesCopy.businesses.types[b.type] ?? businessesCopy.businesses.types.other}
-          </p>
-          <h1 className="text-2xl font-bold text-foreground leading-tight">{b.name}</h1>
-        </section>
+              {/* Business name + type */}
+              <div className="mt-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-accent uppercase tracking-wide mb-0.5">
+                      {businessesCopy.businesses.types[b.type] ?? businessesCopy.businesses.types.other}
+                    </p>
+                    <h1 className="text-2xl font-bold text-foreground leading-tight">{b.name}</h1>
+                  </div>
+                  <FavoriteButton
+                    entityType="business"
+                    entityId={b.id}
+                    initialFavorited={isFavorited}
+                    isGuest={isGuest}
+                    variant="solid"
+                    className="shrink-0"
+                  />
+                </div>
 
-        {/* Business info */}
-        <section className="px-4 mt-4 space-y-3">
-          {b.description && (
-            <p className="text-sm text-foreground/80 leading-relaxed">{b.description}</p>
-          )}
-          <div className="space-y-2">
-            {b.address && (
-              <div className="flex items-start gap-2 text-muted-foreground">
-                <MapPin className="size-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
-                <span className="text-sm">{b.address}</span>
+                {/* Contact info — kept short and above the description on
+                    purpose: this column is sticky, and a very long
+                    description (no length limit exists anywhere) would
+                    otherwise push address/phone below the viewport with no
+                    way to scroll them into view until the column releases. */}
+                {(b.address || b.phone) && (
+                  <div className="mt-3 space-y-2">
+                    {b.address && (
+                      <div className="flex items-start gap-2 text-muted-foreground">
+                        <MapPin className="size-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+                        <span className="text-sm">{b.address}</span>
+                      </div>
+                    )}
+                    {b.phone && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <a href={`tel:${b.phone}`} className="text-sm hover:text-primary transition-colors">
+                          {b.phone}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {b.description && <ExpandableText text={b.description} className="mt-4" />}
               </div>
-            )}
-            {b.phone && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                <a href={`tel:${b.phone}`} className="text-sm hover:text-primary transition-colors">
-                  {b.phone}
-                </a>
-              </div>
-            )}
+            </>
+          }
+        >
+          {/* Invisible spacer matching the breadcrumb's height (rendered for
+              real at the top of the sticky gallery column) so this column's
+              content starts level with the mosaic instead of the breadcrumb. */}
+          <div className="invisible" aria-hidden="true">
+            <Breadcrumbs
+              items={[
+                { label: breadcrumbsCopy.home, href: '/' },
+                { label: breadcrumbsCopy.businesses, href: '/negocios' },
+                { label: b.name },
+              ]}
+            />
           </div>
+
+          {/* Map */}
           {b.lat != null && b.lng != null && (
             <div className="rounded-2xl overflow-hidden h-48 md:h-64">
               <iframe
@@ -211,30 +261,30 @@ export default async function NegocioDetailPage({
               />
             </div>
           )}
-        </section>
 
-        {/* Services */}
-        <section className="px-4 mt-8">
-          <h2 className="text-base font-semibold text-foreground mb-3">{copySvc.sectionTitle}</h2>
-          {activeServices.length === 0 ? (
-            <div className="rounded-2xl border border-border p-6 text-center">
-              <p className="text-sm text-muted-foreground">{copySvc.empty}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {activeServices.map((svc, i) => (
-                <Reveal key={svc.id} delay={Math.min(i, 8) * 60}>
-                  <ServiceCard
-                    service={svc}
-                    businessSlug={b.slug}
-                    isTourist={isTourist}
-                    isGuest={isGuest}
-                  />
-                </Reveal>
-              ))}
-            </div>
-          )}
-        </section>
+          {/* Services */}
+          <section className="mt-8">
+            <h2 className="text-base font-semibold text-foreground mb-3">{copySvc.sectionTitle}</h2>
+            {activeServices.length === 0 ? (
+              <div className="rounded-2xl border border-border p-6 text-center">
+                <p className="text-sm text-muted-foreground">{copySvc.empty}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeServices.map((svc, i) => (
+                  <Reveal key={svc.id} delay={Math.min(i, 8) * 60}>
+                    <ServiceCard
+                      service={svc}
+                      businessSlug={b.slug}
+                      isTourist={isTourist}
+                      isGuest={isGuest}
+                    />
+                  </Reveal>
+                ))}
+              </div>
+            )}
+          </section>
+        </DetailSplitLayout>
       </div>
     </main>
   )

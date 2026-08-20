@@ -5,9 +5,11 @@ import { createService } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { getAttributeFields, PRICING_UNIT_LABELS } from '@/lib/services/attributeConfig'
 import { cn } from '@/lib/utils'
+import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import TextareaWithCounter from '@/components/shared/TextareaWithCounter'
 
 type FormState = { error: string | null }
 
@@ -99,12 +101,13 @@ export default function CreateServiceForm({ businessId, serviceTypes }: Props) {
             <Label htmlFor="svc-description" className="text-sm font-medium">
               {copy.form.description}
             </Label>
-            <textarea
+            <TextareaWithCounter
               id="svc-description"
               name="description"
               rows={3}
               placeholder={copy.form.descriptionPlaceholder}
-              className={cn(
+              maxLength={DESCRIPTION_MAX_LENGTH}
+              textareaClassName={cn(
                 'w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-base shadow-xs',
                 'placeholder:text-muted-foreground transition-[color,box-shadow] outline-none resize-none',
                 'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',

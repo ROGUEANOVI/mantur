@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
 import {
   sendRoleRequestApprovedEmail,
   sendRoleRequestRejectedEmail,
@@ -137,6 +138,9 @@ export async function createBusinessAsAdmin(
     return { error: adminCopy.negocios.form.errors.ownerRequired }
 
   const description = (formData.get('description') as string | null)?.trim() || null
+  if (description && description.length > DESCRIPTION_MAX_LENGTH) {
+    return { error: adminCopy.negocios.form.errors.descriptionTooLong }
+  }
   const address = (formData.get('address') as string | null)?.trim() || null
   const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
 
@@ -184,6 +188,9 @@ export async function createPlace(formData: FormData): Promise<ActionResult> {
     return { error: adminCopy.lugares.errors.typeRequired }
 
   const description = (formData.get('description') as string | null)?.trim() || null
+  if (description && description.length > DESCRIPTION_MAX_LENGTH) {
+    return { error: adminCopy.lugares.errors.descriptionTooLong }
+  }
   const rawLat = formData.get('lat') as string
   const rawLng = formData.get('lng') as string
   const lat = rawLat ? Number(rawLat) : null
@@ -218,6 +225,9 @@ export async function updatePlace(formData: FormData): Promise<ActionResult> {
     return { error: adminCopy.lugares.errors.typeRequired }
 
   const description = (formData.get('description') as string | null)?.trim() || null
+  if (description && description.length > DESCRIPTION_MAX_LENGTH) {
+    return { error: adminCopy.lugares.errors.descriptionTooLong }
+  }
   const rawLat = formData.get('lat') as string
   const rawLng = formData.get('lng') as string
   const lat = rawLat ? Number(rawLat) : null

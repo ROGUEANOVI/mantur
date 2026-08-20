@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
-import Image from 'next/image'
 import { Suspense } from 'react'
-import { TreePine, Droplets, Eye, Waves, Trees, MapPin, Landmark } from 'lucide-react'
+import { TreePine } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { businessesCopy } from '@/lib/copy/businesses'
 
@@ -24,29 +22,14 @@ import type { EntityMapMarker } from '@/components/shared/EntityMap'
 import HeroControlCard from '@/components/shared/HeroControlCard'
 import FilterPillsRail from '@/components/shared/FilterPillsRail'
 import AuroraHero from '@/components/shared/AuroraHero'
+import PlaceCard, { type PlaceCardRow } from '@/components/shared/PlaceCard'
 
 const PAGE_SIZE = 15
 
-type PlaceRow = {
-  id: string
-  slug: string
-  name: string
-  description: string | null
-  type: string
-  images: string[] | null
-}
+type PlaceRow = PlaceCardRow
 
 const VALID_TYPES = ['waterfall', 'river', 'viewpoint', 'plaza', 'park', 'other'] as const
 type PlaceType = (typeof VALID_TYPES)[number]
-
-const TYPE_ICONS: Record<PlaceType, React.ElementType> = {
-  waterfall: Droplets,
-  river: Waves,
-  viewpoint: Eye,
-  plaza: Landmark,
-  park: Trees,
-  other: TreePine,
-}
 
 export default async function LugaresPage({
   searchParams,
@@ -65,6 +48,10 @@ export default async function LugaresPage({
 
   const supabase = await createClient()
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   let query = supabase
     .from('places')
     .select('id, slug, name, description, type, images', { count: 'exact' })
@@ -77,6 +64,19 @@ export default async function LugaresPage({
     .range(from, to)
 
   if (error) throw new Error(error.message)
+
+  const placeRows = (places ?? []) as PlaceRow[]
+
+  let favoritedIds = new Set<string>()
+  if (user && placeRows.length > 0) {
+    const { data: favorites } = await supabase
+      .from('favorites')
+      .select('entity_id')
+      .eq('user_id', user.id)
+      .eq('entity_type', 'place')
+      .in('entity_id', placeRows.map((p) => p.id))
+    favoritedIds = new Set((favorites ?? []).map((f) => f.entity_id))
+  }
 
   let mapQuery = supabase
     .from('places')
@@ -156,9 +156,13 @@ export default async function LugaresPage({
               mapLabel={copy.mapLabel}
             >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(places as PlaceRow[]).map((place, i) => (
+                {placeRows.map((place, i) => (
                   <Reveal key={place.id} delay={Math.min(i, 8) * 50}>
-                    <PlaceCard place={place} />
+                    <PlaceCard
+                      place={place}
+                      isFavorited={favoritedIds.has(place.id)}
+                      isGuest={!user}
+                    />
                   </Reveal>
                 ))}
               </div>
@@ -175,54 +179,6 @@ export default async function LugaresPage({
         </div>
       </div>
     </main>
-  )
-}
-
-function PlaceCard({ place }: { place: PlaceRow }) {
-  const copy = businessesCopy.places
-  const imageUrl = place.images?.[0]
-  const typeLabel = copy.types[place.type] ?? copy.types.other
-  const Icon = TYPE_ICONS[(place.type as PlaceType)] ?? TreePine
-
-  return (
-    <Link
-      href={`/lugares/${place.slug}`}
-      className="group h-full rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all
-                    flex items-center gap-3 p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
-    >
-      {/* Image */}
-      <div className="relative size-24 rounded-xl overflow-hidden shrink-0 sm:size-auto sm:rounded-none sm:aspect-[4/3]">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={place.name}
-            fill
-            sizes="(min-width: 640px) 33vw, 96px"
-            className="object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/15 to-primary/30 flex items-center justify-center">
-            <Icon className="size-9 sm:size-14 text-primary/60" aria-hidden="true" strokeWidth={1.5} />
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0 py-0.5 sm:p-4 sm:flex sm:flex-col sm:gap-1.5">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full mb-1 sm:mb-0 sm:self-start">
-          <MapPin className="size-3" aria-hidden="true" />
-          {typeLabel}
-        </span>
-        <h3 className="font-semibold text-foreground text-sm sm:text-base leading-snug line-clamp-1">
-          {place.name}
-        </h3>
-        {place.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-3 leading-relaxed mt-0.5 sm:mt-0">
-            {place.description}
-          </p>
-        )}
-      </div>
-    </Link>
   )
 }
 

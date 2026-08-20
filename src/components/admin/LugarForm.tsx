@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import type { createPlace, updatePlace } from '@/app/(app)/admin/actions'
+import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
 import LocationPicker from '@/components/shared/LocationPicker'
+import TextareaWithCounter from '@/components/shared/TextareaWithCounter'
 
 type ActionFn = typeof createPlace | typeof updatePlace
 type FormState = { error: string } | { success: true } | undefined
@@ -94,13 +96,14 @@ export default function LugarForm({ action, place }: Props) {
         <label htmlFor="description" className="block text-sm font-medium text-foreground">
           {copy.description}
         </label>
-        <textarea
+        <TextareaWithCounter
           id="description"
           name="description"
           defaultValue={place?.description ?? ''}
           placeholder={copy.descriptionPlaceholder}
           rows={3}
-          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          maxLength={DESCRIPTION_MAX_LENGTH}
+          textareaClassName="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
         />
       </div>
 

@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePrice, parsePositiveInt } from './parsers'
 import { normalizeColombianPhone } from '@/lib/phone'
 import { getAttributeFields, parseAttributes } from '@/lib/services/attributeConfig'
+import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
 
 type ActionResult = { error: string } | void
 
@@ -36,6 +37,9 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
+  if (description && description.length > DESCRIPTION_MAX_LENGTH) {
+    return { error: `La descripción no puede superar ${DESCRIPTION_MAX_LENGTH} caracteres.` }
+  }
   const address = (formData.get('address') as string | null)?.trim() || null
   const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
@@ -85,6 +89,9 @@ export async function updateBusiness(
 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
+  if (description && description.length > DESCRIPTION_MAX_LENGTH) {
+    return { error: `La descripción no puede superar ${DESCRIPTION_MAX_LENGTH} caracteres.` }
+  }
   const address = (formData.get('address') as string | null)?.trim() || null
   const rawPhone = (formData.get('phone') as string | null)?.trim() || ''
   const categoryIds = (formData.getAll('category_ids') as string[]).filter((id) => UUID_RE.test(id))
@@ -213,6 +220,9 @@ export async function createService(formData: FormData): Promise<ActionResult> {
 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
+  if (description && description.length > DESCRIPTION_MAX_LENGTH) {
+    return { error: `La descripción no puede superar ${DESCRIPTION_MAX_LENGTH} caracteres.` }
+  }
 
   // Price is parsed and validated server-side — never trust the raw client value.
   // parsePrice rejects NaN, Infinity, negatives, and unreasonable amounts.
@@ -265,6 +275,9 @@ export async function updateService(
 
   const name = (formData.get('name') as string).trim()
   const description = (formData.get('description') as string | null)?.trim() || null
+  if (description && description.length > DESCRIPTION_MAX_LENGTH) {
+    return { error: `La descripción no puede superar ${DESCRIPTION_MAX_LENGTH} caracteres.` }
+  }
 
   const base_price = parsePrice(formData.get('base_price') as string)
   if (!name || base_price === null) {
