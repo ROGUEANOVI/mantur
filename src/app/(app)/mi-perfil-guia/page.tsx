@@ -55,7 +55,7 @@ export default async function MiPerfilGuiaPage() {
 
   const { data: guideData } = await supabase
     .from('tourist_guides')
-    .select('id, is_available, bio, phone, specialties, languages, profiles(full_name)')
+    .select('id, is_available, bio, phone, specialties, languages, profiles!profile_id(full_name)')
     .eq('profile_id', user!.id)
     .single()
 

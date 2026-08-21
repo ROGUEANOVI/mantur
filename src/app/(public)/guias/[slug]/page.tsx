@@ -21,7 +21,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
 
-  const query = createAdminClient().from('tourist_guides').select('slug, bio, profiles(full_name, role)')
+  const query = createAdminClient().from('tourist_guides').select('slug, bio, profiles!profile_id(full_name, role)')
   const { data } = UUID_RE.test(slug)
     ? await query.eq('id', slug).single()
     : await query.eq('slug', slug).single()
@@ -82,7 +82,7 @@ export default async function GuideProfilePage({
   const [guideResult, userResult] = await Promise.all([
     admin
       .from('tourist_guides')
-      .select('id, slug, is_available, bio, phone, specialties, languages, profiles(full_name, avatar_url, role)')
+      .select('id, slug, is_available, bio, phone, specialties, languages, profiles!profile_id(full_name, avatar_url, role)')
       .eq(isLegacyId ? 'id' : 'slug', slug)
       .single(),
     supabase.auth.getUser(),

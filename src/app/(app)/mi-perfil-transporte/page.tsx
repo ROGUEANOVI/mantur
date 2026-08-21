@@ -48,7 +48,7 @@ export default async function MiPerfilTransportePage() {
   // Step 1: get the transporter profile (need its id for subsequent queries)
   const { data: transporterData } = await supabase
     .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, bio, is_available, verification_status, profiles(full_name)')
+    .select('id, vehicle_type, license_plate, phone, bio, is_available, verification_status, profiles!profile_id(full_name)')
     .eq('profile_id', user!.id)
     .single()
 

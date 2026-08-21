@@ -46,7 +46,7 @@ export default async function AdminGuiasPage({
 
   let query = admin
     .from('tourist_guides')
-    .select('id, phone, specialties, languages, is_available, rnt_number, rnt_expiry_date, rnt_document_path, tarjeta_profesional_number, tarjeta_profesional_document_path, verification_status, profiles!inner(id, full_name, avatar_url, role)')
+    .select('id, phone, specialties, languages, is_available, rnt_number, rnt_expiry_date, rnt_document_path, tarjeta_profesional_number, tarjeta_profesional_document_path, verification_status, profiles!profile_id!inner(id, full_name, avatar_url, role)')
     .order('created_at', { ascending: true })
 
   query = query.filter('profiles.role', statusFilter === 'active' ? 'eq' : 'neq', 'tourist_guide')

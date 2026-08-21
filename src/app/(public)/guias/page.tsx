@@ -52,8 +52,8 @@ export default async function GuiasPage({
   // !inner is required to filter on the joined profiles.full_name column,
   // same pattern /transportistas and /negocios use for their own joins.
   const selectClause = search
-    ? 'id, slug, specialties, languages, bio, profiles!inner(full_name, avatar_url), guide_tours(id)'
-    : 'id, slug, specialties, languages, bio, profiles(full_name, avatar_url), guide_tours(id)'
+    ? 'id, slug, specialties, languages, bio, profiles!profile_id!inner(full_name, avatar_url), guide_tours(id)'
+    : 'id, slug, specialties, languages, bio, profiles!profile_id(full_name, avatar_url), guide_tours(id)'
 
   let guidesQuery = admin
     .from('tourist_guides')
