@@ -11,6 +11,7 @@ import {
   forceActivateBusiness,
 } from '@/app/(app)/admin/actions'
 import { cn } from '@/lib/utils'
+import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
 
 type BusinessRow = {
   id: string
@@ -21,6 +22,9 @@ type BusinessRow = {
   status: string
   is_featured: boolean
   created_at: string
+  rnt_number: string | null
+  rnt_status: string
+  rnt_document_path: string | null
   profiles: { full_name: string | null } | null
 }
 
@@ -38,9 +42,9 @@ function formatDate(dateStr: string): string {
 export default async function AdminNegociosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; error?: string }>
 }) {
-  const { status: rawStatus } = await searchParams
+  const { status: rawStatus, error: rawError } = await searchParams
   const statusFilter: StatusFilter =
     VALID_STATUSES.includes(rawStatus as StatusFilter)
       ? (rawStatus as StatusFilter)
@@ -50,7 +54,7 @@ export default async function AdminNegociosPage({
 
   const { data: businesses } = await admin
     .from('businesses')
-    .select('id, name, type, address, phone, status, is_featured, created_at, profiles(full_name)')
+    .select('id, name, type, address, phone, status, is_featured, created_at, rnt_number, rnt_status, rnt_document_path, profiles(full_name)')
     .eq('status', statusFilter)
     .order('created_at', { ascending: true })
 
@@ -73,6 +77,12 @@ export default async function AdminNegociosPage({
             {adminCopy.negocios.new}
           </Link>
         </div>
+
+        {rawError === 'rnt_missing' && (
+          <div className="rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {adminCopy.negocios.errors.rntMissing}
+          </div>
+        )}
 
         {/* Status filter tabs */}
         <div className="flex gap-1 p-1 rounded-xl bg-muted">
@@ -174,6 +184,28 @@ export default async function AdminNegociosPage({
                     <p className="text-xs text-muted-foreground">
                       {adminCopy.negocios.createdAt}: {formatDate(biz.created_at)}
                     </p>
+                  </div>
+
+                  {/* RNT */}
+                  <div className="space-y-1 rounded-xl bg-muted/30 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                          adminCopy.negocios.rntStatusColors[biz.rnt_status] ?? adminCopy.negocios.rntStatusColors.pending_review,
+                        )}
+                      >
+                        {adminCopy.negocios.rntStatusLabels[biz.rnt_status] ?? biz.rnt_status}
+                      </span>
+                      {biz.rnt_number && (
+                        <span className="text-xs text-muted-foreground">RNT {biz.rnt_number}</span>
+                      )}
+                    </div>
+                    {biz.rnt_document_path ? (
+                      <AdminDocumentLink label={adminCopy.negocios.rnt} path={biz.rnt_document_path} />
+                    ) : (
+                      <p className="text-xs text-destructive">{adminCopy.negocios.rntMissing}</p>
+                    )}
                   </div>
 
                   {/* Actions */}

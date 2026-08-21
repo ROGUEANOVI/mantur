@@ -149,6 +149,9 @@ function categoryLinksUserTable() {
   }
 }
 
+const userStorageUpload = vi.fn()
+const userStorageRemove = vi.fn()
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: authGetUser },
@@ -159,6 +162,12 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'services') return servicesUserTable()
       if (table === 'service_types') return serviceTypesUserTable()
       throw new Error(`unexpected table on user client: ${table}`)
+    },
+    storage: {
+      from: (bucket: string) => ({
+        upload: (path: string, file: unknown, opts: unknown) => userStorageUpload(bucket, path, file, opts),
+        remove: (paths: string[]) => userStorageRemove(bucket, paths),
+      }),
     },
   })),
 }))
@@ -211,7 +220,7 @@ const {
   deleteServiceVideo,
 } = await import('./actions')
 
-function formData(fields: Record<string, string | string[]>) {
+function formData(fields: Record<string, string | string[] | File>) {
   const fd = new FormData()
   for (const [k, v] of Object.entries(fields)) {
     if (Array.isArray(v)) v.forEach((item) => fd.append(k, item))
@@ -239,7 +248,17 @@ beforeEach(() => {
   authGetUser.mockResolvedValue({ data: { user: { id: USER_ID } } })
   profileSingle.mockResolvedValue({ data: { role: 'business_owner' } })
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
+  userStorageUpload.mockResolvedValue({ error: null })
+  userStorageRemove.mockResolvedValue({ error: null })
 })
+
+function fakeRntFile(overrides: Partial<{ type: string; size: number }> = {}) {
+  const size = overrides.size ?? 1024
+  const type = overrides.type ?? 'application/pdf'
+  return new File([new Uint8Array(size)], 'rnt.pdf', { type })
+}
+
+const RNT_FIELDS = { rnt_number: '12345', rnt_document: fakeRntFile() }
 
 describe('getAuthenticatedOwner guard', () => {
   it('redirects to /login when unauthenticated', async () => {
@@ -273,11 +292,14 @@ describe('createBusiness', () => {
     businessInsertSingle.mockResolvedValue({ data: { id: BIZ_ID }, error: null })
     categoryLinksInsertMock.mockResolvedValue({ error: null })
 
-    const fd = formData({ name: '  Finca X  ', category_ids: [CAT_ID_1, CAT_ID_2] })
+    const fd = formData({ name: '  Finca X  ', category_ids: [CAT_ID_1, CAT_ID_2], ...RNT_FIELDS })
     await expect(createBusiness(fd)).rejects.toThrow('redirect:/mi-negocio')
 
     expect(businessInsertSingle).toHaveBeenCalledWith(
-      expect.objectContaining({ owner_id: USER_ID, name: 'Finca X', type: 'other', verified: false, status: 'pending' }),
+      expect.objectContaining({
+        owner_id: USER_ID, name: 'Finca X', type: 'other', verified: false, status: 'pending',
+        rnt_number: '12345', rnt_document_path: expect.stringMatching(/^owner-1\/rnt-\d+-[a-z0-9]+\.pdf$/),
+      }),
     )
     expect(categoryLinksInsertMock).toHaveBeenCalledWith([
       { business_id: BIZ_ID, category_id: CAT_ID_1 },
@@ -294,7 +316,7 @@ describe('createBusiness', () => {
     // proves a naive "spread formData into the insert" regression would be
     // the only way to break this, and this test would catch it.
     const fd = formData({
-      name: 'Finca X', category_ids: [CAT_ID_1],
+      name: 'Finca X', category_ids: [CAT_ID_1], ...RNT_FIELDS,
       verified: 'true', status: 'active', owner_id: 'attacker-controlled-uuid',
     })
     await expect(createBusiness(fd)).rejects.toThrow('redirect:/mi-negocio')
@@ -304,20 +326,51 @@ describe('createBusiness', () => {
     )
   })
 
-  it('rolls back (deletes) the business when linking categories fails', async () => {
+  it('rejects a missing rnt_number', async () => {
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], rnt_document: fakeRntFile() })
+    const result = await createBusiness(fd)
+    expect(result).toEqual({ error: 'El número de RNT es obligatorio.' })
+    expect(businessInsertSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing RNT document', async () => {
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], rnt_number: '12345' })
+    const result = await createBusiness(fd)
+    expect(result).toEqual({ error: 'Adjunta el certificado RNT.' })
+    expect(businessInsertSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects an RNT document with an unsupported mime type', async () => {
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], rnt_number: '12345', rnt_document: fakeRntFile({ type: 'text/plain' }) })
+    const result = await createBusiness(fd)
+    expect(result).toEqual({ error: 'Formato no válido. Usa PDF, JPEG, PNG o WebP.' })
+    expect(userStorageUpload).not.toHaveBeenCalled()
+  })
+
+  it('rolls back (removes) the uploaded RNT document when the business insert fails', async () => {
+    businessInsertSingle.mockResolvedValue({ data: null, error: { message: 'db error' } })
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], ...RNT_FIELDS })
+    const result = await createBusiness(fd)
+
+    expect(result).toEqual({ error: 'No se pudo crear el negocio. Intenta de nuevo.' })
+    expect(userStorageRemove).toHaveBeenCalledWith('compliance-documents', [expect.stringMatching(/^owner-1\/rnt-/)])
+  })
+
+  it('rolls back (deletes) the business and removes the uploaded RNT document when linking categories fails', async () => {
     businessInsertSingle.mockResolvedValue({ data: { id: BIZ_ID }, error: null })
     categoryLinksInsertMock.mockResolvedValue({ error: { message: 'insert failed' } })
 
-    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1] })
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], ...RNT_FIELDS })
     const result = await createBusiness(fd)
 
     expect(result).toEqual({ error: 'No se pudo guardar las categorías. Intenta de nuevo.' })
     expect(businessDeleteEq).toHaveBeenCalledWith('id', BIZ_ID)
+    expect(userStorageRemove).toHaveBeenCalledWith('compliance-documents', [expect.stringMatching(/^owner-1\/rnt-/)])
   })
 
   it('returns an error and never attempts category linking when the business insert fails', async () => {
     businessInsertSingle.mockResolvedValue({ data: null, error: { message: 'db error' } })
-    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1] })
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], ...RNT_FIELDS })
     const result = await createBusiness(fd)
 
     expect(result).toEqual({ error: 'No se pudo crear el negocio. Intenta de nuevo.' })
@@ -328,7 +381,7 @@ describe('createBusiness', () => {
     businessInsertSingle.mockResolvedValue({ data: { id: BIZ_ID }, error: null })
     categoryLinksInsertMock.mockResolvedValue({ error: null })
 
-    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], phone: '+57 300 123 4567' })
+    const fd = formData({ name: 'Finca X', category_ids: [CAT_ID_1], phone: '+57 300 123 4567', ...RNT_FIELDS })
     await expect(createBusiness(fd)).rejects.toThrow('redirect:/mi-negocio')
 
     expect(businessInsertSingle).toHaveBeenCalledWith(expect.objectContaining({ phone: '3001234567' }))
@@ -429,6 +482,48 @@ describe('updateBusiness', () => {
     const result = await updateBusiness(BIZ_ID, fd)
     expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
     expect(businessUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('does not touch any RNT field when no new document is uploaded', async () => {
+    businessUpdateMock.mockResolvedValue({ error: null })
+    categoryLinksDeleteMock.mockResolvedValue({ error: null })
+    categoryLinksInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({ name: 'Nuevo nombre', category_ids: [CAT_ID_1] })
+    await expect(updateBusiness(BIZ_ID, fd)).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}`)
+
+    const payload = businessUpdateMock.mock.calls[0][0] as Record<string, unknown>
+    expect(payload).not.toHaveProperty('rnt_number')
+    expect(payload).not.toHaveProperty('rnt_document_path')
+    expect(payload).not.toHaveProperty('rnt_status')
+    expect(userStorageUpload).not.toHaveBeenCalled()
+  })
+
+  it('rejects a new RNT document uploaded without a paired rnt_number', async () => {
+    const fd = formData({ name: 'Nuevo nombre', category_ids: [CAT_ID_1], rnt_document: fakeRntFile() })
+    const result = await updateBusiness(BIZ_ID, fd)
+    expect(result).toEqual({ error: 'El número de RNT es obligatorio.' })
+    expect(businessUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('uploads a new RNT document, updates the fields, and resets status to pending_review', async () => {
+    businessUpdateMock.mockResolvedValue({ error: null })
+    categoryLinksDeleteMock.mockResolvedValue({ error: null })
+    categoryLinksInsertMock.mockResolvedValue({ error: null })
+
+    const fd = formData({ name: 'Nuevo nombre', category_ids: [CAT_ID_1], ...RNT_FIELDS })
+    await expect(updateBusiness(BIZ_ID, fd)).rejects.toThrow(`redirect:/mi-negocio/${BIZ_ID}`)
+
+    expect(businessUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rnt_number: '12345',
+        rnt_document_path: expect.stringMatching(/^owner-1\/rnt-\d+-[a-z0-9]+\.pdf$/),
+        rnt_status: 'pending_review',
+        rnt_verified_by: null,
+        rnt_verified_at: null,
+      }),
+      'id', BIZ_ID, 'owner_id', USER_ID,
+    )
   })
 })
 

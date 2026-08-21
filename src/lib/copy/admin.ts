@@ -129,6 +129,21 @@ export const adminCopy = {
       rejected: 'Rechazado',
       inactive: 'Inactivo',
     } as Record<string, string>,
+    rnt: 'RNT',
+    rntMissing: 'Sin RNT — no se puede aprobar hasta que el negocio lo suba.',
+    rntStatusLabels: {
+      pending_review: 'RNT en revisión',
+      verified: 'RNT verificado',
+      rejected: 'RNT rechazado',
+    } as Record<string, string>,
+    rntStatusColors: {
+      pending_review: 'bg-accent/15 text-accent',
+      verified: 'bg-primary/15 text-primary',
+      rejected: 'bg-destructive/15 text-destructive',
+    } as Record<string, string>,
+    errors: {
+      rntMissing: 'No se puede aprobar: el negocio todavía no ha subido su certificado RNT.',
+    },
   },
 
   comisiones: {

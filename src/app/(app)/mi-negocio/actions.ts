@@ -10,8 +10,54 @@ import { getAttributeFields, parseAttributes } from '@/lib/services/attributeCon
 import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
 
 type ActionResult = { error: string } | void
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// ── RNT compliance document upload ───────────────────────────────────────────
+// Same pattern as solicitar-rol/actions.ts: upload straight to the private
+// compliance-documents bucket using the caller's own session (storage RLS
+// only allows writing under the caller's own {auth.uid()}/ folder), and
+// store only the storage path — never a public or signed URL — in the row.
+
+const COMPLIANCE_BUCKET = 'compliance-documents'
+const VALID_DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
+
+function documentExtension(mimeType: string): string {
+  switch (mimeType) {
+    case 'application/pdf':
+      return 'pdf'
+    case 'image/png':
+      return 'png'
+    case 'image/webp':
+      return 'webp'
+    default:
+      return 'jpg'
+  }
+}
+
+function validateComplianceFile(file: File | null): string | null {
+  if (!file || !file.size) return 'Adjunta el certificado RNT.'
+  if (!VALID_DOCUMENT_MIME_TYPES.includes(file.type)) return 'Formato no válido. Usa PDF, JPEG, PNG o WebP.'
+  if (file.size > MAX_DOCUMENT_BYTES) return 'El archivo no puede superar 8 MB.'
+  return null
+}
+
+async function uploadComplianceDocument(
+  supabase: SupabaseClient,
+  userId: string,
+  file: File,
+): Promise<{ path: string } | { error: string }> {
+  const path = `${userId}/rnt-${Date.now()}-${Math.random().toString(36).slice(2)}.${documentExtension(file.type)}`
+
+  const { error } = await supabase.storage
+    .from(COMPLIANCE_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false })
+
+  if (error) return { error: 'No se pudo subir el documento. Intenta de nuevo.' }
+  return { path }
+}
 
 async function getAuthenticatedOwner() {
   const supabase = await createClient()
@@ -58,13 +104,29 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
   const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
   if (rawPhone && !phone) return { error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' }
 
+  const rntNumber = (formData.get('rnt_number') as string | null)?.trim()
+  const rntFile = formData.get('rnt_document') as File | null
+  if (!rntNumber) return { error: 'El número de RNT es obligatorio.' }
+  const rntFileError = validateComplianceFile(rntFile)
+  if (rntFileError) return { error: rntFileError }
+
+  const rntUpload = await uploadComplianceDocument(supabase, userId, rntFile!)
+  if ('error' in rntUpload) return { error: rntUpload.error }
+
   const { data: newBusiness, error } = await supabase
     .from('businesses')
-    .insert({ owner_id: userId, name, description, type: 'other', address, phone, lat, lng, verified: false, status: 'pending' })
+    .insert({
+      owner_id: userId, name, description, type: 'other', address, phone, lat, lng,
+      verified: false, status: 'pending',
+      rnt_number: rntNumber, rnt_document_path: rntUpload.path,
+    })
     .select('id')
     .single()
 
-  if (error || !newBusiness) return { error: 'No se pudo crear el negocio. Intenta de nuevo.' }
+  if (error || !newBusiness) {
+    await supabase.storage.from(COMPLIANCE_BUCKET).remove([rntUpload.path])
+    return { error: 'No se pudo crear el negocio. Intenta de nuevo.' }
+  }
 
   const { error: linksError } = await supabase
     .from('business_category_links')
@@ -72,6 +134,7 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
 
   if (linksError) {
     await supabase.from('businesses').delete().eq('id', newBusiness.id)
+    await supabase.storage.from(COMPLIANCE_BUCKET).remove([rntUpload.path])
     return { error: 'No se pudo guardar las categorías. Intenta de nuevo.' }
   }
 
@@ -110,9 +173,33 @@ export async function updateBusiness(
   const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
   if (rawPhone && !phone) return { error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' }
 
+  // RNT re-upload is optional here — the owner only touches it to replace an
+  // expired/rejected document, or to comply during the grace period for a
+  // business created before this requirement existed. Number and document
+  // are paired: either both are provided together, or neither is touched.
+  const updatePayload: Record<string, unknown> = { name, description, address, phone, lat, lng }
+  const rntFile = formData.get('rnt_document') as File | null
+  if (rntFile && rntFile.size) {
+    const rntNumber = (formData.get('rnt_number') as string | null)?.trim()
+    if (!rntNumber) return { error: 'El número de RNT es obligatorio.' }
+    const rntFileError = validateComplianceFile(rntFile)
+    if (rntFileError) return { error: rntFileError }
+
+    const rntUpload = await uploadComplianceDocument(supabase, userId, rntFile)
+    if ('error' in rntUpload) return { error: rntUpload.error }
+
+    updatePayload.rnt_number = rntNumber
+    updatePayload.rnt_document_path = rntUpload.path
+    // A new document needs a fresh admin review — reset the prior verdict
+    // rather than keeping a stale 'verified' status on unreviewed content.
+    updatePayload.rnt_status = 'pending_review'
+    updatePayload.rnt_verified_by = null
+    updatePayload.rnt_verified_at = null
+  }
+
   const { error } = await supabase
     .from('businesses')
-    .update({ name, description, address, phone, lat, lng })
+    .update(updatePayload)
     .eq('id', businessId)
     .eq('owner_id', userId)
 

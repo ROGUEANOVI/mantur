@@ -6,7 +6,7 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { approveRoleRequest } from '@/app/(app)/admin/actions'
 import { cn } from '@/lib/utils'
 import RejectForm from './RejectForm'
-import MetaDocLink from './MetaDocLink'
+import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
 
 type RoleRequest = {
   id: string
@@ -124,7 +124,7 @@ export default async function AdminSolicitudesPage({
                         {meta.phone && <MetaRow label={copy.metaLabels.phone} value={String(meta.phone)} />}
                         {meta.rnt_number && <MetaRow label={copy.metaLabels.rnt_number} value={String(meta.rnt_number)} />}
                         {typeof meta.rnt_document_path === 'string' && (
-                          <MetaDocLink label={copy.metaLabels.rnt_number} path={meta.rnt_document_path} />
+                          <AdminDocumentLink label={copy.metaLabels.rnt_number} path={meta.rnt_document_path} />
                         )}
                       </>
                     )}
@@ -147,7 +147,7 @@ export default async function AdminSolicitudesPage({
                               <MetaRow label={copy.metaLabels.cooperative_habilitacion_number} value={String(meta.cooperative_habilitacion_number)} />
                             )}
                             {typeof meta.cooperative_document_path === 'string' && (
-                              <MetaDocLink label={copy.metaLabels.cooperative_name} path={meta.cooperative_document_path} />
+                              <AdminDocumentLink label={copy.metaLabels.cooperative_name} path={meta.cooperative_document_path} />
                             )}
                           </>
                         ) : meta.transport_tier === 'independent' ? (
@@ -155,11 +155,11 @@ export default async function AdminSolicitudesPage({
                             {meta.driver_license_number && <MetaRow label={copy.metaLabels.driver_license_number} value={String(meta.driver_license_number)} />}
                             {meta.driver_license_expiry && <MetaRow label={copy.metaLabels.driver_license_expiry} value={String(meta.driver_license_expiry)} />}
                             {typeof meta.driver_license_document_path === 'string' && (
-                              <MetaDocLink label={copy.metaLabels.driver_license_number} path={meta.driver_license_document_path} />
+                              <AdminDocumentLink label={copy.metaLabels.driver_license_number} path={meta.driver_license_document_path} />
                             )}
                             {meta.soat_expiry_date && <MetaRow label={copy.metaLabels.soat_expiry_date} value={String(meta.soat_expiry_date)} />}
                             {typeof meta.soat_document_path === 'string' && (
-                              <MetaDocLink label={copy.metaLabels.soat_expiry_date} path={meta.soat_document_path} />
+                              <AdminDocumentLink label={copy.metaLabels.soat_expiry_date} path={meta.soat_document_path} />
                             )}
                           </>
                         ) : null}
@@ -188,13 +188,13 @@ export default async function AdminSolicitudesPage({
                         {meta.bio && <MetaRow label={copy.metaLabels.bio} value={String(meta.bio)} />}
                         {meta.rnt_number && <MetaRow label={copy.metaLabels.rnt_number} value={String(meta.rnt_number)} />}
                         {typeof meta.rnt_document_path === 'string' && (
-                          <MetaDocLink label={copy.metaLabels.rnt_number} path={meta.rnt_document_path} />
+                          <AdminDocumentLink label={copy.metaLabels.rnt_number} path={meta.rnt_document_path} />
                         )}
                         {meta.tarjeta_profesional_number && (
                           <MetaRow label={copy.metaLabels.tarjeta_profesional_number} value={String(meta.tarjeta_profesional_number)} />
                         )}
                         {typeof meta.tarjeta_profesional_document_path === 'string' && (
-                          <MetaDocLink label={copy.metaLabels.tarjeta_profesional_number} path={meta.tarjeta_profesional_document_path} />
+                          <AdminDocumentLink label={copy.metaLabels.tarjeta_profesional_number} path={meta.tarjeta_profesional_document_path} />
                         )}
                       </>
                     )}

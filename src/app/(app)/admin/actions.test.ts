@@ -42,6 +42,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const businessesUpdateSelect = vi.fn()
 const businessesUpdateAwait = vi.fn()
+const businessRntDocumentMaybeSingle = vi.fn()
 const businessInsertSingle = vi.fn()
 const businessInsertAwait = vi.fn()
 const commissionUpdateSelect = vi.fn()
@@ -100,6 +101,7 @@ vi.mock('@/lib/supabase/admin', () => ({
           return {
             update: (payload: unknown) => businessesUpdateChain(payload),
             insert: (payload: unknown) => businessesInsertChain(payload),
+            select: () => ({ eq: () => ({ maybeSingle: businessRntDocumentMaybeSingle }) }),
           }
         case 'commission_config':
           return {
@@ -228,6 +230,7 @@ beforeEach(() => {
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'applicant@example.com' } } })
   roleRequestUpdateSingle.mockResolvedValue({ data: { user_id: USER_ID, requested_role: 'transporter' }, error: null })
+  businessRntDocumentMaybeSingle.mockResolvedValue({ data: { rnt_document_path: 'owner-1/rnt-1.pdf' } })
 })
 
 describe('getAuthenticatedAdmin guard (shared by every action in this file)', () => {
@@ -253,14 +256,35 @@ describe('approveBusiness / rejectBusiness', () => {
     expect(businessesUpdateSelect).not.toHaveBeenCalled()
   })
 
-  it('approveBusiness sets status=active and verified=true, targeting the right business', async () => {
+  it('approveBusiness sets status=active, verified=true, and marks the RNT verified, targeting the right business', async () => {
     businessesUpdateSelect.mockResolvedValue({ data: [{ id: BIZ_ID }], error: null })
     const fd = formData({ businessId: BIZ_ID })
     await approveBusiness(fd)
 
-    expect(businessesUpdateSelect).toHaveBeenCalledWith({ status: 'active', verified: true }, 'id', BIZ_ID)
+    expect(businessesUpdateSelect).toHaveBeenCalledWith({
+      status: 'active', verified: true,
+      rnt_status: 'verified', rnt_verified_by: ADMIN_ID, rnt_verified_at: expect.any(String),
+    }, 'id', BIZ_ID)
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/negocios')
     expect(revalidatePathMock).toHaveBeenCalledWith('/negocios')
+  })
+
+  it('approveBusiness redirects without updating when the business has no RNT document uploaded yet', async () => {
+    businessRntDocumentMaybeSingle.mockResolvedValue({ data: { rnt_document_path: null } })
+    const fd = formData({ businessId: BIZ_ID })
+
+    await expect(approveBusiness(fd)).rejects.toThrow('redirect:/admin/negocios?status=pending&error=rnt_missing')
+
+    expect(businessesUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('approveBusiness redirects without updating when the business row itself is not found', async () => {
+    businessRntDocumentMaybeSingle.mockResolvedValue({ data: null })
+    const fd = formData({ businessId: BIZ_ID })
+
+    await expect(approveBusiness(fd)).rejects.toThrow('redirect:/admin/negocios?status=pending&error=rnt_missing')
+
+    expect(businessesUpdateSelect).not.toHaveBeenCalled()
   })
 
   it('rejectBusiness sets status=rejected and verified=false, targeting the right business', async () => {

@@ -64,9 +64,26 @@ export const miNegocioCopy = {
     save: 'Guardar cambios',
     saving: 'Guardando...',
     cancel: 'Cancelar',
+    rntNumber: 'Número de Registro Nacional de Turismo (RNT)',
+    rntNumberPlaceholder: 'Ej: 12345',
+    rntDocument: 'Certificado RNT (PDF o foto)',
+    rntDocumentHint: 'Descárgalo en rnt.confecamaras.co. El equipo de ManTur lo verificará antes de activar el negocio.',
+    rntSectionTitle: 'Registro Nacional de Turismo',
+    rntCurrentStatus: 'Estado actual',
+    rntUpdateHint: 'Solo sube un archivo si necesitas actualizar tu RNT (ej. venció y ya lo renovaste). Si no, deja esto en blanco.',
+    rntStatusLabels: {
+      pending_review: 'En revisión',
+      verified: 'Verificado',
+      rejected: 'Rechazado',
+    } as Record<string, string>,
   },
   errors: {
     generic: 'Ocurrió un error. Intenta de nuevo.',
+    rntNumberRequired: 'El número de RNT es obligatorio.',
+    rntDocumentRequired: 'Adjunta el certificado RNT.',
+    invalidDocument: 'Formato no válido. Usa PDF, JPEG, PNG o WebP.',
+    documentTooLarge: 'El archivo no puede superar 8 MB.',
+    uploadFailed: 'No se pudo subir el documento. Intenta de nuevo.',
   },
 }
 

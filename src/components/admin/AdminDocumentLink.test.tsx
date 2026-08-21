@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import MetaDocLink from './MetaDocLink'
+import AdminDocumentLink from './AdminDocumentLink'
 
 const getComplianceDocumentUrlMock = vi.fn()
 
@@ -16,11 +16,11 @@ beforeEach(() => {
   vi.stubGlobal('open', openMock)
 })
 
-describe('MetaDocLink', () => {
+describe('AdminDocumentLink', () => {
   it('opens the signed URL in a new tab on click', async () => {
     getComplianceDocumentUrlMock.mockResolvedValue({ url: 'https://signed.example/doc.pdf' })
     const user = userEvent.setup()
-    render(<MetaDocLink label="RNT" path="user-1/rnt-1.pdf" />)
+    render(<AdminDocumentLink label="RNT" path="user-1/rnt-1.pdf" />)
 
     await user.click(screen.getByRole('button', { name: /ver documento/i }))
 
@@ -31,7 +31,7 @@ describe('MetaDocLink', () => {
   it('shows an inline error instead of opening a tab when the action fails', async () => {
     getComplianceDocumentUrlMock.mockResolvedValue({ error: 'No se pudo abrir el documento.' })
     const user = userEvent.setup()
-    render(<MetaDocLink label="RNT" path="user-1/rnt-1.pdf" />)
+    render(<AdminDocumentLink label="RNT" path="user-1/rnt-1.pdf" />)
 
     await user.click(screen.getByRole('button', { name: /ver documento/i }))
 

@@ -38,14 +38,29 @@ async function getAuthenticatedAdmin() {
 }
 
 export async function approveBusiness(formData: FormData): Promise<void> {
-  const { admin } = await getAuthenticatedAdmin()
+  const { admin, adminId } = await getAuthenticatedAdmin()
 
   const businessId = formData.get('businessId') as string
   if (!UUID_RE.test(businessId)) redirect('/admin/negocios')
 
+  // Hard gate: a business cannot go live without a reviewed RNT document.
+  // The admin opening the signed link in the RNT section before clicking
+  // Aprobar is the verification step, same as approveRoleRequest — so this
+  // action also marks rnt_status verified, not just status/verified.
+  const { data: business } = await admin
+    .from('businesses')
+    .select('rnt_document_path')
+    .eq('id', businessId)
+    .maybeSingle()
+
+  if (!business?.rnt_document_path) redirect('/admin/negocios?status=pending&error=rnt_missing')
+
   const { data, error } = await admin
     .from('businesses')
-    .update({ status: 'active', verified: true })
+    .update({
+      status: 'active', verified: true,
+      rnt_status: 'verified', rnt_verified_by: adminId, rnt_verified_at: new Date().toISOString(),
+    })
     .eq('id', businessId)
     .select('id')
 

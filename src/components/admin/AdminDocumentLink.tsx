@@ -5,7 +5,7 @@ import { FileText } from 'lucide-react'
 import { getComplianceDocumentUrl } from '@/app/(app)/admin/actions'
 import { adminCopy } from '@/lib/copy/admin'
 
-export default function MetaDocLink({ label, path }: { label: string; path: string }) {
+export default function AdminDocumentLink({ label, path }: { label: string; path: string }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

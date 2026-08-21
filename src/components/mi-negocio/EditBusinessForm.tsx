@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import LocationPicker from '@/components/shared/LocationPicker'
 import TextareaWithCounter from '@/components/shared/TextareaWithCounter'
+import ComplianceDocumentField from '@/components/shared/ComplianceDocumentField'
 
 const INVALID_PHONE = 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'
 
@@ -27,6 +28,8 @@ type Props = {
     phone: string | null
     lat: number | null
     lng: number | null
+    rntNumber: string | null
+    rntStatus: string
   }
   categories: Category[]
   selectedCategoryIds: string[]
@@ -172,6 +175,38 @@ export default function EditBusinessForm({
         label={copy.form.location}
         hint={copy.form.locationHint}
       />
+
+      {/* RNT */}
+      <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+        <div>
+          <p className="text-sm font-medium text-foreground">{copy.form.rntSectionTitle}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {copy.form.rntCurrentStatus}:{' '}
+            <span className="font-medium text-foreground">
+              {copy.form.rntStatusLabels[defaultValues.rntStatus] ?? defaultValues.rntStatus}
+            </span>
+            {defaultValues.rntNumber && <> · RNT {defaultValues.rntNumber}</>}
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="biz-rnt-number" className="text-sm font-medium">
+            {copy.form.rntNumber}
+          </Label>
+          <Input
+            id="biz-rnt-number"
+            type="text"
+            name="rnt_number"
+            defaultValue={defaultValues.rntNumber ?? ''}
+            placeholder={copy.form.rntNumberPlaceholder}
+          />
+        </div>
+        <ComplianceDocumentField
+          label={copy.form.rntDocument}
+          name="rnt_document"
+          hint={copy.form.rntUpdateHint}
+          required={false}
+        />
+      </div>
 
       {state.error && (
         <p role="alert" className="text-sm text-destructive">

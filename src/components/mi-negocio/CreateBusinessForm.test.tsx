@@ -50,6 +50,31 @@ describe('CreateBusinessForm', () => {
     expect(fd.getAll('category_ids')).toEqual(['cat-1'])
   })
 
+  it('renders the RNT number and document fields', () => {
+    render(<CreateBusinessForm categories={CATEGORIES} />)
+    expect(screen.getByLabelText(/número de registro nacional de turismo/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/certificado rnt/i)).toBeInTheDocument()
+  })
+
+  it('submits the typed RNT number and uploaded document', async () => {
+    createBusinessMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<CreateBusinessForm categories={CATEGORIES} />)
+
+    await user.type(screen.getByLabelText('Nombre'), 'Finca La Esperanza')
+    await user.click(screen.getByRole('checkbox', { name: 'Restaurante' }))
+    await user.type(screen.getByLabelText(/número de registro nacional de turismo/i), '12345')
+    await user.upload(
+      screen.getByLabelText(/certificado rnt/i),
+      new File(['x'], 'rnt.pdf', { type: 'application/pdf' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
+
+    const fd = createBusinessMock.mock.calls[0][0] as FormData
+    expect(fd.get('rnt_number')).toBe('12345')
+    expect(fd.get('rnt_document')).toBeTruthy()
+  })
+
   it('shows the server-returned error message', async () => {
     createBusinessMock.mockResolvedValue({ error: 'Selecciona al menos una categoría.' })
     const user = userEvent.setup()

@@ -32,6 +32,8 @@ const DEFAULT_VALUES = {
   phone: '3001234567',
   lat: 11.7808,
   lng: -72.9944,
+  rntNumber: '12345',
+  rntStatus: 'pending_review',
 }
 
 beforeEach(() => {
@@ -75,7 +77,7 @@ describe('EditBusinessForm', () => {
     render(
       <EditBusinessForm
         businessId={BIZ_ID}
-        defaultValues={{ name: 'Finca X', description: null, address: null, phone: null, lat: null, lng: null }}
+        defaultValues={{ name: 'Finca X', description: null, address: null, phone: null, lat: null, lng: null, rntNumber: null, rntStatus: 'pending_review' }}
         categories={CATEGORIES}
         selectedCategoryIds={[]}
       />,
@@ -107,6 +109,62 @@ describe('EditBusinessForm', () => {
     expect(calledBizId).toBe(BIZ_ID)
     expect(fd.get('name')).toBe('Nuevo nombre')
     expect(fd.getAll('category_ids')).toEqual(['cat-1'])
+  })
+
+  it('shows the current RNT status and number', () => {
+    render(
+      <EditBusinessForm
+        businessId={BIZ_ID}
+        defaultValues={DEFAULT_VALUES}
+        categories={CATEGORIES}
+        selectedCategoryIds={['cat-1']}
+      />,
+    )
+
+    expect(screen.getByText('En revisión')).toBeInTheDocument()
+    expect(screen.getByText(/RNT 12345/)).toBeInTheDocument()
+  })
+
+  it('does not require a new RNT document to save (re-upload is optional)', async () => {
+    updateBusinessMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(
+      <EditBusinessForm
+        businessId={BIZ_ID}
+        defaultValues={DEFAULT_VALUES}
+        categories={CATEGORIES}
+        selectedCategoryIds={['cat-1']}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    expect(updateBusinessMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('submits a re-uploaded RNT document and number when provided', async () => {
+    updateBusinessMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(
+      <EditBusinessForm
+        businessId={BIZ_ID}
+        defaultValues={DEFAULT_VALUES}
+        categories={CATEGORIES}
+        selectedCategoryIds={['cat-1']}
+      />,
+    )
+
+    await user.clear(screen.getByLabelText(/número de registro nacional de turismo/i))
+    await user.type(screen.getByLabelText(/número de registro nacional de turismo/i), '99999')
+    await user.upload(
+      screen.getByLabelText(/certificado rnt/i),
+      new File(['x'], 'rnt-nuevo.pdf', { type: 'application/pdf' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    const [, fd] = updateBusinessMock.mock.calls[0] as [string, FormData]
+    expect(fd.get('rnt_number')).toBe('99999')
+    expect(fd.get('rnt_document')).toBeTruthy()
   })
 
   it('shows the server-returned error message', async () => {
