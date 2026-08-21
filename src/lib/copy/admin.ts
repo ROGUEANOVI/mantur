@@ -30,7 +30,22 @@ export const adminCopy = {
       languages: 'Idiomas',
       experience_years: 'Años de experiencia',
       bio: 'Presentación',
+      rnt_number: 'RNT',
+      tarjeta_profesional_number: 'Tarjeta profesional',
+      transport_tier: 'Modalidad',
+      cooperative_name: 'Cooperativa',
+      cooperative_rnt_number: 'RNT cooperativa',
+      cooperative_habilitacion_number: 'Habilitación Mintransporte',
+      driver_license_number: 'Licencia de conducción',
+      driver_license_expiry: 'Vencimiento licencia',
+      soat_expiry_date: 'Vencimiento SOAT',
     },
+    transportTierLabels: {
+      cooperative: 'Cooperativa formal',
+      independent: 'Conductor independiente',
+    } as Record<string, string>,
+    viewDocument: 'Ver documento',
+    documentUnavailable: 'No se pudo abrir el documento.',
   },
 
   dashboard: {
