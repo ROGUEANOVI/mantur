@@ -7,6 +7,7 @@ import { submitRoleRequest } from './actions'
 import { cn } from '@/lib/utils'
 import { normalizeColombianPhone } from '@/lib/phone'
 import LocationPicker from '@/components/shared/LocationPicker'
+import FileField from '@/components/shared/RawFileField'
 
 type RequestableRole = 'business_owner' | 'transporter' | 'tourist_guide'
 type ActionResult = { error?: string; success?: boolean }
@@ -25,9 +26,12 @@ const ROLE_CARDS: {
   { value: 'tourist_guide',  Icon: Compass, color: 'text-primary',    bg: 'bg-primary/10' },
 ]
 
+type TransportTier = 'cooperative' | 'independent'
+
 export default function RoleRequestForm({ categories }: { categories: Category[] }) {
   const [selected, setSelected] = useState<RequestableRole | null>(null)
   const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [tier, setTier] = useState<TransportTier>('independent')
 
   function selectRole(role: RequestableRole | null) {
     setPhoneError(null)
@@ -136,6 +140,8 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
             </div>
           </div>
           <Field label={copy.form.businessOwner.phone} name="phone" placeholder={copy.form.businessOwner.phonePlaceholder} type="tel" onBlur={handlePhoneBlur} error={phoneError} />
+          <Field label={copy.form.businessOwner.rntNumber} name="rnt_number" placeholder={copy.form.businessOwner.rntNumberPlaceholder} />
+          <FileField label={copy.form.businessOwner.rntDocument} name="rnt_document" hint={copy.form.businessOwner.rntDocumentHint} />
           <LocationPicker
             defaultLat={null}
             defaultLng={null}
@@ -162,6 +168,46 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
             </select>
           </div>
           <Field label={copy.form.transporter.phone} name="phone" placeholder={copy.form.transporter.phonePlaceholder} type="tel" onBlur={handlePhoneBlur} error={phoneError} />
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">{copy.form.transporter.tier}</p>
+            <div className="grid grid-cols-1 gap-2">
+              {(['independent', 'cooperative'] as const).map((t) => (
+                <label
+                  key={t}
+                  className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 cursor-pointer text-sm text-foreground transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary"
+                >
+                  <input
+                    type="radio"
+                    name="transport_tier"
+                    value={t}
+                    checked={tier === t}
+                    onChange={() => setTier(t)}
+                    className="accent-primary"
+                  />
+                  {t === 'cooperative' ? copy.form.transporter.tierCooperative : copy.form.transporter.tierIndependent}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {tier === 'cooperative' ? (
+            <>
+              <Field label={copy.form.transporter.cooperativeName} name="cooperative_name" placeholder={copy.form.transporter.cooperativeNamePlaceholder} />
+              <Field label={copy.form.transporter.cooperativeRntNumber} name="cooperative_rnt_number" placeholder={copy.form.transporter.cooperativeRntNumberPlaceholder} />
+              <Field label={copy.form.transporter.cooperativeHabilitacionNumber} name="cooperative_habilitacion_number" placeholder={copy.form.transporter.cooperativeHabilitacionNumberPlaceholder} />
+              <FileField label={copy.form.transporter.cooperativeDocument} name="cooperative_document" />
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">{copy.form.transporter.independentHint}</p>
+              <Field label={copy.form.transporter.driverLicenseNumber} name="driver_license_number" placeholder={copy.form.transporter.driverLicenseNumberPlaceholder} />
+              <Field label={copy.form.transporter.driverLicenseExpiry} name="driver_license_expiry" type="date" />
+              <FileField label={copy.form.transporter.driverLicenseDocument} name="driver_license_document" />
+              <Field label={copy.form.transporter.soatExpiryDate} name="soat_expiry_date" type="date" />
+              <FileField label={copy.form.transporter.soatDocument} name="soat_document" />
+            </>
+          )}
         </fieldset>
       )}
 
@@ -206,6 +252,11 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
             />
           </div>
+
+          <Field label={copy.form.touristGuide.rntNumber} name="rnt_number" placeholder={copy.form.touristGuide.rntNumberPlaceholder} />
+          <FileField label={copy.form.touristGuide.rntDocument} name="rnt_document" hint={copy.form.touristGuide.rntDocumentHint} />
+          <Field label={copy.form.touristGuide.tarjetaProfesionalNumber} name="tarjeta_profesional_number" placeholder={copy.form.touristGuide.tarjetaProfesionalNumberPlaceholder} />
+          <FileField label={copy.form.touristGuide.tarjetaProfesionalDocument} name="tarjeta_profesional_document" />
         </fieldset>
       )}
 

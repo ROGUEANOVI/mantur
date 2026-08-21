@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import LocationPicker from '@/components/shared/LocationPicker'
 import TextareaWithCounter from '@/components/shared/TextareaWithCounter'
+import ComplianceDocumentField from '@/components/shared/ComplianceDocumentField'
 
 type FormState = { error: string | null }
 type Category = { id: string; name: string }
@@ -149,6 +150,25 @@ export default function CreateBusinessForm({ categories }: { categories: Categor
         defaultLng={null}
         label={copy.form.location}
         hint={copy.form.locationHint}
+      />
+
+      {/* RNT */}
+      <div className="space-y-1.5">
+        <Label htmlFor="biz-rnt-number" className="text-sm font-medium">
+          {copy.form.rntNumber}
+        </Label>
+        <Input
+          id="biz-rnt-number"
+          type="text"
+          name="rnt_number"
+          required
+          placeholder={copy.form.rntNumberPlaceholder}
+        />
+      </div>
+      <ComplianceDocumentField
+        label={copy.form.rntDocument}
+        name="rnt_document"
+        hint={copy.form.rntDocumentHint}
       />
 
       {/* Inline error */}

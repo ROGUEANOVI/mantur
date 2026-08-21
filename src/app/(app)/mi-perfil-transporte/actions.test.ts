@@ -32,6 +32,8 @@ const profileSingle = vi.fn()
 const transporterLookupSingle = vi.fn()
 const currentAvailabilitySingle = vi.fn()
 const toggleUpdateMock = vi.fn()
+const userStorageUpload = vi.fn()
+const userStorageRemove = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -43,12 +45,18 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'transporters') {
         return {
           select: (cols: string) => ({
-            eq: () => ({ single: cols === 'id' ? transporterLookupSingle : currentAvailabilitySingle }),
+            eq: () => ({ single: cols === 'is_available' ? currentAvailabilitySingle : transporterLookupSingle }),
           }),
           update: (payload: unknown) => ({ eq: (col: string, val: string) => toggleUpdateMock(payload, col, val) }),
         }
       }
       throw new Error(`unexpected table on user client: ${table}`)
+    },
+    storage: {
+      from: (bucket: string) => ({
+        upload: (path: string, file: unknown, opts: unknown) => userStorageUpload(bucket, path, file, opts),
+        remove: (paths: string[]) => userStorageRemove(bucket, paths),
+      }),
     },
   })),
 }))
@@ -79,22 +87,30 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
-const { toggleAvailability, acceptTransportRequest, markCompleted } = await import('./actions')
+const { toggleAvailability, acceptTransportRequest, markCompleted, updateTransporterProfile } = await import('./actions')
 
-function formData(fields: Record<string, string>) {
+function formData(fields: Record<string, string | File>) {
   const fd = new FormData()
   for (const [k, v] of Object.entries(fields)) fd.set(k, v)
   return fd
 }
 
+function fakeComplianceFile(name = 'doc.pdf', type = 'application/pdf') {
+  return new File(['x'], name, { type })
+}
+
 const TRANSPORTER_ID = '11111111-1111-1111-1111-111111111111'
 const REQUEST_ID = '22222222-2222-2222-2222-222222222222'
+const FUTURE_DATE = '2099-01-01'
 
 beforeEach(() => {
   vi.clearAllMocks()
   authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   profileSingle.mockResolvedValue({ data: { role: 'transporter' } })
-  transporterLookupSingle.mockResolvedValue({ data: { id: TRANSPORTER_ID } })
+  transporterLookupSingle.mockResolvedValue({ data: { id: TRANSPORTER_ID, transport_tier: 'independent' } })
+  userStorageUpload.mockResolvedValue({ error: null })
+  userStorageRemove.mockResolvedValue({ error: null })
+  toggleUpdateMock.mockResolvedValue({ error: null })
 })
 
 describe('getAuthenticatedTransporter guard (shared by every action in this file)', () => {
@@ -221,5 +237,154 @@ describe('markCompleted', () => {
 
     expect(transportRequestsEqMock).toHaveBeenCalledWith('transporter_id', TRANSPORTER_ID)
     expect(transportRequestsEqMock).not.toHaveBeenCalledWith('transporter_id', 'attacker-controlled-uuid')
+  })
+})
+
+describe('updateTransporterProfile', () => {
+  it('rejects a missing/invalid transport_tier', async () => {
+    const fd = formData({ transport_tier: 'freelance' })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toEqual({ error: 'Selecciona cómo prestas el servicio.' })
+    expect(toggleUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the tier is unchanged and no new document is uploaded', async () => {
+    const fd = formData({ transport_tier: 'independent' })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toBeUndefined()
+    expect(toggleUpdateMock).not.toHaveBeenCalled()
+    expect(userStorageUpload).not.toHaveBeenCalled()
+  })
+
+  it('requires a document when switching from independent to cooperative', async () => {
+    const fd = formData({
+      transport_tier: 'cooperative',
+      cooperative_name: 'TransManaure', cooperative_rnt_number: '99999', cooperative_habilitacion_number: 'HAB-1',
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toEqual({ error: 'Adjunta el documento correspondiente para cambiar de modalidad.' })
+    expect(toggleUpdateMock).not.toHaveBeenCalled()
+  })
+
+  // Security regression: the tier-change gate must be derived from the
+  // caller's real DB row (transporterLookupSingle here stands in for that),
+  // never from a client-supplied field — a spoofed "current tier" claiming
+  // no change was happening would otherwise let only one of the two
+  // required documents be uploaded when actually switching tiers.
+  it('still requires both documents when switching tiers, even if the request tries to claim the tier is unchanged', async () => {
+    transporterLookupSingle.mockResolvedValue({ data: { id: TRANSPORTER_ID, transport_tier: 'cooperative' } })
+    const fd = formData({
+      transport_tier: 'independent',
+      driver_license_number: '123', driver_license_expiry: FUTURE_DATE,
+      driver_license_document: fakeComplianceFile('lic.pdf'),
+      // soat_document intentionally omitted — real current tier is
+      // 'cooperative', so this is a tier switch requiring both documents.
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toEqual({ error: 'Adjunta el documento correspondiente para cambiar de modalidad.' })
+    expect(toggleUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a cooperative document uploaded without its paired text fields', async () => {
+    const fd = formData({
+      transport_tier: 'cooperative',
+      cooperative_document: fakeComplianceFile(),
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
+  })
+
+  it('uploads a new cooperative document, updates the fields, and resets verification_status', async () => {
+    const fd = formData({
+      transport_tier: 'cooperative',
+      cooperative_name: 'TransManaure', cooperative_rnt_number: '99999', cooperative_habilitacion_number: 'HAB-1',
+      cooperative_document: fakeComplianceFile('coop.pdf'),
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toBeUndefined()
+
+    expect(toggleUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport_tier: 'cooperative',
+        cooperative_name: 'TransManaure',
+        cooperative_rnt_number: '99999',
+        cooperative_habilitacion_number: 'HAB-1',
+        cooperative_document_path: expect.stringMatching(/^user-1\/cooperativa-\d+-[a-z0-9]+\.pdf$/),
+        verification_status: 'pending_review',
+      }),
+      'profile_id', 'user-1',
+    )
+  })
+
+  it('rejects a driver_license_expiry that already passed', async () => {
+    const fd = formData({
+      transport_tier: 'independent',
+      driver_license_number: '123', driver_license_expiry: '2020-01-01',
+      driver_license_document: fakeComplianceFile('lic.pdf'),
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toEqual({ error: 'La fecha de vencimiento debe ser válida y no puede ser una fecha pasada.' })
+  })
+
+  it('uploads a new driver license document independently of SOAT', async () => {
+    const fd = formData({
+      transport_tier: 'independent',
+      driver_license_number: '12345678', driver_license_expiry: FUTURE_DATE,
+      driver_license_document: fakeComplianceFile('lic.pdf'),
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toBeUndefined()
+
+    expect(toggleUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport_tier: 'independent',
+        driver_license_number: '12345678',
+        driver_license_expiry: FUTURE_DATE,
+        driver_license_document_path: expect.stringMatching(/^user-1\/licencia-\d+-[a-z0-9]+\.pdf$/),
+        verification_status: 'pending_review',
+      }),
+      'profile_id', 'user-1',
+    )
+  })
+
+  it('uploads a new SOAT document independently of the driver license', async () => {
+    const fd = formData({
+      transport_tier: 'independent',
+      soat_expiry_date: FUTURE_DATE, soat_document: fakeComplianceFile('soat.pdf'),
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toBeUndefined()
+
+    expect(toggleUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        soat_expiry_date: FUTURE_DATE,
+        soat_document_path: expect.stringMatching(/^user-1\/soat-\d+-[a-z0-9]+\.pdf$/),
+        verification_status: 'pending_review',
+      }),
+      'profile_id', 'user-1',
+    )
+  })
+
+  it('requires both new documents when switching from cooperative to independent', async () => {
+    transporterLookupSingle.mockResolvedValue({ data: { id: TRANSPORTER_ID, transport_tier: 'cooperative' } })
+    const fd = formData({
+      transport_tier: 'independent',
+      driver_license_number: '123', driver_license_expiry: FUTURE_DATE,
+      driver_license_document: fakeComplianceFile('lic.pdf'),
+      // soat_document intentionally omitted
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toEqual({ error: 'Adjunta el documento correspondiente para cambiar de modalidad.' })
+    expect(toggleUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when the update fails', async () => {
+    toggleUpdateMock.mockResolvedValue({ error: { message: 'db error' } })
+    const fd = formData({
+      transport_tier: 'independent',
+      soat_expiry_date: FUTURE_DATE, soat_document: fakeComplianceFile('soat.pdf'),
+    })
+    const result = await updateTransporterProfile(fd)
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 })

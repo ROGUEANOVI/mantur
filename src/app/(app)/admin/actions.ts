@@ -38,14 +38,29 @@ async function getAuthenticatedAdmin() {
 }
 
 export async function approveBusiness(formData: FormData): Promise<void> {
-  const { admin } = await getAuthenticatedAdmin()
+  const { admin, adminId } = await getAuthenticatedAdmin()
 
   const businessId = formData.get('businessId') as string
   if (!UUID_RE.test(businessId)) redirect('/admin/negocios')
 
+  // Hard gate: a business cannot go live without a reviewed RNT document.
+  // The admin opening the signed link in the RNT section before clicking
+  // Aprobar is the verification step, same as approveRoleRequest — so this
+  // action also marks rnt_status verified, not just status/verified.
+  const { data: business } = await admin
+    .from('businesses')
+    .select('rnt_document_path')
+    .eq('id', businessId)
+    .maybeSingle()
+
+  if (!business?.rnt_document_path) redirect('/admin/negocios?status=pending&error=rnt_missing')
+
   const { data, error } = await admin
     .from('businesses')
-    .update({ status: 'active', verified: true })
+    .update({
+      status: 'active', verified: true,
+      rnt_status: 'verified', rnt_verified_by: adminId, rnt_verified_at: new Date().toISOString(),
+    })
     .eq('id', businessId)
     .select('id')
 
@@ -560,6 +575,15 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
           type: 'other',
           status: 'active',
           verified: true,
+          rnt_number: (meta.rnt_number as string | undefined)?.trim() || null,
+          rnt_document_path: (meta.rnt_document_path as string | undefined) || null,
+          // The admin reviewed the RNT document (via the signed link in
+          // /admin/solicitudes) before clicking Aprobar — that manual check
+          // is the verification, so this approval action marks it verified
+          // directly rather than requiring a separate verify step.
+          rnt_status: 'verified',
+          rnt_verified_by: adminId,
+          rnt_verified_at: new Date().toISOString(),
         })
         .select('id')
         .single()
@@ -594,12 +618,27 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
     // metadata, but re-normalize defensively here too — this also covers
     // any request submitted before that validation existed.
     const rawPhone = (meta.phone as string | undefined) ?? ''
+    const tier = meta.transport_tier === 'cooperative' ? 'cooperative' : 'independent'
     await admin.from('transporters').insert({
       profile_id: request.user_id,
       vehicle_type: (meta.vehicle_type as string | undefined) ?? 'otro',
       license_plate: ((meta.license_plate as string | undefined) ?? '').toUpperCase().trim(),
       phone: normalizeColombianPhone(rawPhone) ?? rawPhone,
       is_available: false,
+      transport_tier: tier,
+      cooperative_name: (meta.cooperative_name as string | undefined)?.trim() || null,
+      cooperative_rnt_number: (meta.cooperative_rnt_number as string | undefined)?.trim() || null,
+      cooperative_habilitacion_number: (meta.cooperative_habilitacion_number as string | undefined)?.trim() || null,
+      cooperative_document_path: (meta.cooperative_document_path as string | undefined) || null,
+      driver_license_number: (meta.driver_license_number as string | undefined)?.trim() || null,
+      driver_license_expiry: (meta.driver_license_expiry as string | undefined) || null,
+      driver_license_document_path: (meta.driver_license_document_path as string | undefined) || null,
+      soat_expiry_date: (meta.soat_expiry_date as string | undefined) || null,
+      soat_document_path: (meta.soat_document_path as string | undefined) || null,
+      // See the businesses branch above for why approval == verification here.
+      verification_status: 'verified',
+      verified_by: adminId,
+      verified_at: new Date().toISOString(),
     })
   }
 
@@ -614,6 +653,14 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
       bio: (meta.bio as string | undefined)?.trim() || null,
       phone: normalizeColombianPhone(rawPhone) ?? rawPhone,
       is_available: false,
+      rnt_number: (meta.rnt_number as string | undefined)?.trim() || null,
+      rnt_document_path: (meta.rnt_document_path as string | undefined) || null,
+      tarjeta_profesional_number: (meta.tarjeta_profesional_number as string | undefined)?.trim() || null,
+      tarjeta_profesional_document_path: (meta.tarjeta_profesional_document_path as string | undefined) || null,
+      // See the businesses branch above for why approval == verification here.
+      verification_status: 'verified',
+      verified_by: adminId,
+      verified_at: new Date().toISOString(),
     })
   }
 
@@ -634,6 +681,55 @@ export async function approveRoleRequest(formData: FormData): Promise<void> {
   revalidatePath('/solicitar-rol')
   revalidatePath('/negocios')
   revalidatePath('/')
+}
+
+// ── Compliance document viewing ──────────────────────────────────────────────
+
+const COMPLIANCE_BUCKET = 'compliance-documents'
+
+// The compliance-documents bucket is private — no public URL is ever stored.
+// This mints a short-lived signed URL on demand instead, for either the
+// admin (any document) or the document's own owner (their own path only,
+// so they can confirm what they submitted).
+export async function getComplianceDocumentUrl(
+  path: string,
+): Promise<{ url: string } | { error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: adminCopy.errors.unauthorized }
+
+  // This is an exported Server Action — any authenticated caller can invoke
+  // it directly with an arbitrary path string, not just via the admin UI
+  // that normally supplies one. The ownership check below is a string
+  // prefix match, so a crafted "{myId}/../{otherId}/doc.pdf" must be
+  // rejected here first rather than trusted to fail naturally — reject any
+  // path containing "." / ".." segments, backslashes, or otherwise not
+  // already in canonical form.
+  const segments = path.replace(/\\/g, '/').split('/').filter(Boolean)
+  if (
+    segments.length === 0 ||
+    segments.some((s) => s === '.' || s === '..') ||
+    segments.join('/') !== path
+  ) {
+    return { error: adminCopy.errors.unauthorized }
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isOwnDocument = path.startsWith(`${user.id}/`)
+  if (profile?.role !== 'admin' && !isOwnDocument) return { error: adminCopy.errors.unauthorized }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin.storage
+    .from(COMPLIANCE_BUCKET)
+    .createSignedUrl(path, 60)
+
+  if (error || !data) return { error: adminCopy.solicitudes.documentUnavailable }
+  return { url: data.signedUrl }
 }
 
 export async function rejectRoleRequest(formData: FormData): Promise<void> {

@@ -6,6 +6,7 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { deactivateGuide, activateGuide, deleteGuide } from './actions'
 import Avatar from '@/components/shared/Avatar'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
+import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
 import { cn } from '@/lib/utils'
 
 const VALID_STATUSES = ['active', 'inactive'] as const
@@ -17,7 +18,18 @@ type GuideRow = {
   specialties: string[]
   languages: string[]
   is_available: boolean
+  rnt_number: string | null
+  rnt_expiry_date: string | null
+  rnt_document_path: string | null
+  tarjeta_profesional_number: string | null
+  tarjeta_profesional_document_path: string | null
+  verification_status: string
   profiles: { id: string; full_name: string | null; avatar_url: string | null; role: string } | null
+}
+
+function isExpired(dateStr: string | null): boolean {
+  if (!dateStr) return false
+  return new Date(dateStr) < new Date(new Date().toDateString())
 }
 
 export default async function AdminGuiasPage({
@@ -34,7 +46,7 @@ export default async function AdminGuiasPage({
 
   let query = admin
     .from('tourist_guides')
-    .select('id, phone, specialties, languages, is_available, profiles!inner(id, full_name, avatar_url, role)')
+    .select('id, phone, specialties, languages, is_available, rnt_number, rnt_expiry_date, rnt_document_path, tarjeta_profesional_number, tarjeta_profesional_document_path, verification_status, profiles!inner(id, full_name, avatar_url, role)')
     .order('created_at', { ascending: true })
 
   query = query.filter('profiles.role', statusFilter === 'active' ? 'eq' : 'neq', 'tourist_guide')
@@ -130,6 +142,43 @@ export default async function AdminGuiasPage({
                       ))}
                     </div>
                   )}
+
+                  {/* Verification */}
+                  <div className="space-y-1.5 rounded-xl bg-muted/30 px-3 py-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                          adminCopy.guias.verification.statusColors[guide.verification_status] ?? adminCopy.guias.verification.statusColors.pending_review,
+                        )}
+                      >
+                        {adminCopy.guias.verification.statusLabels[guide.verification_status] ?? guide.verification_status}
+                      </span>
+                      {isExpired(guide.rnt_expiry_date) && (
+                        <span className="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive">
+                          {adminCopy.guias.verification.rntLabel} {adminCopy.guias.verification.expired}
+                        </span>
+                      )}
+                    </div>
+                    {guide.rnt_document_path || guide.tarjeta_profesional_document_path ? (
+                      <>
+                        {guide.rnt_document_path && (
+                          <AdminDocumentLink
+                            label={`${adminCopy.guias.verification.rntLabel}${guide.rnt_number ? ` ${guide.rnt_number}` : ''}`}
+                            path={guide.rnt_document_path}
+                          />
+                        )}
+                        {guide.tarjeta_profesional_document_path && (
+                          <AdminDocumentLink
+                            label={`${adminCopy.guias.verification.tarjetaLabel}${guide.tarjeta_profesional_number ? ` ${guide.tarjeta_profesional_number}` : ''}`}
+                            path={guide.tarjeta_profesional_document_path}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{adminCopy.guias.verification.noDocuments}</p>
+                    )}
+                  </div>
 
                   <div className="flex gap-2 pt-1">
                     {statusFilter === 'active' ? (

@@ -30,7 +30,22 @@ export const adminCopy = {
       languages: 'Idiomas',
       experience_years: 'Años de experiencia',
       bio: 'Presentación',
+      rnt_number: 'RNT',
+      tarjeta_profesional_number: 'Tarjeta profesional',
+      transport_tier: 'Modalidad',
+      cooperative_name: 'Cooperativa',
+      cooperative_rnt_number: 'RNT cooperativa',
+      cooperative_habilitacion_number: 'Habilitación Mintransporte',
+      driver_license_number: 'Licencia de conducción',
+      driver_license_expiry: 'Vencimiento licencia',
+      soat_expiry_date: 'Vencimiento SOAT',
     },
+    transportTierLabels: {
+      cooperative: 'Cooperativa formal',
+      independent: 'Conductor independiente',
+    } as Record<string, string>,
+    viewDocument: 'Ver documento',
+    documentUnavailable: 'No se pudo abrir el documento.',
   },
 
   dashboard: {
@@ -114,6 +129,21 @@ export const adminCopy = {
       rejected: 'Rechazado',
       inactive: 'Inactivo',
     } as Record<string, string>,
+    rnt: 'RNT',
+    rntMissing: 'Sin RNT — no se puede aprobar hasta que el negocio lo suba.',
+    rntStatusLabels: {
+      pending_review: 'RNT en revisión',
+      verified: 'RNT verificado',
+      rejected: 'RNT rechazado',
+    } as Record<string, string>,
+    rntStatusColors: {
+      pending_review: 'bg-accent/15 text-accent',
+      verified: 'bg-primary/15 text-primary',
+      rejected: 'bg-destructive/15 text-destructive',
+    } as Record<string, string>,
+    errors: {
+      rntMissing: 'No se puede aprobar: el negocio todavía no ha subido su certificado RNT.',
+    },
   },
 
   comisiones: {
@@ -265,6 +295,22 @@ export const adminCopy = {
     errors: {
       deleteBlocked: 'No se puede eliminar: tiene reservas asociadas. Desactívalo en su lugar.',
     },
+    verification: {
+      statusLabels: {
+        pending_review: 'En revisión',
+        verified: 'Verificado',
+        rejected: 'Rechazado',
+      } as Record<string, string>,
+      statusColors: {
+        pending_review: 'bg-accent/15 text-accent',
+        verified: 'bg-primary/15 text-primary',
+        rejected: 'bg-destructive/15 text-destructive',
+      } as Record<string, string>,
+      expired: 'Vencido',
+      noDocuments: 'Sin documentos subidos',
+      rntLabel: 'RNT',
+      tarjetaLabel: 'Tarjeta profesional',
+    },
   },
 
   transportistas: {
@@ -299,6 +345,23 @@ export const adminCopy = {
     confirmCancel: 'Cancelar',
     errors: {
       deleteBlocked: 'No se puede eliminar: tiene traslados asociados. Desactívalo en su lugar.',
+    },
+    verification: {
+      statusLabels: {
+        pending_review: 'En revisión',
+        verified: 'Verificado',
+        rejected: 'Rechazado',
+      } as Record<string, string>,
+      statusColors: {
+        pending_review: 'bg-accent/15 text-accent',
+        verified: 'bg-primary/15 text-primary',
+        rejected: 'bg-destructive/15 text-destructive',
+      } as Record<string, string>,
+      expired: 'Vencido',
+      noDocuments: 'Sin documentos subidos',
+      cooperativeLabel: 'Cooperativa',
+      driverLicenseLabel: 'Licencia',
+      soatLabel: 'SOAT',
     },
   },
 

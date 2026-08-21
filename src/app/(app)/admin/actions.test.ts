@@ -42,6 +42,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const businessesUpdateSelect = vi.fn()
 const businessesUpdateAwait = vi.fn()
+const businessRntDocumentMaybeSingle = vi.fn()
 const businessInsertSingle = vi.fn()
 const businessInsertAwait = vi.fn()
 const commissionUpdateSelect = vi.fn()
@@ -65,6 +66,7 @@ const storageUpload = vi.fn()
 const storageGetPublicUrl = vi.fn()
 const storageRemove = vi.fn()
 const storageCreateSignedUploadUrl = vi.fn()
+const storageCreateSignedUrl = vi.fn()
 
 function businessesUpdateChain(payload: unknown) {
   return {
@@ -99,6 +101,7 @@ vi.mock('@/lib/supabase/admin', () => ({
           return {
             update: (payload: unknown) => businessesUpdateChain(payload),
             insert: (payload: unknown) => businessesInsertChain(payload),
+            select: () => ({ eq: () => ({ maybeSingle: businessRntDocumentMaybeSingle }) }),
           }
         case 'commission_config':
           return {
@@ -161,6 +164,7 @@ vi.mock('@/lib/supabase/admin', () => ({
         getPublicUrl: (path: string) => storageGetPublicUrl(bucket, path),
         remove: (paths: string[]) => storageRemove(bucket, paths),
         createSignedUploadUrl: (path: string) => storageCreateSignedUploadUrl(bucket, path),
+        createSignedUrl: (path: string, expiresIn: number) => storageCreateSignedUrl(bucket, path, expiresIn),
       }),
     },
     auth: {
@@ -195,6 +199,7 @@ const {
   requestPlaceVideoUpload,
   confirmPlaceVideoUpload,
   deletePlaceVideo,
+  getComplianceDocumentUrl,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[]>) {
@@ -225,6 +230,7 @@ beforeEach(() => {
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'applicant@example.com' } } })
   roleRequestUpdateSingle.mockResolvedValue({ data: { user_id: USER_ID, requested_role: 'transporter' }, error: null })
+  businessRntDocumentMaybeSingle.mockResolvedValue({ data: { rnt_document_path: 'owner-1/rnt-1.pdf' } })
 })
 
 describe('getAuthenticatedAdmin guard (shared by every action in this file)', () => {
@@ -250,14 +256,35 @@ describe('approveBusiness / rejectBusiness', () => {
     expect(businessesUpdateSelect).not.toHaveBeenCalled()
   })
 
-  it('approveBusiness sets status=active and verified=true, targeting the right business', async () => {
+  it('approveBusiness sets status=active, verified=true, and marks the RNT verified, targeting the right business', async () => {
     businessesUpdateSelect.mockResolvedValue({ data: [{ id: BIZ_ID }], error: null })
     const fd = formData({ businessId: BIZ_ID })
     await approveBusiness(fd)
 
-    expect(businessesUpdateSelect).toHaveBeenCalledWith({ status: 'active', verified: true }, 'id', BIZ_ID)
+    expect(businessesUpdateSelect).toHaveBeenCalledWith({
+      status: 'active', verified: true,
+      rnt_status: 'verified', rnt_verified_by: ADMIN_ID, rnt_verified_at: expect.any(String),
+    }, 'id', BIZ_ID)
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/negocios')
     expect(revalidatePathMock).toHaveBeenCalledWith('/negocios')
+  })
+
+  it('approveBusiness redirects without updating when the business has no RNT document uploaded yet', async () => {
+    businessRntDocumentMaybeSingle.mockResolvedValue({ data: { rnt_document_path: null } })
+    const fd = formData({ businessId: BIZ_ID })
+
+    await expect(approveBusiness(fd)).rejects.toThrow('redirect:/admin/negocios?status=pending&error=rnt_missing')
+
+    expect(businessesUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('approveBusiness redirects without updating when the business row itself is not found', async () => {
+    businessRntDocumentMaybeSingle.mockResolvedValue({ data: null })
+    const fd = formData({ businessId: BIZ_ID })
+
+    await expect(approveBusiness(fd)).rejects.toThrow('redirect:/admin/negocios?status=pending&error=rnt_missing')
+
+    expect(businessesUpdateSelect).not.toHaveBeenCalled()
   })
 
   it('rejectBusiness sets status=rejected and verified=false, targeting the right business', async () => {
@@ -391,6 +418,28 @@ describe('approveRoleRequest', () => {
       { business_id: 'new-biz-1', category_id: 'cat-balneario' },
     ])
     expect(cancelOtherPending).toHaveBeenCalled()
+  })
+
+  it('business_owner: copies RNT fields through and marks rnt_status verified', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'business_owner',
+        metadata: { business_name: 'Finca RNT', rnt_number: '12345', rnt_document_path: 'user-1/rnt-123.pdf' },
+      },
+    })
+    businessInsertSingle.mockResolvedValue({ data: { id: 'new-biz-rnt' } })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(businessInsertSingle).toHaveBeenCalledWith(expect.objectContaining({
+      rnt_number: '12345',
+      rnt_document_path: 'user-1/rnt-123.pdf',
+      rnt_status: 'verified',
+      rnt_verified_by: ADMIN_ID,
+      rnt_verified_at: expect.any(String),
+    }))
   })
 
   it('business_owner: passes lat/lng through when present in metadata', async () => {
@@ -578,6 +627,19 @@ describe('approveRoleRequest', () => {
       license_plate: 'ABC-123',
       phone: '3009876543',
       is_available: false,
+      transport_tier: 'independent',
+      cooperative_name: null,
+      cooperative_rnt_number: null,
+      cooperative_habilitacion_number: null,
+      cooperative_document_path: null,
+      driver_license_number: null,
+      driver_license_expiry: null,
+      driver_license_document_path: null,
+      soat_expiry_date: null,
+      soat_document_path: null,
+      verification_status: 'verified',
+      verified_by: ADMIN_ID,
+      verified_at: expect.any(String),
     })
   })
 
@@ -595,7 +657,78 @@ describe('approveRoleRequest', () => {
       license_plate: '',
       phone: '',
       is_available: false,
+      transport_tier: 'independent',
+      cooperative_name: null,
+      cooperative_rnt_number: null,
+      cooperative_habilitacion_number: null,
+      cooperative_document_path: null,
+      driver_license_number: null,
+      driver_license_expiry: null,
+      driver_license_document_path: null,
+      soat_expiry_date: null,
+      soat_document_path: null,
+      verification_status: 'verified',
+      verified_by: ADMIN_ID,
+      verified_at: expect.any(String),
     })
+  })
+
+  it('transporter: copies cooperative-tier fields through when transport_tier is cooperative', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'transporter',
+        metadata: {
+          vehicle_type: 'buseta', license_plate: 'XYZ-999', phone: '3009876543',
+          transport_tier: 'cooperative', cooperative_name: 'TransManaure',
+          cooperative_rnt_number: '99999', cooperative_habilitacion_number: 'HAB-001',
+          cooperative_document_path: 'user-1/cooperativa-123.pdf',
+        },
+      },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(transportersInsert).toHaveBeenCalledWith(expect.objectContaining({
+      transport_tier: 'cooperative',
+      cooperative_name: 'TransManaure',
+      cooperative_rnt_number: '99999',
+      cooperative_habilitacion_number: 'HAB-001',
+      cooperative_document_path: 'user-1/cooperativa-123.pdf',
+      driver_license_number: null,
+      soat_document_path: null,
+    }))
+  })
+
+  it('transporter: copies independent-tier license/SOAT fields through and marks verification_status verified', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'transporter',
+        metadata: {
+          vehicle_type: 'moto', license_plate: 'XYZ-999', phone: '3009876543',
+          transport_tier: 'independent', driver_license_number: '12345678',
+          driver_license_expiry: '2099-01-01', driver_license_document_path: 'user-1/licencia-123.jpg',
+          soat_expiry_date: '2099-01-01', soat_document_path: 'user-1/soat-123.jpg',
+        },
+      },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(transportersInsert).toHaveBeenCalledWith(expect.objectContaining({
+      transport_tier: 'independent',
+      driver_license_number: '12345678',
+      driver_license_expiry: '2099-01-01',
+      driver_license_document_path: 'user-1/licencia-123.jpg',
+      soat_expiry_date: '2099-01-01',
+      soat_document_path: 'user-1/soat-123.jpg',
+      cooperative_name: null,
+      verification_status: 'verified',
+      verified_by: ADMIN_ID,
+    }))
   })
 
   it('transporter: tolerates a null metadata object entirely', async () => {
@@ -673,7 +806,40 @@ describe('approveRoleRequest', () => {
       bio: 'Guía local',
       phone: '3005551234',
       is_available: false,
+      rnt_number: null,
+      rnt_document_path: null,
+      tarjeta_profesional_number: null,
+      tarjeta_profesional_document_path: null,
+      verification_status: 'verified',
+      verified_by: ADMIN_ID,
+      verified_at: expect.any(String),
     })
+  })
+
+  it('tourist_guide: copies RNT and tarjeta profesional fields through and marks verification_status verified', async () => {
+    roleRequestSingle.mockResolvedValue({
+      data: {
+        user_id: USER_ID,
+        requested_role: 'tourist_guide',
+        metadata: {
+          specialties: ['ecoturismo'], languages: ['es'], bio: 'Guía local', phone: '3005551234',
+          rnt_number: '54321', rnt_document_path: 'user-1/rnt-123.pdf',
+          tarjeta_profesional_number: 'TP-1', tarjeta_profesional_document_path: 'user-1/tarjeta-profesional-123.pdf',
+        },
+      },
+    })
+
+    const fd = formData({ requestId: REQUEST_ID })
+    await approveRoleRequest(fd)
+
+    expect(touristGuidesInsert).toHaveBeenCalledWith(expect.objectContaining({
+      rnt_number: '54321',
+      rnt_document_path: 'user-1/rnt-123.pdf',
+      tarjeta_profesional_number: 'TP-1',
+      tarjeta_profesional_document_path: 'user-1/tarjeta-profesional-123.pdf',
+      verification_status: 'verified',
+      verified_by: ADMIN_ID,
+    }))
   })
 
   it('tourist_guide: defensively normalizes a phone stored with formatting noise/country code', async () => {
@@ -706,6 +872,13 @@ describe('approveRoleRequest', () => {
       bio: null,
       phone: '',
       is_available: false,
+      rnt_number: null,
+      rnt_document_path: null,
+      tarjeta_profesional_number: null,
+      tarjeta_profesional_document_path: null,
+      verification_status: 'verified',
+      verified_by: ADMIN_ID,
+      verified_at: expect.any(String),
     })
   })
 
@@ -1503,5 +1676,62 @@ describe('deletePlaceVideo', () => {
     adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
     await expect(deletePlaceVideo(PLACE_ID, 'https://x/a.mp4')).rejects.toThrow('redirect:/')
     expect(placeImagesMaybeSingle).not.toHaveBeenCalled()
+  })
+})
+
+describe('getComplianceDocumentUrl', () => {
+  it('returns unauthorized when there is no authenticated user', async () => {
+    authGetUser.mockResolvedValue({ data: { user: null } })
+    const result = await getComplianceDocumentUrl('some-user/rnt-1.pdf')
+    expect(result).toEqual({ error: 'No autorizado.' })
+    expect(storageCreateSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a traversal segment', 'user-1/../user-2/rnt-1.pdf'],
+    ['a backslash-encoded traversal', 'user-1\\..\\user-2\\rnt-1.pdf'],
+    ['a bare "." segment', 'user-1/./rnt-1.pdf'],
+    ['a double slash', 'user-1//rnt-1.pdf'],
+    ['an empty path', ''],
+  ])('rejects a path with %s before checking ownership, even for an admin', async (_label, badPath) => {
+    // adminProfileSingle defaults to role admin in beforeEach — this must be
+    // rejected regardless of caller role, since it's a malformed/crafted
+    // path rather than an authorization decision.
+    const result = await getComplianceDocumentUrl(badPath)
+    expect(result).toEqual({ error: 'No autorizado.' })
+    expect(storageCreateSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it("rejects a non-admin trying to view someone else's document", async () => {
+    authGetUser.mockResolvedValue({ data: { user: { id: 'user-2' } } })
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const result = await getComplianceDocumentUrl('user-1/rnt-1.pdf')
+    expect(result).toEqual({ error: 'No autorizado.' })
+    expect(storageCreateSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it('allows the document owner to view their own path even without the admin role', async () => {
+    authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    storageCreateSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://signed.example/doc.pdf' }, error: null })
+
+    const result = await getComplianceDocumentUrl('user-1/rnt-1.pdf')
+
+    expect(result).toEqual({ url: 'https://signed.example/doc.pdf' })
+    expect(storageCreateSignedUrl).toHaveBeenCalledWith('compliance-documents', 'user-1/rnt-1.pdf', 60)
+  })
+
+  it('allows an admin to view any document regardless of path', async () => {
+    storageCreateSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://signed.example/other.pdf' }, error: null })
+
+    const result = await getComplianceDocumentUrl('someone-else/soat-1.jpg')
+
+    expect(result).toEqual({ url: 'https://signed.example/other.pdf' })
+  })
+
+  it('returns a document-unavailable error when signing fails', async () => {
+    storageCreateSignedUrl.mockResolvedValue({ data: null, error: { message: 'not found' } })
+    const result = await getComplianceDocumentUrl('someone/rnt-1.pdf')
+    expect(result).toEqual({ error: 'No se pudo abrir el documento.' })
   })
 })

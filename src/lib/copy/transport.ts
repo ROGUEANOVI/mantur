@@ -73,6 +73,7 @@ export const transportCopy = {
       licenseLabel: 'Placa',
       phoneLabel: 'Teléfono',
       bioLabel: 'Descripción',
+      editDocuments: 'Actualizar mis documentos',
     },
     pendingRequests: {
       title: 'Solicitudes disponibles',
@@ -98,6 +99,21 @@ export const transportCopy = {
       generic: 'Ocurrió un error. Intenta de nuevo.',
       unauthorized: 'Debes tener el rol de transportador.',
     },
+  },
+
+  editProfile: {
+    pageTitle: 'Actualizar mis documentos',
+    back: 'Volver a mi panel',
+    save: 'Guardar cambios',
+    saving: 'Guardando...',
+    saved: '¡Documentos actualizados!',
+    currentStatus: 'Estado actual',
+    statusLabels: {
+      pending_review: 'En revisión',
+      verified: 'Verificado',
+      rejected: 'Rechazado',
+    } as Record<string, string>,
+    tierChangeRequiresDocument: 'Adjunta el documento correspondiente para cambiar de modalidad.',
   },
 
   adminPage: {

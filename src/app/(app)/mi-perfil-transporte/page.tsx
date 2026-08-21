@@ -1,4 +1,5 @@
-import { Car, MapPin, Calendar, Users, Phone } from 'lucide-react'
+import Link from 'next/link'
+import { Car, MapPin, Calendar, Users, Phone, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
 import { acceptTransportRequest, markCompleted } from '@/app/(app)/mi-perfil-transporte/actions'
@@ -12,6 +13,7 @@ type Transporter = {
   phone: string
   bio: string | null
   is_available: boolean
+  verification_status: string
   profiles: { full_name: string | null } | null
 }
 
@@ -46,7 +48,7 @@ export default async function MiPerfilTransportePage() {
   // Step 1: get the transporter profile (need its id for subsequent queries)
   const { data: transporterData } = await supabase
     .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, bio, is_available, profiles(full_name)')
+    .select('id, vehicle_type, license_plate, phone, bio, is_available, verification_status, profiles(full_name)')
     .eq('profile_id', user!.id)
     .single()
 
@@ -128,6 +130,17 @@ export default async function MiPerfilTransportePage() {
                 {transporter.bio}
               </p>
             )}
+
+            <Link
+              href="/mi-perfil-transporte/editar"
+              className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline border-t border-border pt-3"
+            >
+              <FileText className="size-3.5" aria-hidden="true" />
+              {copy.profileCard.editDocuments}
+              <span className="ml-auto text-xs text-muted-foreground font-normal">
+                {transportCopy.editProfile.statusLabels[transporter.verification_status] ?? transporter.verification_status}
+              </span>
+            </Link>
           </div>
         </div>
 

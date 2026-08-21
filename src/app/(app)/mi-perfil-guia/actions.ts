@@ -5,13 +5,61 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
+import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { normalizeColombianPhone } from '@/lib/phone'
 
 type ActionResult = { error: string } | void
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TOUR_BUCKET = 'business-images'
 const MAX_TOUR_IMAGES = 5
+
+// ── RNT / Tarjeta Profesional resubmission ───────────────────────────────────
+// Same pattern as mi-negocio/actions.ts and solicitar-rol/actions.ts: upload
+// straight to the private compliance-documents bucket using the caller's own
+// session (storage RLS only allows writing under the caller's own
+// {auth.uid()}/ folder), storing only the path.
+
+const COMPLIANCE_BUCKET = 'compliance-documents'
+const VALID_DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
+
+function documentExtension(mimeType: string): string {
+  switch (mimeType) {
+    case 'application/pdf':
+      return 'pdf'
+    case 'image/png':
+      return 'png'
+    case 'image/webp':
+      return 'webp'
+    default:
+      return 'jpg'
+  }
+}
+
+function validateComplianceFile(file: File | null): string | null {
+  if (!file || !file.size) return roleRequestsCopy.errors.documentRequired
+  if (!VALID_DOCUMENT_MIME_TYPES.includes(file.type)) return roleRequestsCopy.errors.invalidDocument
+  if (file.size > MAX_DOCUMENT_BYTES) return roleRequestsCopy.errors.documentTooLarge
+  return null
+}
+
+async function uploadComplianceDocument(
+  supabase: SupabaseClient,
+  userId: string,
+  docType: string,
+  file: File,
+): Promise<{ path: string } | { error: string }> {
+  const path = `${userId}/${docType}-${Date.now()}-${Math.random().toString(36).slice(2)}.${documentExtension(file.type)}`
+
+  const { error } = await supabase.storage
+    .from(COMPLIANCE_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false })
+
+  if (error) return { error: roleRequestsCopy.errors.uploadFailed }
+  return { path }
+}
 
 async function getAuthenticatedGuide() {
   const supabase = await createClient()
@@ -58,9 +106,48 @@ export async function updateGuideProfile(formData: FormData): Promise<ActionResu
   const phone = normalizeColombianPhone(rawPhone)
   if (!phone) return { error: guidesCopy.errors.invalidPhone }
 
+  // RNT/Tarjeta Profesional resubmission is optional — only touched when a
+  // new document is uploaded. Number and document are paired per credential:
+  // either both are provided together, or that credential is left untouched.
+  // Uploading either resets verification_status so the admin re-reviews.
+  const updatePayload: Record<string, unknown> = { phone, bio, specialties, languages }
+  let needsReview = false
+
+  const rntFile = formData.get('rnt_document') as File | null
+  if (rntFile && rntFile.size) {
+    const rntNumber = (formData.get('rnt_number') as string | null)?.trim()
+    if (!rntNumber) return { error: roleRequestsCopy.errors.missingFields }
+    const rntFileError = validateComplianceFile(rntFile)
+    if (rntFileError) return { error: rntFileError }
+
+    const rntUpload = await uploadComplianceDocument(supabase, userId, 'rnt', rntFile)
+    if ('error' in rntUpload) return { error: rntUpload.error }
+
+    updatePayload.rnt_number = rntNumber
+    updatePayload.rnt_document_path = rntUpload.path
+    needsReview = true
+  }
+
+  const tarjetaFile = formData.get('tarjeta_profesional_document') as File | null
+  if (tarjetaFile && tarjetaFile.size) {
+    const tarjetaNumber = (formData.get('tarjeta_profesional_number') as string | null)?.trim()
+    if (!tarjetaNumber) return { error: roleRequestsCopy.errors.missingFields }
+    const tarjetaFileError = validateComplianceFile(tarjetaFile)
+    if (tarjetaFileError) return { error: tarjetaFileError }
+
+    const tarjetaUpload = await uploadComplianceDocument(supabase, userId, 'tarjeta-profesional', tarjetaFile)
+    if ('error' in tarjetaUpload) return { error: tarjetaUpload.error }
+
+    updatePayload.tarjeta_profesional_number = tarjetaNumber
+    updatePayload.tarjeta_profesional_document_path = tarjetaUpload.path
+    needsReview = true
+  }
+
+  if (needsReview) updatePayload.verification_status = 'pending_review'
+
   const { error } = await supabase
     .from('tourist_guides')
-    .update({ phone, bio, specialties, languages })
+    .update(updatePayload)
     .eq('profile_id', userId)
 
   if (error) return { error: guidesCopy.errors.generic }

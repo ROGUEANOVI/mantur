@@ -6,6 +6,7 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { approveRoleRequest } from '@/app/(app)/admin/actions'
 import { cn } from '@/lib/utils'
 import RejectForm from './RejectForm'
+import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
 
 type RoleRequest = {
   id: string
@@ -121,6 +122,10 @@ export default async function AdminSolicitudesPage({
                           <MetaRow label={copy.metaLabels.categories} value={(meta.category_slugs as string[]).join(', ')} />
                         )}
                         {meta.phone && <MetaRow label={copy.metaLabels.phone} value={String(meta.phone)} />}
+                        {meta.rnt_number && <MetaRow label={copy.metaLabels.rnt_number} value={String(meta.rnt_number)} />}
+                        {typeof meta.rnt_document_path === 'string' && (
+                          <AdminDocumentLink label={copy.metaLabels.rnt_number} path={meta.rnt_document_path} />
+                        )}
                       </>
                     )}
                     {req.requested_role === 'transporter' && (
@@ -128,6 +133,36 @@ export default async function AdminSolicitudesPage({
                         {meta.license_plate && <MetaRow label={copy.metaLabels.license_plate} value={String(meta.license_plate)} />}
                         {meta.vehicle_type && <MetaRow label={copy.metaLabels.vehicle_type} value={String(meta.vehicle_type)} />}
                         {meta.phone && <MetaRow label={copy.metaLabels.phone} value={String(meta.phone)} />}
+                        {typeof meta.transport_tier === 'string' && (
+                          <MetaRow
+                            label={copy.metaLabels.transport_tier}
+                            value={copy.transportTierLabels[meta.transport_tier] ?? meta.transport_tier}
+                          />
+                        )}
+                        {meta.transport_tier === 'cooperative' ? (
+                          <>
+                            {meta.cooperative_name && <MetaRow label={copy.metaLabels.cooperative_name} value={String(meta.cooperative_name)} />}
+                            {meta.cooperative_rnt_number && <MetaRow label={copy.metaLabels.cooperative_rnt_number} value={String(meta.cooperative_rnt_number)} />}
+                            {meta.cooperative_habilitacion_number && (
+                              <MetaRow label={copy.metaLabels.cooperative_habilitacion_number} value={String(meta.cooperative_habilitacion_number)} />
+                            )}
+                            {typeof meta.cooperative_document_path === 'string' && (
+                              <AdminDocumentLink label={copy.metaLabels.cooperative_name} path={meta.cooperative_document_path} />
+                            )}
+                          </>
+                        ) : meta.transport_tier === 'independent' ? (
+                          <>
+                            {meta.driver_license_number && <MetaRow label={copy.metaLabels.driver_license_number} value={String(meta.driver_license_number)} />}
+                            {meta.driver_license_expiry && <MetaRow label={copy.metaLabels.driver_license_expiry} value={String(meta.driver_license_expiry)} />}
+                            {typeof meta.driver_license_document_path === 'string' && (
+                              <AdminDocumentLink label={copy.metaLabels.driver_license_number} path={meta.driver_license_document_path} />
+                            )}
+                            {meta.soat_expiry_date && <MetaRow label={copy.metaLabels.soat_expiry_date} value={String(meta.soat_expiry_date)} />}
+                            {typeof meta.soat_document_path === 'string' && (
+                              <AdminDocumentLink label={copy.metaLabels.soat_expiry_date} path={meta.soat_document_path} />
+                            )}
+                          </>
+                        ) : null}
                       </>
                     )}
                     {req.requested_role === 'tourist_guide' && (
@@ -151,6 +186,16 @@ export default async function AdminSolicitudesPage({
                         {meta.phone && <MetaRow label={copy.metaLabels.phone} value={String(meta.phone)} />}
                         {meta.experience_years != null && <MetaRow label={copy.metaLabels.experience_years} value={`${meta.experience_years} años`} />}
                         {meta.bio && <MetaRow label={copy.metaLabels.bio} value={String(meta.bio)} />}
+                        {meta.rnt_number && <MetaRow label={copy.metaLabels.rnt_number} value={String(meta.rnt_number)} />}
+                        {typeof meta.rnt_document_path === 'string' && (
+                          <AdminDocumentLink label={copy.metaLabels.rnt_number} path={meta.rnt_document_path} />
+                        )}
+                        {meta.tarjeta_profesional_number && (
+                          <MetaRow label={copy.metaLabels.tarjeta_profesional_number} value={String(meta.tarjeta_profesional_number)} />
+                        )}
+                        {typeof meta.tarjeta_profesional_document_path === 'string' && (
+                          <AdminDocumentLink label={copy.metaLabels.tarjeta_profesional_number} path={meta.tarjeta_profesional_document_path} />
+                        )}
                       </>
                     )}
                     {req.notes && (

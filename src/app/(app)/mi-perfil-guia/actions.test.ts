@@ -62,6 +62,9 @@ function guideToursUserTable() {
   }
 }
 
+const userStorageUpload = vi.fn()
+const userStorageRemove = vi.fn()
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getUser: authGetUser },
@@ -70,6 +73,12 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'tourist_guides') return touristGuidesUserTable()
       if (table === 'guide_tours') return guideToursUserTable()
       throw new Error(`unexpected table on user client: ${table}`)
+    },
+    storage: {
+      from: (bucket: string) => ({
+        upload: (path: string, file: unknown, opts: unknown) => userStorageUpload(bucket, path, file, opts),
+        remove: (paths: string[]) => userStorageRemove(bucket, paths),
+      }),
     },
   })),
 }))
@@ -140,7 +149,7 @@ const {
   deleteTourImage,
 } = await import('./actions')
 
-function formData(fields: Record<string, string | string[]>) {
+function formData(fields: Record<string, string | string[] | File>) {
   const fd = new FormData()
   for (const [k, v] of Object.entries(fields)) {
     if (Array.isArray(v)) v.forEach((item) => fd.append(k, item))
@@ -163,7 +172,13 @@ beforeEach(() => {
   profileSingle.mockResolvedValue({ data: { role: 'tourist_guide' } })
   guideLookupSingle.mockResolvedValue({ data: { id: GUIDE_ID } })
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
+  userStorageUpload.mockResolvedValue({ error: null })
+  userStorageRemove.mockResolvedValue({ error: null })
 })
+
+function fakeRntFile(name = 'rnt.pdf', type = 'application/pdf') {
+  return new File(['x'], name, { type })
+}
 
 describe('getAuthenticatedGuide guard', () => {
   it('redirects to /login when unauthenticated', async () => {
@@ -241,6 +256,65 @@ describe('updateGuideProfile', () => {
     const fd = new FormData() // no 'phone' key at all
     const result = await updateGuideProfile(fd)
     expect(result).toEqual({ error: 'Teléfono de contacto (WhatsApp) es obligatorio.' })
+  })
+
+  it('does not touch any RNT/Tarjeta field when neither document is uploaded', async () => {
+    touristGuidesUpdateMock.mockResolvedValue({ error: null })
+    const fd = formData({ phone: '3001234567' })
+    await expect(updateGuideProfile(fd)).rejects.toThrow('redirect:/mi-perfil-guia')
+
+    expect(touristGuidesUpdateMock).toHaveBeenCalledWith(
+      { phone: '3001234567', bio: null, specialties: [], languages: [] },
+      'profile_id', USER_ID,
+    )
+    expect(userStorageUpload).not.toHaveBeenCalled()
+  })
+
+  it('rejects a new RNT document uploaded without a paired rnt_number', async () => {
+    const fd = formData({ phone: '3001234567', rnt_document: fakeRntFile() })
+    const result = await updateGuideProfile(fd)
+    expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
+    expect(touristGuidesUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('uploads a new RNT document, updates the fields, and resets verification_status', async () => {
+    touristGuidesUpdateMock.mockResolvedValue({ error: null })
+    const fd = formData({ phone: '3001234567', rnt_number: '12345', rnt_document: fakeRntFile() })
+    await expect(updateGuideProfile(fd)).rejects.toThrow('redirect:/mi-perfil-guia')
+
+    expect(touristGuidesUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rnt_number: '12345',
+        rnt_document_path: expect.stringMatching(/^user-1\/rnt-\d+-[a-z0-9]+\.pdf$/),
+        verification_status: 'pending_review',
+      }),
+      'profile_id', USER_ID,
+    )
+  })
+
+  it('uploads a new Tarjeta Profesional document, updates the fields, and resets verification_status', async () => {
+    touristGuidesUpdateMock.mockResolvedValue({ error: null })
+    const fd = formData({
+      phone: '3001234567', tarjeta_profesional_number: 'TP-1',
+      tarjeta_profesional_document: fakeRntFile('tp.pdf'),
+    })
+    await expect(updateGuideProfile(fd)).rejects.toThrow('redirect:/mi-perfil-guia')
+
+    expect(touristGuidesUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tarjeta_profesional_number: 'TP-1',
+        tarjeta_profesional_document_path: expect.stringMatching(/^user-1\/tarjeta-profesional-\d+-[a-z0-9]+\.pdf$/),
+        verification_status: 'pending_review',
+      }),
+      'profile_id', USER_ID,
+    )
+  })
+
+  it('rejects an RNT document with an unsupported mime type', async () => {
+    const fd = formData({ phone: '3001234567', rnt_number: '12345', rnt_document: fakeRntFile('rnt.txt', 'text/plain') })
+    const result = await updateGuideProfile(fd)
+    expect(result).toEqual({ error: 'Formato no válido. Usa PDF, JPEG, PNG o WebP.' })
+    expect(userStorageUpload).not.toHaveBeenCalled()
   })
 })
 
