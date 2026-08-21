@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Car, MapPin, Calendar, Users, Phone, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
@@ -44,6 +45,23 @@ export default async function MiPerfilTransportePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
+  // A deactivated transporter (role reverted by an admin) must not still see
+  // this panel rendered as if nothing changed — the transporters row is kept
+  // for audit/reactivation, so a bare query-by-profile_id would otherwise
+  // still find it. The Server Actions in actions.ts already gate on this
+  // exact role check; the page itself never did, which meant a deactivated
+  // transporter could still view (though not act on) their old panel by
+  // navigating straight to the URL.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'transporter') redirect('/')
 
   // Step 1: get the transporter profile (need its id for subsequent queries)
   const { data: transporterData } = await supabase
