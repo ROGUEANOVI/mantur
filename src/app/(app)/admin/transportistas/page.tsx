@@ -48,7 +48,7 @@ export default async function AdminTransportistasPage({
 
   let query = admin
     .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, is_available, transport_tier, cooperative_name, cooperative_document_path, driver_license_document_path, driver_license_expiry, soat_document_path, soat_expiry_date, verification_status, profiles!inner(id, full_name, avatar_url, role)')
+    .select('id, vehicle_type, license_plate, phone, is_available, transport_tier, cooperative_name, cooperative_document_path, driver_license_document_path, driver_license_expiry, soat_document_path, soat_expiry_date, verification_status, profiles!profile_id!inner(id, full_name, avatar_url, role)')
     .order('created_at', { ascending: true })
 
   query = query.filter('profiles.role', statusFilter === 'active' ? 'eq' : 'neq', 'transporter')

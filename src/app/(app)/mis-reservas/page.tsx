@@ -38,7 +38,7 @@ export default async function MisReservasPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles(full_name)))',
+      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name)))',
     )
     .order('created_at', { ascending: false })
 

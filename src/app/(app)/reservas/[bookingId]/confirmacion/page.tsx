@@ -80,7 +80,7 @@ export default async function ConfirmacionPage({
   const { data: booking, error } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, notes, services(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles(full_name)))',
+      'id, booking_date, quantity, total_amount, status, created_at, notes, services(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles!profile_id(full_name)))',
     )
     .eq('id', bookingId)
     .single()

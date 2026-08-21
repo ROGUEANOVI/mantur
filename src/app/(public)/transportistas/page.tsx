@@ -41,7 +41,7 @@ export default async function TransportistasPage({
   const search = rawQ?.trim().slice(0, 100) ?? ''
   const showAll = rawStatus === 'all'
 
-  // Admin client bypasses RLS so profiles(full_name) resolves for all transporters
+  // Admin client bypasses RLS so profiles!profile_id(full_name) resolves for all transporters
   // regardless of the visitor's authentication state.
   const admin = createAdminClient()
   const supabase = await createClient()
@@ -51,7 +51,7 @@ export default async function TransportistasPage({
   // Always inner now: we always filter on profiles.role below, to exclude a
   // driver an admin deactivated (role reverted to tourist) from every view,
   // "Todos" included — they're not just off-duty, they've been removed.
-  const selectClause = 'id, vehicle_type, license_plate, phone, bio, is_available, profiles!inner(full_name, avatar_url)'
+  const selectClause = 'id, vehicle_type, license_plate, phone, bio, is_available, profiles!profile_id!inner(full_name, avatar_url)'
 
   let transportersQuery = admin
     .from('transporters')
