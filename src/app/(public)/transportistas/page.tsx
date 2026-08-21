@@ -46,15 +46,17 @@ export default async function TransportistasPage({
   const admin = createAdminClient()
   const supabase = await createClient()
 
-  // !inner is required to filter on a joined column (profiles.full_name);
-  // same pattern /negocios uses for business_category_links.
-  const selectClause = search
-    ? 'id, vehicle_type, license_plate, phone, bio, is_available, profiles!inner(full_name, avatar_url)'
-    : 'id, vehicle_type, license_plate, phone, bio, is_available, profiles(full_name, avatar_url)'
+  // !inner is required to filter on a joined column (profiles.full_name,
+  // profiles.role); same pattern /negocios uses for business_category_links.
+  // Always inner now: we always filter on profiles.role below, to exclude a
+  // driver an admin deactivated (role reverted to tourist) from every view,
+  // "Todos" included — they're not just off-duty, they've been removed.
+  const selectClause = 'id, vehicle_type, license_plate, phone, bio, is_available, profiles!inner(full_name, avatar_url)'
 
   let transportersQuery = admin
     .from('transporters')
     .select(selectClause)
+    .filter('profiles.role', 'eq', 'transporter')
     .order('created_at', { ascending: true })
 
   if (!showAll) transportersQuery = transportersQuery.eq('is_available', true)
@@ -166,6 +168,7 @@ export default async function TransportistasPage({
                     bio: t.bio,
                     full_name: t.profiles?.full_name ?? null,
                     avatar_url: t.profiles?.avatar_url ?? null,
+                    is_available: t.is_available,
                   }}
                   access={access}
                 />

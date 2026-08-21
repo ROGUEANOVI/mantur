@@ -14,6 +14,7 @@ const TRANSPORTER = {
   bio: 'Conozco todos los rincones de Manaure',
   full_name: 'Carlos Ruiz',
   avatar_url: null,
+  is_available: true,
 }
 
 beforeEach(() => {
@@ -45,6 +46,17 @@ describe('TransporterCardWithModal', () => {
   it('renders no bio paragraph when bio is null', () => {
     render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, bio: null }} access="tourist" />)
     expect(screen.queryByText('Conozco todos los rincones de Manaure')).not.toBeInTheDocument()
+  })
+
+  it('shows a "Disponible" badge when is_available is true', () => {
+    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" />)
+    expect(screen.getByText('Disponible')).toBeInTheDocument()
+  })
+
+  it('shows a "No disponible" badge when is_available is false', () => {
+    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" />)
+    expect(screen.getByText('No disponible')).toBeInTheDocument()
+    expect(screen.queryByText('Disponible')).not.toBeInTheDocument()
   })
 
   it('opens the request modal when a tourist clicks "Solicitar traslado"', async () => {

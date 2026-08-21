@@ -232,6 +232,76 @@ export const adminCopy = {
     },
   },
 
+  guias: {
+    title: 'Guías turísticos',
+    subtitle: 'Verifica, desactiva o elimina guías registrados en la plataforma.',
+    empty: 'No hay guías en este estado.',
+    filter: {
+      active: 'Activos',
+      inactive: 'Desactivados',
+    },
+    statusLabels: {
+      active: 'Activo',
+      inactive: 'Desactivado',
+    } as Record<string, string>,
+    statusColors: {
+      active: 'bg-primary/15 text-primary',
+      inactive: 'bg-muted text-muted-foreground',
+    } as Record<string, string>,
+    available: 'Disponible',
+    notAvailable: 'No disponible',
+    deactivate: 'Desactivar',
+    activate: 'Reactivar',
+    delete: 'Eliminar',
+    confirmDeactivateTitle: 'Desactivar guía',
+    confirmDeactivateDescription:
+      'El guía perderá acceso a su panel y dejará de aparecer en /guias hasta que un admin lo reactive. Útil si su Registro Nacional de Turismo venció o incumple las normas de la plataforma.',
+    confirmDeactivateConfirm: 'Sí, desactivar',
+    confirmDeleteTitle: 'Eliminar guía',
+    confirmDeleteDescription:
+      'Esta acción no se puede deshacer. Se eliminará el perfil y sus tours de forma permanente.',
+    confirmDeleteConfirm: 'Sí, eliminar',
+    confirmCancel: 'Cancelar',
+    errors: {
+      deleteBlocked: 'No se puede eliminar: tiene reservas asociadas. Desactívalo en su lugar.',
+    },
+  },
+
+  transportistas: {
+    title: 'Transportistas',
+    subtitle: 'Verifica, desactiva o elimina transportadores registrados en la plataforma.',
+    empty: 'No hay transportistas en este estado.',
+    filter: {
+      active: 'Activos',
+      inactive: 'Desactivados',
+    },
+    statusLabels: {
+      active: 'Activo',
+      inactive: 'Desactivado',
+    } as Record<string, string>,
+    statusColors: {
+      active: 'bg-primary/15 text-primary',
+      inactive: 'bg-muted text-muted-foreground',
+    } as Record<string, string>,
+    available: 'Disponible',
+    notAvailable: 'No disponible',
+    deactivate: 'Desactivar',
+    activate: 'Reactivar',
+    delete: 'Eliminar',
+    confirmDeactivateTitle: 'Desactivar transportista',
+    confirmDeactivateDescription:
+      'El transportista perderá acceso a su panel y dejará de aparecer en /transportistas hasta que un admin lo reactive. Útil si su documentación venció o incumple las normas de la plataforma.',
+    confirmDeactivateConfirm: 'Sí, desactivar',
+    confirmDeleteTitle: 'Eliminar transportista',
+    confirmDeleteDescription:
+      'Esta acción no se puede deshacer. Se eliminará el perfil de forma permanente.',
+    confirmDeleteConfirm: 'Sí, eliminar',
+    confirmCancel: 'Cancelar',
+    errors: {
+      deleteBlocked: 'No se puede eliminar: tiene traslados asociados. Desactívalo en su lugar.',
+    },
+  },
+
   errors: {
     unauthorized: 'No autorizado.',
   },

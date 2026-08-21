@@ -34,6 +34,8 @@ describe('AdminMobileMenu', () => {
       ['Tipos de servicio', '/admin/tipos-servicio'],
       ['Lugares', '/admin/lugares'],
       ['Transportes', '/admin/transportes'],
+      ['Guías', '/admin/guias'],
+      ['Transportistas', '/admin/transportistas'],
       ['Comisiones', '/admin/comisiones'],
     ]
 

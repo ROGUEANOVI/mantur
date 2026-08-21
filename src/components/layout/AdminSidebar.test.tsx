@@ -18,6 +18,8 @@ describe('AdminSidebar', () => {
       ['Tipos de servicio', '/admin/tipos-servicio'],
       ['Lugares', '/admin/lugares'],
       ['Transportes', '/admin/transportes'],
+      ['Guías', '/admin/guias'],
+      ['Transportistas', '/admin/transportistas'],
       ['Comisiones', '/admin/comisiones'],
     ]
 
@@ -32,9 +34,9 @@ describe('AdminSidebar', () => {
     expect(screen.getByRole('link', { name: 'Negocios' })).not.toHaveClass('bg-muted')
   })
 
-  it('renders a divider between each of the five nav groups', () => {
+  it('renders a divider between each of the six nav groups', () => {
     const { container } = render(<AdminSidebar />)
-    // 5 groups → 4 dividers (one before every group after the first)
-    expect(container.querySelectorAll('nav > div > .my-1\\.5.border-t')).toHaveLength(4)
+    // 6 groups → 5 dividers (one before every group after the first)
+    expect(container.querySelectorAll('nav > div > .my-1\\.5.border-t')).toHaveLength(5)
   })
 })
