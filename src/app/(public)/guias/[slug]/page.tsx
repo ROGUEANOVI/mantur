@@ -21,14 +21,17 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
 
-  const query = createAdminClient().from('tourist_guides').select('slug, bio, profiles(full_name)')
+  const query = createAdminClient().from('tourist_guides').select('slug, bio, profiles(full_name, role)')
   const { data } = UUID_RE.test(slug)
     ? await query.eq('id', slug).single()
     : await query.eq('slug', slug).single()
 
-  if (!data) return {}
+  const profile = data?.profiles as unknown as { full_name: string | null; role: string } | null
+  // A deactivated guide (role reverted by an admin) is treated as gone —
+  // matches the notFound() in the page body below.
+  if (!data || profile?.role !== 'tourist_guide') return {}
 
-  const name = (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? 'Guía turístico'
+  const name = profile?.full_name ?? 'Guía turístico'
   const description = data.bio ?? `Conoce a ${name}, guía turístico local en Manaure Balcón del Cesar.`
   const url = `https://mantur.co/guias/${data.slug}`
 
@@ -52,7 +55,7 @@ type Guide = {
   phone: string
   specialties: string[]
   languages: string[]
-  profiles: { full_name: string | null; avatar_url: string | null } | null
+  profiles: { full_name: string | null; avatar_url: string | null; role: string } | null
 }
 
 type Tour = {
@@ -79,7 +82,7 @@ export default async function GuideProfilePage({
   const [guideResult, userResult] = await Promise.all([
     admin
       .from('tourist_guides')
-      .select('id, slug, is_available, bio, phone, specialties, languages, profiles(full_name, avatar_url)')
+      .select('id, slug, is_available, bio, phone, specialties, languages, profiles(full_name, avatar_url, role)')
       .eq(isLegacyId ? 'id' : 'slug', slug)
       .single(),
     supabase.auth.getUser(),
@@ -88,6 +91,12 @@ export default async function GuideProfilePage({
   if (guideResult.error || !guideResult.data) notFound()
 
   const guide = guideResult.data as unknown as Guide
+
+  // A deactivated guide (admin reverted their role, e.g. expired RNT) is
+  // treated as gone rather than shown with stale contact info — the
+  // tourist_guides row and its tours are kept for admin audit/reactivation,
+  // but the public page must not leak them.
+  if (guide.profiles?.role !== 'tourist_guide') notFound()
 
   if (isLegacyId) permanentRedirect(`/guias/${guide.slug}`)
 

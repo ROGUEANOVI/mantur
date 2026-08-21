@@ -22,6 +22,7 @@ type Props = {
     bio: string | null
     full_name: string | null
     avatar_url: string | null
+    is_available: boolean
   }
   access: Access
 }
@@ -68,8 +69,15 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
               </p>
             </div>
           </div>
-          <span className="inline-flex items-center rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-2.5 py-0.5 text-xs font-semibold shrink-0">
-            {copy.available}
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0',
+              transporter.is_available
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-muted text-muted-foreground',
+            )}
+          >
+            {transporter.is_available ? copy.available : copy.notAvailable}
           </span>
         </div>
 

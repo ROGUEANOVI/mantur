@@ -4,6 +4,7 @@ export const transportCopy = {
     pageSubtitle: 'Movilízate por Manaure con conductores locales de confianza',
     empty: 'No hay transportadores disponibles en este momento.',
     available: 'Disponible',
+    notAvailable: 'No disponible',
     availableNowLabel: 'disponibles ahora',
     availableNowLabelSingular: 'disponible ahora',
     filterAvailable: 'Disponibles ahora',
