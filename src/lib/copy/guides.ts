@@ -74,6 +74,14 @@ export const guidesCopy = {
     saving: 'Guardando...',
     saved: '¡Perfil actualizado!',
     back: 'Volver a mi panel',
+    rntSectionTitle: 'Registro Nacional de Turismo y Tarjeta Profesional',
+    currentStatus: 'Estado actual',
+    updateHint: 'Solo sube un archivo si necesitas actualizar tu documentación (ej. venció y ya la renovaste). Si no, deja esto en blanco.',
+    statusLabels: {
+      pending_review: 'En revisión',
+      verified: 'Verificado',
+      rejected: 'Rechazado',
+    } as Record<string, string>,
   },
 
   tourForm: {

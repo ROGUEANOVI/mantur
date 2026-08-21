@@ -6,6 +6,7 @@ import { transportCopy } from '@/lib/copy/transport'
 import { deactivateTransporter, activateTransporter, deleteTransporter } from './actions'
 import Avatar from '@/components/shared/Avatar'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
+import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
 import { cn } from '@/lib/utils'
 
 const VALID_STATUSES = ['active', 'inactive'] as const
@@ -17,7 +18,20 @@ type TransporterRow = {
   license_plate: string
   phone: string
   is_available: boolean
+  transport_tier: string
+  cooperative_name: string | null
+  cooperative_document_path: string | null
+  driver_license_document_path: string | null
+  driver_license_expiry: string | null
+  soat_document_path: string | null
+  soat_expiry_date: string | null
+  verification_status: string
   profiles: { id: string; full_name: string | null; avatar_url: string | null; role: string } | null
+}
+
+function isExpired(dateStr: string | null): boolean {
+  if (!dateStr) return false
+  return new Date(dateStr) < new Date(new Date().toDateString())
 }
 
 export default async function AdminTransportistasPage({
@@ -34,7 +48,7 @@ export default async function AdminTransportistasPage({
 
   let query = admin
     .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, is_available, profiles!inner(id, full_name, avatar_url, role)')
+    .select('id, vehicle_type, license_plate, phone, is_available, transport_tier, cooperative_name, cooperative_document_path, driver_license_document_path, driver_license_expiry, soat_document_path, soat_expiry_date, verification_status, profiles!inner(id, full_name, avatar_url, role)')
     .order('created_at', { ascending: true })
 
   query = query.filter('profiles.role', statusFilter === 'active' ? 'eq' : 'neq', 'transporter')
@@ -118,6 +132,50 @@ export default async function AdminTransportistasPage({
                     <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground font-mono">
                       {t.license_plate}
                     </span>
+                  </div>
+
+                  {/* Verification */}
+                  <div className="space-y-1.5 rounded-xl bg-muted/30 px-3 py-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                          adminCopy.transportistas.verification.statusColors[t.verification_status] ?? adminCopy.transportistas.verification.statusColors.pending_review,
+                        )}
+                      >
+                        {adminCopy.transportistas.verification.statusLabels[t.verification_status] ?? t.verification_status}
+                      </span>
+                      {t.transport_tier === 'cooperative' && t.cooperative_name && (
+                        <span className="text-xs text-muted-foreground">
+                          {adminCopy.transportistas.verification.cooperativeLabel}: {t.cooperative_name}
+                        </span>
+                      )}
+                      {isExpired(t.driver_license_expiry) && (
+                        <span className="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive">
+                          {adminCopy.transportistas.verification.driverLicenseLabel} {adminCopy.transportistas.verification.expired}
+                        </span>
+                      )}
+                      {isExpired(t.soat_expiry_date) && (
+                        <span className="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive">
+                          {adminCopy.transportistas.verification.soatLabel} {adminCopy.transportistas.verification.expired}
+                        </span>
+                      )}
+                    </div>
+                    {t.cooperative_document_path || t.driver_license_document_path || t.soat_document_path ? (
+                      <>
+                        {t.cooperative_document_path && (
+                          <AdminDocumentLink label={adminCopy.transportistas.verification.cooperativeLabel} path={t.cooperative_document_path} />
+                        )}
+                        {t.driver_license_document_path && (
+                          <AdminDocumentLink label={adminCopy.transportistas.verification.driverLicenseLabel} path={t.driver_license_document_path} />
+                        )}
+                        {t.soat_document_path && (
+                          <AdminDocumentLink label={adminCopy.transportistas.verification.soatLabel} path={t.soat_document_path} />
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{adminCopy.transportistas.verification.noDocuments}</p>
+                    )}
                   </div>
 
                   <div className="flex gap-2 pt-1">

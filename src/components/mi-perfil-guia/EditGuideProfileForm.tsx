@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import { updateGuideProfile } from '@/app/(app)/mi-perfil-guia/actions'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
+import RawFileField from '@/components/shared/RawFileField'
 
 type FormState = { error: string | null; saved: boolean }
 
@@ -14,13 +15,19 @@ type Props = {
   bio: string | null
   specialties: string[]
   languages: string[]
+  rntNumber: string | null
+  tarjetaProfesionalNumber: string | null
+  verificationStatus: string
 }
 
 const copy = guidesCopy.editProfile
+const guideFormCopy = roleRequestsCopy.form.touristGuide
 const specialtyOptions = roleRequestsCopy.form.touristGuide.specialtyOptions
 const languageOptions = roleRequestsCopy.form.touristGuide.languageOptions
 
-export default function EditGuideProfileForm({ phone, bio, specialties, languages }: Props) {
+export default function EditGuideProfileForm({
+  phone, bio, specialties, languages, rntNumber, tarjetaProfesionalNumber, verificationStatus,
+}: Props) {
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => {
       const result = await updateGuideProfile(formData)
@@ -102,6 +109,45 @@ export default function EditGuideProfileForm({ phone, bio, specialties, language
             </label>
           ))}
         </div>
+      </div>
+
+      {/* RNT + Tarjeta Profesional */}
+      <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+        <div>
+          <p className="text-sm font-medium text-foreground">{copy.rntSectionTitle}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {copy.currentStatus}:{' '}
+            <span className="font-medium text-foreground">
+              {copy.statusLabels[verificationStatus] ?? verificationStatus}
+            </span>
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="rnt_number" className="text-sm font-medium text-foreground">{guideFormCopy.rntNumber}</label>
+          <input
+            id="rnt_number"
+            type="text"
+            name="rnt_number"
+            defaultValue={rntNumber ?? ''}
+            placeholder={guideFormCopy.rntNumberPlaceholder}
+            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+          />
+        </div>
+        <RawFileField label={guideFormCopy.rntDocument} name="rnt_document" hint={copy.updateHint} required={false} />
+
+        <div className="space-y-1.5">
+          <label htmlFor="tarjeta_profesional_number" className="text-sm font-medium text-foreground">{guideFormCopy.tarjetaProfesionalNumber}</label>
+          <input
+            id="tarjeta_profesional_number"
+            type="text"
+            name="tarjeta_profesional_number"
+            defaultValue={tarjetaProfesionalNumber ?? ''}
+            placeholder={guideFormCopy.tarjetaProfesionalNumberPlaceholder}
+            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+          />
+        </div>
+        <RawFileField label={guideFormCopy.tarjetaProfesionalDocument} name="tarjeta_profesional_document" required={false} />
       </div>
 
       {state.error && (

@@ -14,6 +14,13 @@ const DEFAULT_PROPS = {
   bio: 'Guía local con 5 años de experiencia',
   specialties: ['hiking', 'ecotourism'],
   languages: ['spanish'],
+  rntNumber: '12345',
+  tarjetaProfesionalNumber: 'TP-1',
+  verificationStatus: 'pending_review',
+}
+
+function pdfFile(name = 'doc.pdf') {
+  return new File(['x'], name, { type: 'application/pdf' })
 }
 
 beforeEach(() => {
@@ -78,6 +85,29 @@ describe('EditGuideProfileForm', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Ocurrió un error. Intenta de nuevo.')
     expect(screen.queryByText('¡Perfil actualizado!')).not.toBeInTheDocument()
+  })
+
+  it('shows the current verification status and pre-fills RNT/Tarjeta numbers', () => {
+    render(<EditGuideProfileForm {...DEFAULT_PROPS} />)
+    expect(screen.getByText('En revisión')).toBeInTheDocument()
+    expect(screen.getByLabelText(/número de registro nacional de turismo/i)).toHaveValue('12345')
+    expect(screen.getByLabelText(/número de tarjeta profesional/i)).toHaveValue('TP-1')
+  })
+
+  it('submits a re-uploaded RNT document without requiring the Tarjeta fields', async () => {
+    updateGuideProfileMock.mockResolvedValue({ success: true })
+    const user = userEvent.setup()
+    render(<EditGuideProfileForm {...DEFAULT_PROPS} />)
+
+    await user.clear(screen.getByLabelText(/número de registro nacional de turismo/i))
+    await user.type(screen.getByLabelText(/número de registro nacional de turismo/i), '99999')
+    await user.upload(screen.getByLabelText(/certificado rnt/i), pdfFile('rnt-nuevo.pdf'))
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    expect(updateGuideProfileMock).toHaveBeenCalledTimes(1)
+    const fd = updateGuideProfileMock.mock.calls[0][0] as FormData
+    expect(fd.get('rnt_number')).toBe('99999')
+    expect(fd.get('rnt_document')).toBeTruthy()
   })
 
   it('renders a back link to the guide panel', () => {

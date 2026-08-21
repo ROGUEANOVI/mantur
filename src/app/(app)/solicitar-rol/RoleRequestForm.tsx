@@ -7,6 +7,7 @@ import { submitRoleRequest } from './actions'
 import { cn } from '@/lib/utils'
 import { normalizeColombianPhone } from '@/lib/phone'
 import LocationPicker from '@/components/shared/LocationPicker'
+import FileField from '@/components/shared/RawFileField'
 
 type RequestableRole = 'business_owner' | 'transporter' | 'tourist_guide'
 type ActionResult = { error?: string; success?: boolean }
@@ -306,23 +307,6 @@ function Field({ label, name, placeholder, type = 'text', min, max, onBlur, erro
         className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 aria-invalid:border-destructive"
       />
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    </div>
-  )
-}
-
-function FileField({ label, name, hint }: { label: string; name: string; hint?: string }) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={name} className="text-sm font-medium text-foreground">{label}</label>
-      <input
-        id={name}
-        type="file"
-        name={name}
-        required
-        accept="application/pdf,image/jpeg,image/png,image/webp"
-        className="w-full rounded-lg border border-border bg-background text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-primary hover:file:bg-primary/20 file:transition-colors focus:outline-none focus:ring-2 focus:ring-ring/50"
-      />
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   )
 }

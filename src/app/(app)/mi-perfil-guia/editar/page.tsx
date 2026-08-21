@@ -13,7 +13,7 @@ export default async function EditGuideProfilePage() {
 
   const { data: guide } = await supabase
     .from('tourist_guides')
-    .select('phone, bio, specialties, languages')
+    .select('phone, bio, specialties, languages, rnt_number, tarjeta_profesional_number, verification_status')
     .eq('profile_id', user.id)
     .single()
 
@@ -30,6 +30,9 @@ export default async function EditGuideProfilePage() {
             bio={guide.bio ?? null}
             specialties={(guide.specialties as string[]) ?? []}
             languages={(guide.languages as string[]) ?? []}
+            rntNumber={guide.rnt_number}
+            tarjetaProfesionalNumber={guide.tarjeta_profesional_number}
+            verificationStatus={guide.verification_status}
           />
         </div>
       </div>
