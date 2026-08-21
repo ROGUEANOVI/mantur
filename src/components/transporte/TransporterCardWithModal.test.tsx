@@ -92,4 +92,23 @@ describe('TransporterCardWithModal', () => {
     // The rest of the card still renders.
     expect(screen.getByText('Carlos Ruiz')).toBeInTheDocument()
   })
+
+  it('hides the "Solicitar traslado" button when the driver is not available, even for a tourist', () => {
+    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" />)
+
+    expect(screen.queryByRole('button', { name: 'Solicitar traslado' })).not.toBeInTheDocument()
+    expect(screen.getByText('Carlos Ruiz')).toBeInTheDocument()
+  })
+
+  it('does not open the modal when clicking an unavailable driver\'s card', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" />,
+    )
+
+    await user.click(screen.getByText('Carlos Ruiz'))
+
+    expect(screen.queryByTestId('transport-request-form')).not.toBeInTheDocument()
+    expect(container.querySelector('.cursor-pointer')).not.toBeInTheDocument()
+  })
 })

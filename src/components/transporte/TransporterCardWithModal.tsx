@@ -46,7 +46,11 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
   // guias, there's nowhere for the whole card to navigate to. The closest
   // equivalent to "whole card clickable" is making it trigger the same
   // request-a-ride action as the button, when that action is available.
-  const clickable = access !== 'other_role'
+  // Also gated on is_available: offering "Solicitar traslado" on a driver
+  // marked not available reads as if this specific card could take the
+  // ride, which isn't true — the "No disponible" badge already says why
+  // there's no CTA here.
+  const clickable = access !== 'other_role' && transporter.is_available
 
   return (
     <>
@@ -87,7 +91,7 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
           </p>
         )}
 
-        {access !== 'other_role' && (
+        {access !== 'other_role' && transporter.is_available && (
           <button
             type="button"
             onClick={handleRequest}
