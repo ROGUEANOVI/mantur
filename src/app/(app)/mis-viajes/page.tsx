@@ -42,7 +42,7 @@ export default async function MisViajesPage() {
   const { data } = await supabase
     .from('transport_requests')
     .select(
-      'id, origin, destination, requested_datetime, people_count, status, created_at, transporters(license_plate, vehicle_type, phone, profiles(full_name))',
+      'id, origin, destination, requested_datetime, people_count, status, created_at, transporters(license_plate, vehicle_type, phone, profiles!profile_id(full_name))',
     )
     .eq('tourist_id', user!.id)
     .order('created_at', { ascending: false })

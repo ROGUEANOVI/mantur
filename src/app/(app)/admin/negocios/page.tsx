@@ -54,7 +54,7 @@ export default async function AdminNegociosPage({
 
   const { data: businesses } = await admin
     .from('businesses')
-    .select('id, name, type, address, phone, status, is_featured, created_at, rnt_number, rnt_status, rnt_document_path, profiles(full_name)')
+    .select('id, name, type, address, phone, status, is_featured, created_at, rnt_number, rnt_status, rnt_document_path, profiles!owner_id(full_name)')
     .eq('status', statusFilter)
     .order('created_at', { ascending: true })
 
