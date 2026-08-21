@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
@@ -52,6 +53,19 @@ export default async function MiPerfilGuiaPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
+  // A deactivated guide (role reverted by an admin) must not still see this
+  // panel rendered as if nothing changed — see the identical fix and
+  // rationale in mi-perfil-transporte/page.tsx.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'tourist_guide') redirect('/')
 
   const { data: guideData } = await supabase
     .from('tourist_guides')
