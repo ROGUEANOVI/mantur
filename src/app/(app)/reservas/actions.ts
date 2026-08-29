@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
+import { buildWompiCheckoutUrl } from '@/lib/wompi/checkout'
 
 type BookingResult = { error: string } | void
 
@@ -97,12 +98,12 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
 
   const commissionAmountCents = Math.round((amountInCents * Number(commissionRate)) / 100)
 
-  // booking/transaction status are 'confirmed'/'paid' because payment is
-  // simulated for the MVP. When Wompi is integrated: pass 'pending_payment'/
-  // 'pending' instead and redirect to the payment link rather than to
-  // confirmation. Both inserts run inside one Postgres transaction via this
-  // RPC, so a transactions-insert failure automatically rolls back the
-  // booking too — no manual cleanup needed.
+  // Booking/transaction start as 'pending_payment'/'pending' — the Wompi
+  // webhook (src/app/api/webhooks/wompi/route.ts), not this redirect, is
+  // what confirms payment and flips them to 'confirmed'/'paid'. Both
+  // inserts run inside one Postgres transaction via this RPC, so a
+  // transactions-insert failure automatically rolls back the booking too —
+  // no manual cleanup needed.
   const { data: bookingId, error: rpcError } = await admin.rpc('create_booking_with_transaction', {
     p_tourist_id: userId,
     p_service_id: serviceId,
@@ -110,18 +111,18 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
     p_quantity: storedQuantity,
     p_booking_date: bookingDate,
     p_total_amount: totalAmount,
-    p_booking_status: 'confirmed',
+    p_booking_status: 'pending_payment',
     p_amount_in_cents: amountInCents,
     p_currency: 'COP',
     p_commission_rate: commissionRate,
     p_commission_amount_cents: commissionAmountCents,
-    p_transaction_status: 'paid',
+    p_transaction_status: 'pending',
   })
 
   if (rpcError || !bookingId) return { error: bookingsCopy.errors.generic }
 
   revalidatePath('/mis-reservas')
-  redirect(`/reservas/${bookingId}/confirmacion`)
+  redirect(buildWompiCheckoutUrl({ bookingId, amountInCents, currency: 'COP' }))
 }
 
 export async function createGuideTourBooking(formData: FormData): Promise<BookingResult> {
@@ -178,17 +179,17 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
     p_quantity: peopleCount,
     p_booking_date: bookingDate,
     p_total_amount: totalAmount,
-    p_booking_status: 'confirmed',
+    p_booking_status: 'pending_payment',
     p_notes: rawNotes,
     p_amount_in_cents: amountInCents,
     p_currency: 'COP',
     p_commission_rate: commissionRate,
     p_commission_amount_cents: commissionAmountCents,
-    p_transaction_status: 'paid',
+    p_transaction_status: 'pending',
   })
 
   if (rpcError || !bookingId) return { error: bookingsCopy.errors.generic }
 
   revalidatePath('/mis-reservas')
-  redirect(`/reservas/${bookingId}/confirmacion`)
+  redirect(buildWompiCheckoutUrl({ bookingId, amountInCents, currency: 'COP' }))
 }
