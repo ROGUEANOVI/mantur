@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, TreePine, Percent, Tag, Layers, Users, Car, Compass, IdCard, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Building2, TreePine, Percent, Tag, Layers, Users, Car, Compass, IdCard, Undo2, type LucideIcon } from 'lucide-react'
 
 export type AdminNavItem = {
   href: string
@@ -31,5 +31,6 @@ export const ADMIN_NAV_GROUPS: AdminNavItem[][] = [
   ],
   [
     { href: '/admin/comisiones', label: 'Comisiones', exact: false, Icon: Percent },
+    { href: '/admin/reembolsos', label: 'Reembolsos', exact: false, Icon: Undo2 },
   ],
 ]

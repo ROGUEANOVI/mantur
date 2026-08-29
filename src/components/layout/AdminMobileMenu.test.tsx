@@ -37,6 +37,7 @@ describe('AdminMobileMenu', () => {
       ['Guías', '/admin/guias'],
       ['Transportistas', '/admin/transportistas'],
       ['Comisiones', '/admin/comisiones'],
+      ['Reembolsos', '/admin/reembolsos'],
     ]
 
     for (const [label, href] of expected) {

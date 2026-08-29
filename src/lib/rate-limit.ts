@@ -34,6 +34,16 @@ export const transportRequestRateLimit = new Ratelimit({
   prefix: 'ratelimit:transport-request',
 })
 
+// Refund requests: keyed by user id. Low-frequency by nature (one refund
+// request per booking, enforced by refund_requests.booking_id UNIQUE) —
+// this mainly guards against hammering the Wompi void endpoint or the
+// refund-notification emails via repeated invalid attempts.
+export const refundRequestRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
+  prefix: 'ratelimit:refund-request',
+})
+
 // Change-password current-password verification: keyed by user id. A
 // compromised-but-authenticated session (stolen cookie, shared device)
 // could otherwise throw unlimited current-password guesses at

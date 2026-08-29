@@ -501,7 +501,15 @@ funcionalidad públicamente.
    filas `pending`/`failed` viejas y reintente `sendProviderPayout()`
    reusando el mismo `provider_payouts.id` como idempotency-key.
 4. **Motor de reembolsos**: `refund_policy_config`, `refund_requests`, flujo
-   void/manual, notificaciones por correo, tests.
+   void/manual, notificaciones por correo, tests. **Implementado.** El
+   void automático usa un patrón claim → llamada externa → cascada/revert
+   (`claim_refund_request_for_void` / `cascade_refund_to_booking` /
+   `revert_refund_request_void_claim`) en vez de una sola RPC, porque una
+   transacción de Postgres no puede quedar abierta mientras se espera la
+   respuesta HTTP de Wompi — así una acción de admin (rechazar/procesar
+   manual) que compita por la misma fila `pending` nunca queda en un estado
+   ambiguo con el void ya aplicado del lado de Wompi (hallazgo de
+   `security-reviewer`, corregido antes de comitear).
 5. **Alegra facturación**: sync de contactos, creación de factura al
    confirmarse el pago, webhook de reconciliación, tests.
 6. **Alegra notas crédito**: enlazadas al flujo de reembolsos del paso 4.

@@ -65,4 +65,29 @@ export const bookingsCopy = {
     unauthorized: 'Debes iniciar sesión como turista para reservar.',
     rateLimited: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
   },
+
+  refund: {
+    requestButton: 'Solicitar reembolso',
+    reasonLabel: 'Motivo (opcional)',
+    reasonPlaceholder: 'Cuéntanos por qué cancelas',
+    confirm: 'Confirmar solicitud',
+    confirming: 'Enviando...',
+    cancel: 'Cancelar',
+    disclaimer:
+      'El porcentaje de reembolso depende de cuánto falte para la fecha reservada.',
+    status: {
+      pending: 'Reembolso solicitado',
+      processed: 'Reembolso procesado',
+      rejected: 'Reembolso rechazado',
+    } as Record<string, string>,
+    statusColors: {
+      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+      processed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+      rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    } as Record<string, string>,
+    errors: {
+      notRefundable: 'Esta reserva no se puede reembolsar en su estado actual.',
+      alreadyRequested: 'Ya existe una solicitud de reembolso para esta reserva.',
+    },
+  },
 }

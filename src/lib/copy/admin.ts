@@ -169,6 +169,45 @@ export const adminCopy = {
     },
   },
 
+  reembolsos: {
+    title: 'Reembolsos',
+    subtitle: 'Ventanas de reembolso y solicitudes de cancelación de turistas.',
+    policyTitle: 'Ventanas de reembolso',
+    policySubtitle: 'Porcentaje reembolsado según las horas restantes antes de la reserva.',
+    policyTier: {
+      '72': 'Con 72 horas o más de anticipación',
+      '24': 'Entre 24 y 72 horas de anticipación',
+      '0': 'Menos de 24 horas o no-show',
+    } as Record<string, string>,
+    rateLabel: 'Reembolso (%)',
+    save: 'Guardar',
+    saving: 'Guardando...',
+    success: 'Ventana actualizada correctamente.',
+    filter: {
+      pending: 'Pendientes',
+      processed: 'Procesados',
+      rejected: 'Rechazados',
+    } as Record<string, string>,
+    empty: 'No hay solicitudes en este estado.',
+    requestedBy: 'Solicitado por',
+    booking: 'Reserva',
+    percentage: 'Porcentaje',
+    amount: 'Monto',
+    reason: 'Motivo del turista',
+    markProcessed: 'Marcar como procesado (manual)',
+    reject: 'Rechazar',
+    rejectionReasonPlaceholder: 'Explica por qué se rechaza este reembolso',
+    method: {
+      void: 'Reverso automático',
+      manual: 'Transferencia manual',
+    } as Record<string, string>,
+    errors: {
+      invalidRate: 'El porcentaje debe ser un número entre 0 y 100.',
+      generic: 'Error al guardar. Intenta de nuevo.',
+      notFound: 'Configuración no encontrada.',
+    },
+  },
+
   lugares: {
     title: 'Lugares turísticos',
     subtitle: 'Atracciones y puntos de interés de Manaure Balcón del Cesar.',

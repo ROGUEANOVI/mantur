@@ -4,6 +4,7 @@ import { CalendarDays, Users, Banknote, ShoppingBag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { cn } from '@/lib/utils'
+import RequestRefundForm from '@/components/reservas/RequestRefundForm'
 
 type BookingItem = {
   id: string
@@ -20,6 +21,11 @@ type BookingItem = {
     name: string
     tourist_guides: { profiles: { full_name: string | null } | null } | null
   } | null
+  // refund_requests.booking_id is UNIQUE, so PostgREST embeds this as a
+  // to-one relation (an object, not an array) — same pattern already used
+  // for guide_tours.tourist_guides (also unique) elsewhere in this file's
+  // sibling confirmacion/page.tsx.
+  refund_requests: { status: string } | null
 }
 
 function formatDate(dateStr: string): string {
@@ -38,7 +44,7 @@ export default async function MisReservasPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name)))',
+      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), refund_requests(status)',
     )
     .order('created_at', { ascending: false })
 
@@ -87,50 +93,80 @@ export default async function MisReservasPage() {
                 bookingsCopy.list.status[booking.status] ??
                 booking.status
 
-              return (
-                <Link
-                  key={booking.id}
-                  href={`/reservas/${booking.id}/confirmacion`}
-                  className="block rounded-2xl border border-border bg-card shadow-sm p-4 hover:shadow-md transition-shadow"
-                >
-                  {/* Service / guide tour name + entity */}
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
-                        {booking.guide_tours?.name ?? booking.services?.name ?? '—'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                        {booking.guide_tours
-                          ? (booking.guide_tours.tourist_guides?.profiles?.full_name ?? '—')
-                          : (booking.services?.businesses?.name ?? '—')}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0',
-                        statusColor,
-                      )}
-                    >
-                      {statusLabel}
-                    </span>
-                  </div>
+              const refundStatus = booking.refund_requests?.status ?? null
+              const refundColor = refundStatus
+                ? (bookingsCopy.refund.statusColors[refundStatus] ?? bookingsCopy.refund.statusColors.pending)
+                : null
+              const refundLabel = refundStatus
+                ? (bookingsCopy.refund.status[refundStatus] ?? refundStatus)
+                : null
 
-                  {/* Meta row */}
-                  <div className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <CalendarDays className="size-3.5" aria-hidden="true" />
-                      {formatDate(booking.booking_date)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="size-3.5" aria-hidden="true" />
-                      {booking.quantity}&nbsp;{bookingsCopy.list.quantity}
-                    </span>
-                    <span className="flex items-center gap-1 text-primary font-semibold">
-                      <Banknote className="size-3.5" aria-hidden="true" />
-                      ${Number(booking.total_amount).toLocaleString('es-CO')} COP
-                    </span>
-                  </div>
-                </Link>
+              return (
+                <div
+                  key={booking.id}
+                  className="rounded-2xl border border-border bg-card shadow-sm p-4 hover:shadow-md transition-shadow"
+                >
+                  <Link href={`/reservas/${booking.id}/confirmacion`} className="block">
+                    {/* Service / guide tour name + entity */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
+                          {booking.guide_tours?.name ?? booking.services?.name ?? '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                          {booking.guide_tours
+                            ? (booking.guide_tours.tourist_guides?.profiles?.full_name ?? '—')
+                            : (booking.services?.businesses?.name ?? '—')}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0',
+                          statusColor,
+                        )}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    {/* Meta row */}
+                    <div className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="size-3.5" aria-hidden="true" />
+                        {formatDate(booking.booking_date)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Users className="size-3.5" aria-hidden="true" />
+                        {booking.quantity}&nbsp;{bookingsCopy.list.quantity}
+                      </span>
+                      <span className="flex items-center gap-1 text-primary font-semibold">
+                        <Banknote className="size-3.5" aria-hidden="true" />
+                        ${Number(booking.total_amount).toLocaleString('es-CO')} COP
+                      </span>
+                    </div>
+                  </Link>
+
+                  {/* Refund: either a status pill for an existing request, or
+                      the request button — only offered for a paid, still-active
+                      booking (refund_requests.booking_id is UNIQUE, so at most
+                      one request can ever exist per booking). */}
+                  {refundStatus ? (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                          refundColor,
+                        )}
+                      >
+                        {refundLabel}
+                      </span>
+                    </div>
+                  ) : booking.status === 'confirmed' ? (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <RequestRefundForm bookingId={booking.id} />
+                    </div>
+                  ) : null}
+                </div>
               )
             })}
           </div>
