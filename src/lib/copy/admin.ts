@@ -169,6 +169,20 @@ export const adminCopy = {
     },
   },
 
+  payoutAccounts: {
+    label: 'ID de banco en Wompi',
+    hint: 'Cópialo del catálogo de bancos de tu dashboard de Wompi (Pagos a Terceros).',
+    save: 'Guardar',
+    saving: 'Guardando...',
+    success: 'ID de banco guardado.',
+    noAccount: 'Aún no registró su cuenta bancaria.',
+    errors: {
+      invalidValue: 'Escribe un ID de banco válido.',
+      notFound: 'El destinatario aún no ha registrado su cuenta bancaria.',
+      generic: 'Error al guardar. Intenta de nuevo.',
+    },
+  },
+
   reembolsos: {
     title: 'Reembolsos',
     subtitle: 'Ventanas de reembolso y solicitudes de cancelación de turistas.',

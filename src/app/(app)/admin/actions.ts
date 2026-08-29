@@ -525,6 +525,44 @@ export async function updateCommissionRate(
   return { success: true }
 }
 
+// Wompi's Payouts API identifies a destination bank by its own internal
+// catalog id (looked up from the merchant dashboard), not by the free-text
+// bank name a business/guide enters themselves — see the migration comment
+// on business_payout_accounts.wompi_bank_id. Only an admin (who has access
+// to that dashboard) sets this field; it requires the recipient to have
+// already saved their own bank details first (the row must already exist —
+// this never creates one, since every other column on these tables is
+// NOT NULL and the recipient is the only one who knows those values).
+export async function updateWompiBankId(formData: FormData): Promise<ActionResult> {
+  const { admin } = await getAuthenticatedAdmin()
+
+  const recipientType = formData.get('recipientType') as string
+  const recipientId = formData.get('recipientId') as string
+  const wompiBankId = (formData.get('wompiBankId') as string | null)?.trim() || ''
+
+  if (recipientType !== 'business' && recipientType !== 'guide') {
+    return { error: adminCopy.payoutAccounts.errors.generic }
+  }
+  if (!UUID_RE.test(recipientId)) return { error: adminCopy.payoutAccounts.errors.notFound }
+  if (!wompiBankId) return { error: adminCopy.payoutAccounts.errors.invalidValue }
+
+  const table = recipientType === 'business' ? 'business_payout_accounts' : 'tourist_guide_payout_accounts'
+  const idColumn = recipientType === 'business' ? 'business_id' : 'guide_id'
+
+  const { data, error } = await admin
+    .from(table)
+    .update({ wompi_bank_id: wompiBankId })
+    .eq(idColumn, recipientId)
+    .select(idColumn)
+
+  if (error) return { error: adminCopy.payoutAccounts.errors.generic }
+  if (!data?.length) return { error: adminCopy.payoutAccounts.errors.notFound }
+
+  revalidatePath('/admin/negocios')
+  revalidatePath('/admin/guias')
+  return { success: true }
+}
+
 // ── Role request actions ─────────────────────────────────────────────────────
 
 const VALID_ROLES = ['business_owner', 'transporter', 'tourist_guide'] as const

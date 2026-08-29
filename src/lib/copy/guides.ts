@@ -84,6 +84,34 @@ export const guidesCopy = {
     } as Record<string, string>,
   },
 
+  payout: {
+    title: 'Cuenta para pagos',
+    subtitle: 'A esta cuenta se transfiere tu parte de cada tour pagado (el monto menos la comisión de ManTur).',
+    bankName: 'Banco',
+    bankNamePlaceholder: 'Ej: Bancolombia',
+    accountType: 'Tipo de cuenta',
+    accountTypeOptions: {
+      ahorros: 'Ahorros',
+      corriente: 'Corriente',
+    } as Record<string, string>,
+    accountNumber: 'Número de cuenta',
+    accountNumberPlaceholder: 'Ej: 00011122233',
+    holderIdType: 'Tipo de documento del titular',
+    holderIdTypeOptions: {
+      CC: 'Cédula de ciudadanía',
+      CE: 'Cédula de extranjería',
+      NIT: 'NIT',
+    } as Record<string, string>,
+    holderIdNumber: 'Número de documento del titular',
+    holderName: 'Nombre del titular',
+    holderNamePlaceholder: 'Nombre completo',
+    holderEmail: 'Correo del titular',
+    holderEmailPlaceholder: 'correo@ejemplo.com',
+    save: 'Guardar cuenta',
+    saving: 'Guardando...',
+    saved: 'Cuenta de pagos guardada.',
+  },
+
   tourForm: {
     createTitle: 'Nuevo tour',
     editTitle: 'Editar tour',

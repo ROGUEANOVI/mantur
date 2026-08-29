@@ -156,6 +156,65 @@ export async function updateGuideProfile(formData: FormData): Promise<ActionResu
   redirect('/mi-perfil-guia')
 }
 
+const VALID_ACCOUNT_TYPES = new Set(['ahorros', 'corriente'])
+const VALID_HOLDER_ID_TYPES = new Set(['CC', 'CE', 'NIT'])
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Wompi's own Payouts field requirements: accountNumber "must contain only
+// numbers and be different from zero". holderIdNumber isn't documented as
+// strictly numeric (NIT can carry a hyphenated check digit in some
+// contexts), so it gets a looser but still bounded check.
+const ACCOUNT_NUMBER_RE = /^(?!0+$)\d+$/
+const HOLDER_ID_NUMBER_RE = /^[\d-]{5,20}$/
+
+type PayoutActionResult = { error: string } | { success: true }
+
+// Saves the bank account ManTur pays this guide's net share (amount minus
+// commission) into once a tour booking is confirmed. Deliberately never
+// accepts wompi_bank_id from the guide — that is Wompi's own internal bank
+// catalog id (looked up from the merchant dashboard), set by an admin
+// separately from /admin/guias. Upserts on guide_id (the table's primary
+// key), since the guide may be creating this row for the first time or
+// editing an existing one.
+export async function saveGuidePayoutAccount(formData: FormData): Promise<PayoutActionResult> {
+  const { supabase, guideId } = await getAuthenticatedGuide()
+
+  const bankName = (formData.get('bank_name') as string | null)?.trim() || ''
+  const accountType = formData.get('account_type') as string
+  const accountNumber = (formData.get('account_number') as string | null)?.trim() || ''
+  const holderIdType = formData.get('holder_id_type') as string
+  const holderIdNumber = (formData.get('holder_id_number') as string | null)?.trim() || ''
+  const holderName = (formData.get('holder_name') as string | null)?.trim() || ''
+  const holderEmail = (formData.get('holder_email') as string | null)?.trim() || ''
+
+  if (!bankName || !accountNumber || !holderIdNumber || !holderName || !holderEmail) {
+    return { error: 'Completa todos los campos obligatorios.' }
+  }
+  if (!VALID_ACCOUNT_TYPES.has(accountType)) return { error: 'Selecciona un tipo de cuenta válido.' }
+  if (!VALID_HOLDER_ID_TYPES.has(holderIdType)) return { error: 'Selecciona un tipo de documento válido.' }
+  if (!EMAIL_RE.test(holderEmail)) return { error: 'Escribe un correo electrónico válido.' }
+  if (!ACCOUNT_NUMBER_RE.test(accountNumber)) return { error: 'El número de cuenta debe contener solo dígitos.' }
+  if (!HOLDER_ID_NUMBER_RE.test(holderIdNumber)) return { error: 'Escribe un número de documento válido.' }
+
+  const { error } = await supabase.from('tourist_guide_payout_accounts').upsert(
+    {
+      guide_id: guideId,
+      bank_name: bankName,
+      account_type: accountType,
+      account_number: accountNumber,
+      holder_id_type: holderIdType,
+      holder_id_number: holderIdNumber,
+      holder_name: holderName,
+      holder_email: holderEmail,
+    },
+    { onConflict: 'guide_id' },
+  )
+
+  if (error) return { error: 'No se pudo guardar la cuenta de pagos. Intenta de nuevo.' }
+
+  revalidatePath('/mi-perfil-guia/editar')
+  return { success: true }
+}
+
 export async function toggleGuideAvailability(): Promise<ActionResult> {
   const { supabase, guideId } = await getAuthenticatedGuide()
 

@@ -85,6 +85,33 @@ export const miNegocioCopy = {
     documentTooLarge: 'El archivo no puede superar 8 MB.',
     uploadFailed: 'No se pudo subir el documento. Intenta de nuevo.',
   },
+  payout: {
+    title: 'Cuenta para pagos',
+    subtitle: 'A esta cuenta se transfiere tu parte de cada reserva pagada (el monto menos la comisión de ManTur).',
+    bankName: 'Banco',
+    bankNamePlaceholder: 'Ej: Bancolombia',
+    accountType: 'Tipo de cuenta',
+    accountTypeOptions: {
+      ahorros: 'Ahorros',
+      corriente: 'Corriente',
+    } as Record<string, string>,
+    accountNumber: 'Número de cuenta',
+    accountNumberPlaceholder: 'Ej: 00011122233',
+    holderIdType: 'Tipo de documento del titular',
+    holderIdTypeOptions: {
+      CC: 'Cédula de ciudadanía',
+      CE: 'Cédula de extranjería',
+      NIT: 'NIT',
+    } as Record<string, string>,
+    holderIdNumber: 'Número de documento del titular',
+    holderName: 'Nombre del titular',
+    holderNamePlaceholder: 'Nombre completo o razón social',
+    holderEmail: 'Correo del titular',
+    holderEmailPlaceholder: 'correo@ejemplo.com',
+    save: 'Guardar cuenta',
+    saving: 'Guardando...',
+    saved: 'Cuenta de pagos guardada.',
+  },
 }
 
 export const businessesCopy = {
