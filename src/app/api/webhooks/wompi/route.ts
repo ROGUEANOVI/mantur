@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { computeNetPayoutAmountCents, sendProviderPayout, type PayoutRecipient } from '@/lib/wompi/payouts'
+
+type AdminClient = ReturnType<typeof createAdminClient>
 
 type WompiWebhookEvent = {
   event: string
@@ -60,6 +63,119 @@ function isFreshTimestamp(timestamp: number): boolean {
   const nowSeconds = Date.now() / 1000
   const age = nowSeconds - timestamp
   return age >= -MAX_CLOCK_SKEW_SECONDS && age <= MAX_EVENT_AGE_SECONDS
+}
+
+type PayoutAccountRow = {
+  bank_name: string
+  wompi_bank_id: string | null
+  account_type: 'ahorros' | 'corriente'
+  account_number: string
+  holder_id_type: 'CC' | 'CE' | 'NIT'
+  holder_id_number: string
+  holder_name: string
+  holder_email: string
+}
+
+// Resolves the recipient's stored bank details and attempts the actual
+// Wompi Payouts call. Deliberately never throws and never affects the
+// webhook's own HTTP response — the payment was already confirmed by the
+// caller before this runs, so a payout failure here is a ledger entry for
+// admin follow-up (provider_payouts.status = 'failed'), not a reason to make
+// Wompi retry a webhook whose payment-confirmation half already succeeded.
+async function enqueueAndSendPayout(
+  admin: AdminClient,
+  params: {
+    transactionId: string
+    businessId: string | null
+    guideId: string | null
+    amountInCents: number
+    commissionAmountCents: number
+  },
+): Promise<void> {
+  try {
+    const recipientType = params.businessId ? 'business' : params.guideId ? 'guide' : null
+    const recipientId = params.businessId ?? params.guideId
+    if (!recipientType || !recipientId) {
+      console.error('Wompi webhook: paid transaction has no business_id or guide_id to pay out to', {
+        transactionId: params.transactionId,
+      })
+      return
+    }
+
+    const amountCents = computeNetPayoutAmountCents(params.amountInCents, params.commissionAmountCents)
+
+    // A 100%-commission service type would legitimately owe the recipient
+    // nothing — that is a valid outcome, not a failure, and must not be
+    // logged as one (provider_payouts.amount_cents has its own `> 0` CHECK,
+    // which would otherwise turn this into a generic-looking enqueue error).
+    if (amountCents <= 0) return
+
+    const { data: enqueued, error: enqueueError } = await admin
+      .rpc('enqueue_provider_payout', {
+        p_transaction_id: params.transactionId,
+        p_recipient_type: recipientType,
+        p_recipient_id: recipientId,
+        p_amount_cents: amountCents,
+      })
+      .single<{ id: string; status: string; is_new: boolean }>()
+
+    if (enqueueError || !enqueued) {
+      console.error('Failed to enqueue provider payout', enqueueError)
+      return
+    }
+
+    // Only attempt to send when the ledger row is still pending — if a
+    // previous attempt already sent/failed it, this webhook delivery is a
+    // retry of an already-confirmed payment and there is nothing left to do.
+    if (enqueued.status !== 'pending') return
+
+    const table = recipientType === 'business' ? 'business_payout_accounts' : 'tourist_guide_payout_accounts'
+    const idColumn = recipientType === 'business' ? 'business_id' : 'guide_id'
+
+    const { data: account, error: accountError } = await admin
+      .from(table)
+      .select('bank_name, wompi_bank_id, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email')
+      .eq(idColumn, recipientId)
+      .maybeSingle<PayoutAccountRow>()
+
+    if (accountError || !account) {
+      await admin.rpc('mark_provider_payout_result', {
+        p_payout_id: enqueued.id,
+        p_status: 'failed',
+        p_error_message: `no payout account configured for ${recipientType} ${recipientId}`,
+      })
+      return
+    }
+
+    const recipient: PayoutRecipient = {
+      legalIdType: account.holder_id_type,
+      legalId: account.holder_id_number,
+      wompiBankId: account.wompi_bank_id ?? '',
+      accountType: account.account_type,
+      accountNumber: account.account_number,
+      name: account.holder_name,
+      email: account.holder_email,
+    }
+
+    const result = await sendProviderPayout({ idempotencyKey: enqueued.id, amountCents, recipient })
+
+    if (result.ok) {
+      await admin.rpc('mark_provider_payout_result', {
+        p_payout_id: enqueued.id,
+        p_status: 'sent',
+        p_wompi_payout_id: result.wompiPayoutId,
+      })
+    } else {
+      console.error('Wompi Payouts API call failed', result.error)
+      await admin.rpc('mark_provider_payout_result', {
+        p_payout_id: enqueued.id,
+        p_status: 'failed',
+        p_error_message: result.error,
+      })
+    }
+  } catch (error) {
+    console.error('Unexpected error while processing a provider payout', error)
+  }
 }
 
 export async function POST(request: Request) {
@@ -129,13 +245,22 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient()
-  const { error } = await admin.rpc('apply_wompi_webhook_transaction_update', {
-    p_booking_id: bookingId,
-    p_wompi_transaction_id: wompiTransactionId,
-    p_wompi_status: wompiStatus,
-    p_wompi_amount_in_cents: wompiAmountInCents,
-    p_wompi_currency: wompiCurrency,
-  })
+  const { data: updateResult, error } = await admin
+    .rpc('apply_wompi_webhook_transaction_update', {
+      p_booking_id: bookingId,
+      p_wompi_transaction_id: wompiTransactionId,
+      p_wompi_status: wompiStatus,
+      p_wompi_amount_in_cents: wompiAmountInCents,
+      p_wompi_currency: wompiCurrency,
+    })
+    .single<{
+      applied: boolean
+      transaction_id: string | null
+      business_id: string | null
+      guide_id: string | null
+      amount_in_cents: number | null
+      commission_amount_cents: number | null
+    }>()
 
   if (error) {
     console.error('Failed to apply Wompi webhook update', error)
@@ -143,6 +268,26 @@ export async function POST(request: Request) {
     // Wompi's own retry policy, so this is the one case that must NOT
     // return 200.
     return NextResponse.json({ error: 'processing failed' }, { status: 500 })
+  }
+
+  // Only a freshly-confirmed APPROVED payment triggers a payout — this
+  // never re-fires for a retried/duplicate webhook delivery, since `applied`
+  // is only true the one time apply_wompi_webhook_transaction_update
+  // actually flips the row out of 'pending'.
+  if (
+    updateResult?.applied &&
+    wompiStatus === 'APPROVED' &&
+    updateResult.transaction_id &&
+    updateResult.amount_in_cents != null &&
+    updateResult.commission_amount_cents != null
+  ) {
+    await enqueueAndSendPayout(admin, {
+      transactionId: updateResult.transaction_id,
+      businessId: updateResult.business_id,
+      guideId: updateResult.guide_id,
+      amountInCents: updateResult.amount_in_cents,
+      commissionAmountCents: updateResult.commission_amount_cents,
+    })
   }
 
   return NextResponse.json({ received: true })
