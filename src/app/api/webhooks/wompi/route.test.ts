@@ -5,6 +5,8 @@ const applyUpdateMock = vi.fn()
 const enqueuePayoutMock = vi.fn()
 const markPayoutResultMock = vi.fn()
 const payoutAccountMaybeSingle = vi.fn()
+const confirmVoidMock = vi.fn()
+const getUserByIdMock = vi.fn()
 
 function makeRpcResult(result: { data: unknown; error: unknown }) {
   const promise = Promise.resolve(result)
@@ -15,6 +17,7 @@ const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
   if (fn === 'apply_wompi_webhook_transaction_update') return makeRpcResult(applyUpdateMock(args))
   if (fn === 'enqueue_provider_payout') return makeRpcResult(enqueuePayoutMock(args))
   if (fn === 'mark_provider_payout_result') return makeRpcResult(markPayoutResultMock(args))
+  if (fn === 'confirm_refund_request_void_by_wompi_reference') return makeRpcResult(confirmVoidMock(args))
   throw new Error(`unexpected rpc: ${fn}`)
 })
 
@@ -26,7 +29,11 @@ const fromMock = vi.fn((table: string) => {
 })
 
 vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(() => ({ rpc: rpcMock, from: fromMock })),
+  createAdminClient: vi.fn(() => ({
+    rpc: rpcMock,
+    from: fromMock,
+    auth: { admin: { getUserById: getUserByIdMock } },
+  })),
 }))
 
 const sendProviderPayoutMock = vi.fn()
@@ -37,6 +44,11 @@ vi.mock('@/lib/wompi/payouts', async (importOriginal) => {
     sendProviderPayout: (...args: Parameters<typeof actual.sendProviderPayout>) => sendProviderPayoutMock(...args),
   }
 })
+
+const sendRefundProcessedEmailMock = vi.fn()
+vi.mock('@/lib/email/refundEmails', () => ({
+  sendRefundProcessedEmail: (...args: unknown[]) => sendRefundProcessedEmailMock(...args),
+}))
 
 const { POST } = await import('./route')
 
@@ -50,6 +62,11 @@ beforeEach(() => {
   // Default: no update applied, so payout code paths don't fire unless a
   // test explicitly opts in via applyUpdateMock.mockReturnValue(...).
   applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
+  // Default: no matching refund_requests row awaiting void confirmation.
+  confirmVoidMock.mockReturnValue({
+    data: { confirmed: false, refund_request_id: null, requested_by: null, refund_amount_cents: null, bookkeeping_mismatch: false },
+    error: null,
+  })
 })
 
 afterEach(() => {
@@ -384,5 +401,77 @@ describe('POST /api/webhooks/wompi — provider payout on a freshly-confirmed AP
 
     expect(res.status).toBe(200)
     expect(sendProviderPayoutMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/webhooks/wompi — async confirmation of a same-day refund void', () => {
+  // Wompi's own void-request response doesn't reliably confirm VOIDED
+  // synchronously (see the comment on voidWompiTransaction) — this is where
+  // that confirmation actually lands: a VOIDED transaction.updated event for
+  // a transaction apply_wompi_webhook_transaction_update left untouched
+  // (it only transitions a 'pending' row, never 'paid' -> 'voided').
+
+  it('calls confirm_refund_request_void_by_wompi_reference with the wompi transaction id on a VOIDED event', async () => {
+    const res = await POST(postRequest(buildEvent({ status: 'VOIDED', wompiTransactionId: 'wompi-tx-77' })))
+    expect(res.status).toBe(200)
+    expect(confirmVoidMock).toHaveBeenCalledWith({ p_wompi_transaction_id: 'wompi-tx-77' })
+  })
+
+  it('never attempts void confirmation for a non-VOIDED status', async () => {
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+    expect(confirmVoidMock).not.toHaveBeenCalled()
+  })
+
+  it('emails the tourist once the RPC confirms the void with no bookkeeping mismatch', async () => {
+    confirmVoidMock.mockReturnValue({
+      data: { confirmed: true, refund_request_id: 'refund-1', requested_by: 'user-1', refund_amount_cents: 70000, bookkeeping_mismatch: false },
+      error: null,
+    })
+    getUserByIdMock.mockResolvedValue({ data: { user: { email: 'tourist@example.com' } } })
+
+    const res = await POST(postRequest(buildEvent({ status: 'VOIDED' })))
+
+    expect(res.status).toBe(200)
+    expect(getUserByIdMock).toHaveBeenCalledWith('user-1')
+    expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 70000, 'void')
+  })
+
+  it('does not email when the RPC finds no matching paid transaction to reconcile (confirmed: false)', async () => {
+    const res = await POST(postRequest(buildEvent({ status: 'VOIDED' })))
+    expect(res.status).toBe(200)
+    expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('skips the email (never contradicts an admin decision) and never looks up the user when confirmed but bookkeeping_mismatch is true — e.g. an admin rejected the row while the void was in flight', async () => {
+    confirmVoidMock.mockReturnValue({
+      data: { confirmed: true, refund_request_id: 'refund-1', requested_by: 'user-1', refund_amount_cents: 70000, bookkeeping_mismatch: true },
+      error: null,
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'VOIDED' })))
+
+    expect(res.status).toBe(200)
+    expect(getUserByIdMock).not.toHaveBeenCalled()
+    expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 and does not throw when the confirm RPC itself errors', async () => {
+    confirmVoidMock.mockReturnValue({ data: null, error: { message: 'db down' } })
+    const res = await POST(postRequest(buildEvent({ status: 'VOIDED' })))
+    expect(res.status).toBe(200)
+    expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 when no user email is found for the requester', async () => {
+    confirmVoidMock.mockReturnValue({
+      data: { confirmed: true, refund_request_id: 'refund-1', requested_by: 'user-1', refund_amount_cents: 70000, bookkeeping_mismatch: false },
+      error: null,
+    })
+    getUserByIdMock.mockResolvedValue({ data: { user: null } })
+
+    const res = await POST(postRequest(buildEvent({ status: 'VOIDED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
   })
 })

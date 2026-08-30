@@ -79,7 +79,7 @@ export async function rejectRefundRequest(formData: FormData): Promise<void> {
     .from('refund_requests')
     .update({ status: 'rejected', admin_notes: reason, processed_by: adminId })
     .eq('id', refundRequestId)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'processing'])
     .select('requested_by')
     .single()
 

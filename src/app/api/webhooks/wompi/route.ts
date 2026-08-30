@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { computeNetPayoutAmountCents, sendProviderPayout, type PayoutRecipient } from '@/lib/wompi/payouts'
+import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -178,6 +179,52 @@ async function enqueueAndSendPayout(
   }
 }
 
+// The missing async confirmation for a same-day refund void: Wompi's own
+// void-request response doesn't reliably confirm VOIDED synchronously (see
+// the comment on voidWompiTransaction), so this is where that confirmation
+// actually lands — a VOIDED transaction.updated event for a transaction
+// apply_wompi_webhook_transaction_update above correctly left untouched
+// (it only ever transitions a 'pending' row, never 'paid' -> 'voided').
+// Never throws and never affects the webhook's own HTTP response, same
+// reasoning as enqueueAndSendPayout.
+async function confirmRefundVoidAndNotify(admin: AdminClient, wompiTransactionId: string): Promise<void> {
+  try {
+    const { data, error } = await admin
+      .rpc('confirm_refund_request_void_by_wompi_reference', { p_wompi_transaction_id: wompiTransactionId })
+      .single<{
+        confirmed: boolean
+        refund_request_id: string | null
+        requested_by: string | null
+        refund_amount_cents: number | null
+        bookkeeping_mismatch: boolean
+      }>()
+
+    if (error || !data?.confirmed) return
+
+    // The money side (transactions/bookings) is always reconciled by the
+    // RPC regardless of this flag — a mismatch means refund_requests was
+    // already resolved by a human decision (most likely rejected) while the
+    // void was still in flight at Wompi. Log it for manual follow-up rather
+    // than auto-emailing a "processed" message that would contradict
+    // whatever the admin's own action already told the tourist.
+    if (data.bookkeeping_mismatch) {
+      console.error(
+        'Wompi confirmed a refund void whose refund_requests row was already resolved by an admin action — money state corrected, but the refund_requests record needs manual review',
+        { refundRequestId: data.refund_request_id, wompiTransactionId },
+      )
+      return
+    }
+
+    if (!data.requested_by || data.refund_amount_cents == null) return
+
+    const { data: userData } = await admin.auth.admin.getUserById(data.requested_by)
+    const email = userData?.user?.email
+    if (email) await sendRefundProcessedEmail(email, data.refund_amount_cents, 'void')
+  } catch (error) {
+    console.error('Unexpected error while confirming a refund void', error)
+  }
+}
+
 export async function POST(request: Request) {
   const secret = process.env.WOMPI_EVENTS_SECRET
   if (!secret) {
@@ -268,6 +315,14 @@ export async function POST(request: Request) {
     // Wompi's own retry policy, so this is the one case that must NOT
     // return 200.
     return NextResponse.json({ error: 'processing failed' }, { status: 500 })
+  }
+
+  // A VOIDED event for a transaction that was already 'paid' (not
+  // 'pending') is exactly the case apply_wompi_webhook_transaction_update
+  // above correctly left as a no-op (`applied: false`) — it's the async
+  // confirmation of a same-day refund void, handled separately here.
+  if (wompiStatus === 'VOIDED') {
+    await confirmRefundVoidAndNotify(admin, wompiTransactionId)
   }
 
   // Only a freshly-confirmed APPROVED payment triggers a payout — this

@@ -29,7 +29,7 @@ type RefundRequestRow = {
   } | null
 }
 
-const VALID_STATUSES = ['pending', 'processed', 'rejected'] as const
+const VALID_STATUSES = ['pending', 'processing', 'processed', 'rejected'] as const
 type StatusFilter = (typeof VALID_STATUSES)[number]
 
 function formatDate(d: string) {
@@ -157,7 +157,11 @@ export default async function AdminReembolsosPage({
                     )}
                   </div>
 
-                  {statusFilter === 'pending' && (
+                  {statusFilter === 'processing' && (
+                    <p className="text-xs text-muted-foreground">{copy.processingHint}</p>
+                  )}
+
+                  {(statusFilter === 'pending' || statusFilter === 'processing') && (
                     <div className="flex gap-2 pt-1">
                       <form action={markRefundProcessedManually} className="flex-1">
                         <input type="hidden" name="refundRequestId" value={req.id} />

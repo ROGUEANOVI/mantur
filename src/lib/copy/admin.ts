@@ -199,10 +199,13 @@ export const adminCopy = {
     success: 'Ventana actualizada correctamente.',
     filter: {
       pending: 'Pendientes',
+      processing: 'En proceso',
       processed: 'Procesados',
       rejected: 'Rechazados',
     } as Record<string, string>,
     empty: 'No hay solicitudes en este estado.',
+    processingHint:
+      'Reverso automático solicitado a Wompi, esperando su confirmación. Si tarda demasiado, puedes resolverlo manualmente.',
     requestedBy: 'Solicitado por',
     booking: 'Reserva',
     percentage: 'Porcentaje',

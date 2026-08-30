@@ -39,10 +39,10 @@ describe('voidWompiTransaction', () => {
     })
   })
 
-  it('returns ok:true when the response reports status VOIDED', async () => {
+  it('returns ok:true with the reported status when the response already confirms VOIDED', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ data: { status: 'VOIDED' } }), { status: 200 }))
     const result = await voidWompiTransaction('wompi-tx-1')
-    expect(result).toEqual({ ok: true })
+    expect(result).toEqual({ ok: true, status: 'VOIDED' })
   })
 
   it('returns ok:false (never throws) on a non-2xx response', async () => {
@@ -52,8 +52,14 @@ describe('voidWompiTransaction', () => {
     expect((result as { ok: false; error: string }).error).toContain('422')
   })
 
-  it('returns ok:false when the response is 200 but the status is not VOIDED', async () => {
+  it('returns ok:true (request accepted) when the response is 200 but still echoes the pre-void status, since Wompi confirms VOIDED asynchronously via webhook', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ data: { status: 'APPROVED' } }), { status: 200 }))
+    const result = await voidWompiTransaction('wompi-tx-1')
+    expect(result).toEqual({ ok: true, status: 'APPROVED' })
+  })
+
+  it('returns ok:false when Wompi rejects the void request itself (status ERROR/DECLINED)', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ data: { status: 'ERROR' } }), { status: 200 }))
     const result = await voidWompiTransaction('wompi-tx-1')
     expect(result.ok).toBe(false)
   })

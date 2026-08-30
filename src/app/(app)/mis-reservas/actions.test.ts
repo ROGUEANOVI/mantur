@@ -252,14 +252,14 @@ describe('percentage/amount computation and RPC wiring', () => {
 })
 
 describe('same-day 100% refund → automatic Wompi void', () => {
-  it('claims the row, attempts a void, cascades the booking/transaction, and emails the tourist', async () => {
+  it('claims the row, attempts a void, and cascades immediately when Wompi already confirms VOIDED synchronously', async () => {
     bookingSingle.mockResolvedValue({ data: bookingRow({ booking_date: '2026-09-10' }) })
     transactionSingle.mockResolvedValue({ data: transactionRow({ created_at: TODAY_ISO, wompi_reference: 'wompi-tx-99' }) })
     percentageRpcMock.mockResolvedValue({ data: 100, error: null })
     refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
     claimRpcMock.mockResolvedValue({ data: true, error: null })
-    voidWompiTransactionMock.mockResolvedValue({ ok: true })
-    cascadeRpcMock.mockResolvedValue({ data: null, error: null })
+    voidWompiTransactionMock.mockResolvedValue({ ok: true, status: 'VOIDED' })
+    cascadeRpcMock.mockResolvedValue({ data: true, error: null })
 
     await requestRefund(formData({ booking_id: BOOKING_ID }))
 
@@ -269,6 +269,36 @@ describe('same-day 100% refund → automatic Wompi void', () => {
     expect(revertRpcMock).not.toHaveBeenCalled()
     expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 100000, 'void')
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('does not email when cascade reports it was a no-op (e.g. the webhook already won the race and cascaded first)', async () => {
+    bookingSingle.mockResolvedValue({ data: bookingRow({ booking_date: '2026-09-10' }) })
+    transactionSingle.mockResolvedValue({ data: transactionRow({ created_at: TODAY_ISO, wompi_reference: 'wompi-tx-99' }) })
+    percentageRpcMock.mockResolvedValue({ data: 100, error: null })
+    refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
+    claimRpcMock.mockResolvedValue({ data: true, error: null })
+    voidWompiTransactionMock.mockResolvedValue({ ok: true, status: 'VOIDED' })
+    cascadeRpcMock.mockResolvedValue({ data: false, error: null })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID }))
+
+    expect(cascadeRpcMock).toHaveBeenCalledWith({ p_refund_request_id: 'refund-1' })
+    expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves the row claimed (processing) without cascading or emailing when Wompi accepts the void but has not confirmed VOIDED yet — the webhook confirms it later', async () => {
+    bookingSingle.mockResolvedValue({ data: bookingRow({ booking_date: '2026-09-10' }) })
+    transactionSingle.mockResolvedValue({ data: transactionRow({ created_at: TODAY_ISO, wompi_reference: 'wompi-tx-99' }) })
+    percentageRpcMock.mockResolvedValue({ data: 100, error: null })
+    refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
+    claimRpcMock.mockResolvedValue({ data: true, error: null })
+    voidWompiTransactionMock.mockResolvedValue({ ok: true, status: 'APPROVED' })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID }))
+
+    expect(cascadeRpcMock).not.toHaveBeenCalled()
+    expect(revertRpcMock).not.toHaveBeenCalled()
+    expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
   })
 
   it('does not call Wompi or cascade when an admin action wins the claim race first (claim returns false)', async () => {

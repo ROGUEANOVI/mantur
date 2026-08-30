@@ -124,8 +124,22 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
     if (claimed) {
       const voidResult = await voidWompiTransaction(transaction.wompi_reference)
       if (voidResult.ok) {
-        await admin.rpc('cascade_refund_to_booking', { p_refund_request_id: refundRequest.id })
-        if (email) await sendRefundProcessedEmail(email, refundAmountCents, 'void')
+        // Wompi's void response almost never confirms VOIDED synchronously
+        // (confirmed against a real sandbox call — see the comment on
+        // voidWompiTransaction) — the normal case is that the row stays
+        // 'processing' here and the webhook's
+        // confirm_refund_request_void_by_wompi_reference() finishes the job
+        // once Wompi's transaction.updated event actually arrives. Only take
+        // this fast path on the rare response that already says VOIDED.
+        if (voidResult.status === 'VOIDED') {
+          // `cascaded` is false if this is a no-op — e.g. the webhook's own
+          // confirm_refund_request_void_by_wompi_reference() already won the
+          // race and cascaded first. Only the caller that actually flipped
+          // paid -> voided sends the notification, so the tourist is never
+          // emailed twice for the same refund.
+          const { data: cascaded } = await admin.rpc('cascade_refund_to_booking', { p_refund_request_id: refundRequest.id })
+          if (cascaded && email) await sendRefundProcessedEmail(email, refundAmountCents, 'void')
+        }
       } else {
         // Undo the claim so the row goes back to 'pending' for an admin to
         // process manually — this is a ledger entry for follow-up, not a

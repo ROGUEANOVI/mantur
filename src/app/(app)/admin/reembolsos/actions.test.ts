@@ -37,8 +37,9 @@ const refundSelectSingle = vi.fn()
 const refundRejectUpdateSingle = vi.fn()
 const policyUpdateSelect = vi.fn()
 
+const refundRejectUpdateInMock = vi.fn(() => ({ select: () => ({ single: refundRejectUpdateSingle }) }))
 const refundRejectUpdateMock = vi.fn(() => ({
-  eq: () => ({ eq: () => ({ select: () => ({ single: refundRejectUpdateSingle }) }) }),
+  eq: () => ({ in: (...args: unknown[]) => refundRejectUpdateInMock(...args) }),
 }))
 const policyUpdateMock = vi.fn(() => ({ eq: () => ({ select: policyUpdateSelect }) }))
 
@@ -166,6 +167,7 @@ describe('rejectRefundRequest', () => {
       admin_notes: 'Fuera de ventana',
       processed_by: 'admin-1',
     })
+    expect(refundRejectUpdateInMock).toHaveBeenCalledWith('status', ['pending', 'processing'])
     expect(sendRefundRejectedEmailMock).toHaveBeenCalledWith('tourist@example.com', 'Fuera de ventana')
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/reembolsos')
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
