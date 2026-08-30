@@ -7,6 +7,11 @@ const markPayoutResultMock = vi.fn()
 const payoutAccountMaybeSingle = vi.fn()
 const confirmVoidMock = vi.fn()
 const getUserByIdMock = vi.fn()
+const bookingSingleMock = vi.fn()
+const profileSingleMock = vi.fn()
+const contactDetailsMaybeSingleMock = vi.fn()
+const contactDetailsUpsertMock = vi.fn()
+const transactionsUpdateEqMock = vi.fn()
 
 function makeRpcResult(result: { data: unknown; error: unknown }) {
   const promise = Promise.resolve(result)
@@ -24,6 +29,21 @@ const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
 const fromMock = vi.fn((table: string) => {
   if (table === 'business_payout_accounts' || table === 'tourist_guide_payout_accounts') {
     return { select: () => ({ eq: () => ({ maybeSingle: payoutAccountMaybeSingle }) }) }
+  }
+  if (table === 'bookings') {
+    return { select: () => ({ eq: () => ({ single: bookingSingleMock }) }) }
+  }
+  if (table === 'profiles') {
+    return { select: () => ({ eq: () => ({ single: profileSingleMock }) }) }
+  }
+  if (table === 'profile_contact_details') {
+    return {
+      select: () => ({ eq: () => ({ maybeSingle: contactDetailsMaybeSingleMock }) }),
+      upsert: (row: unknown, opts: unknown) => contactDetailsUpsertMock(row, opts),
+    }
+  }
+  if (table === 'transactions') {
+    return { update: (row: unknown) => ({ eq: (col: string, val: unknown) => transactionsUpdateEqMock(row, col, val) }) }
   }
   throw new Error(`unexpected table: ${table}`)
 })
@@ -50,6 +70,16 @@ vi.mock('@/lib/email/refundEmails', () => ({
   sendRefundProcessedEmail: (...args: unknown[]) => sendRefundProcessedEmailMock(...args),
 }))
 
+const findOrCreateContactMock = vi.fn()
+vi.mock('@/lib/alegra/contacts', () => ({
+  findOrCreateContact: (...args: unknown[]) => findOrCreateContactMock(...args),
+}))
+
+const createCommissionInvoiceMock = vi.fn()
+vi.mock('@/lib/alegra/invoices', () => ({
+  createCommissionInvoice: (...args: unknown[]) => createCommissionInvoiceMock(...args),
+}))
+
 const { POST } = await import('./route')
 
 const SECRET = 'test-events-secret'
@@ -67,6 +97,16 @@ beforeEach(() => {
     data: { confirmed: false, refund_request_id: null, requested_by: null, refund_amount_cents: null, bookkeeping_mismatch: false },
     error: null,
   })
+  // Defaults for the Alegra invoice sync path, exercised by any APPROVED
+  // event that flips applied:true (most payout tests above included) —
+  // these keep those tests passing without asserting on Alegra calls.
+  bookingSingleMock.mockResolvedValue({ data: { tourist_id: 'tourist-1' } })
+  profileSingleMock.mockResolvedValue({ data: { full_name: 'Prueba Wompi Sandbox' } })
+  contactDetailsMaybeSingleMock.mockResolvedValue({ data: null })
+  contactDetailsUpsertMock.mockResolvedValue({ data: null, error: null })
+  transactionsUpdateEqMock.mockResolvedValue({ data: null, error: null })
+  findOrCreateContactMock.mockResolvedValue({ ok: true, contactId: 'alegra-contact-1' })
+  createCommissionInvoiceMock.mockResolvedValue({ ok: true, invoiceId: 'alegra-invoice-1' })
 })
 
 afterEach(() => {
@@ -98,6 +138,8 @@ function buildEvent(overrides: {
   eventType?: string
   timestamp?: number
   badChecksum?: boolean
+  billingData?: Record<string, unknown> | null
+  customerEmail?: string
 } = {}) {
   const timestamp = overrides.timestamp ?? NOW_SECONDS
   const transaction: Record<string, unknown> = {
@@ -105,8 +147,15 @@ function buildEvent(overrides: {
     status: overrides.status ?? 'APPROVED',
     reference: overrides.bookingId ?? BOOKING_ID,
     amount_in_cents: overrides.amountInCents ?? 50000,
+    customer_email: overrides.customerEmail ?? 'tourist@example.com',
   }
   if (overrides.currency !== null) transaction.currency = overrides.currency ?? 'COP'
+  // Wompi's checkout always collects a legal ID for card payments — default
+  // to a realistic value so the Alegra sync path is exercised the same way
+  // real traffic would; pass billingData: null to test its absence.
+  if (overrides.billingData !== null) {
+    transaction.billing_data = overrides.billingData ?? { legal_id_type: 'CC', legal_id: '1002003000' }
+  }
 
   const data = { transaction }
   const properties = ['transaction.id', 'transaction.status', 'transaction.amount_in_cents']
@@ -371,7 +420,8 @@ describe('POST /api/webhooks/wompi — provider payout on a freshly-confirmed AP
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
     expect(res.status).toBe(200)
-    expect(fromMock).not.toHaveBeenCalled()
+    expect(fromMock).not.toHaveBeenCalledWith('business_payout_accounts')
+    expect(fromMock).not.toHaveBeenCalledWith('tourist_guide_payout_accounts')
     expect(sendProviderPayoutMock).not.toHaveBeenCalled()
   })
 
@@ -473,5 +523,117 @@ describe('POST /api/webhooks/wompi — async confirmation of a same-day refund v
 
     expect(res.status).toBe(200)
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/webhooks/wompi — Alegra commission-invoice sync on a freshly-confirmed APPROVED payment', () => {
+  it('creates the invoice directly with the cached alegra_contact_id when its stored identification still matches, without calling findOrCreateContact', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ amountInCents: 100000, commissionAmountCents: 10000 }))
+    contactDetailsMaybeSingleMock.mockResolvedValue({
+      data: { alegra_contact_id: 'cached-contact-1', alegra_contact_identification: '1002003000' },
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(findOrCreateContactMock).not.toHaveBeenCalled()
+    expect(createCommissionInvoiceMock).toHaveBeenCalledWith({ contactId: 'cached-contact-1', commissionAmountCents: 10000 })
+  })
+
+  it('re-resolves the contact instead of trusting a stale cache when the cached identification no longer matches the current transaction', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+    contactDetailsMaybeSingleMock.mockResolvedValue({
+      data: { alegra_contact_id: 'stale-contact', alegra_contact_identification: 'a-different-identification' },
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED', billingData: { legal_id_type: 'CC', legal_id: '1002003000' } })))
+
+    expect(res.status).toBe(200)
+    expect(findOrCreateContactMock).toHaveBeenCalledWith(expect.objectContaining({ legalId: '1002003000' }))
+    expect(createCommissionInvoiceMock).toHaveBeenCalledWith({ contactId: 'alegra-contact-1', commissionAmountCents: 5000 })
+  })
+
+  it('finds or creates the contact using billing_data identification and the tourist profile name/email, then caches the id and identification', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+
+    const res = await POST(
+      postRequest(
+        buildEvent({ status: 'APPROVED', customerEmail: 'tourist@example.com', billingData: { legal_id_type: 'CC', legal_id: '1002003000' } }),
+      ),
+    )
+
+    expect(res.status).toBe(200)
+    expect(findOrCreateContactMock).toHaveBeenCalledWith({
+      legalIdType: 'CC',
+      legalId: '1002003000',
+      name: 'Prueba Wompi Sandbox',
+      email: 'tourist@example.com',
+    })
+    expect(contactDetailsUpsertMock).toHaveBeenCalledWith(
+      { profile_id: 'tourist-1', alegra_contact_id: 'alegra-contact-1', alegra_contact_identification: '1002003000' },
+      { onConflict: 'profile_id' },
+    )
+    expect(createCommissionInvoiceMock).toHaveBeenCalledWith({ contactId: 'alegra-contact-1', commissionAmountCents: 5000 })
+  })
+
+  it('records the invoice id and a pending status on the transaction after a successful creation', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+    createCommissionInvoiceMock.mockResolvedValue({ ok: true, invoiceId: 'inv-77' })
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(transactionsUpdateEqMock).toHaveBeenCalledWith(
+      { alegra_invoice_id: 'inv-77', alegra_invoice_status: 'pending' },
+      'id',
+      'tx-1',
+    )
+  })
+
+  it('records a rejected status (and never a fabricated invoice id) when invoice creation fails', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+    createCommissionInvoiceMock.mockResolvedValue({ ok: false, error: 'Alegra API returned 422' })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(transactionsUpdateEqMock).toHaveBeenCalledWith({ alegra_invoice_status: 'rejected' }, 'id', 'tx-1')
+  })
+
+  it('skips invoicing entirely (no crash) when Wompi sent no billing identification at all', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED', billingData: null })))
+
+    expect(res.status).toBe(200)
+    expect(findOrCreateContactMock).not.toHaveBeenCalled()
+    expect(createCommissionInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('never attempts invoicing when applied is false (duplicate/no-op webhook delivery)', async () => {
+    applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(findOrCreateContactMock).not.toHaveBeenCalled()
+    expect(createCommissionInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 and does not throw when the contact lookup fails unexpectedly', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+    findOrCreateContactMock.mockResolvedValue({ ok: false, error: 'Alegra API returned 500' })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(createCommissionInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 and does not throw when an unexpected error is thrown mid-sync', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+    bookingSingleMock.mockRejectedValue(new Error('db down'))
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
   })
 })
