@@ -2,7 +2,7 @@ export const legalCopy = {
   terms: {
     title: 'Términos y condiciones',
     intro:
-      'Estos términos regulan el uso de ManTur, el mercado turístico de Manaure Balcón del Cesar. Al crear una cuenta o usar la plataforma, aceptas lo siguiente.',
+      'Estos términos regulan el uso de ManTur, el mercado turístico de Manaure Balcón del Cesar, operado por MANTUR TURISMO S.A.S. (NIT 902098141). Al crear una cuenta o usar la plataforma, aceptas lo siguiente.',
     sections: [
       {
         title: '1. Aceptación de los términos',
@@ -10,54 +10,59 @@ export const legalCopy = {
           'Al registrarte o usar ManTur aceptas estos términos en su totalidad. Si no estás de acuerdo con alguna parte, no debes usar la plataforma.',
       },
       {
-        title: '2. Qué es ManTur',
+        title: '2. Advertencia legal — explotación sexual de menores',
+        body:
+          'En desarrollo de lo dispuesto en el artículo 17 de la Ley 679 de 2001, la agencia advierte al turista que la explotación y el abuso sexual de menores de edad en el país son sancionados penal y administrativamente, conforme a las leyes vigentes.',
+      },
+      {
+        title: '3. Qué es ManTur',
         body:
           'ManTur es un mercado que conecta turistas con negocios locales, transportadores y guías turísticos de Manaure Balcón del Cesar. ManTur actúa como intermediario tecnológico: no presta directamente los servicios de alojamiento, alimentación, transporte o guianza que se publican en la plataforma — esos servicios los prestan negocios, transportadores y guías independientes.',
       },
       {
-        title: '3. Registro de cuenta y roles',
+        title: '4. Registro de cuenta y roles',
         body:
           'Toda cuenta nueva inicia con el rol de turista. Los roles de negocio, transportador y guía turístico se solicitan desde la plataforma y quedan sujetos a revisión y aprobación por parte de ManTur antes de activarse.',
       },
       {
-        title: '4. Reservas y pagos',
+        title: '5. Reservas y pagos',
         body:
-          'Los pagos de reservas se procesan a través de la pasarela Wompi. ManTur cobra una comisión sobre cada transacción, cuyo porcentaje es definido internamente y puede variar según el tipo de servicio. Mientras el proyecto esté en fase de pruebas, los pagos pueden procesarse en modo sandbox (sin cobro real).',
+          'Los pagos de reservas se procesan a través de la pasarela de pagos Wompi. ManTur cobra una comisión sobre cada transacción, cuyo porcentaje es definido internamente y puede variar según el tipo de servicio.',
       },
       {
-        title: '5. Cancelaciones',
+        title: '6. Cancelaciones',
         body:
           'Las condiciones de cancelación de una reserva pueden variar según el negocio, guía o transportador. Antes de reservar, revisa la información publicada por el prestador del servicio o contáctalo directamente para confirmar sus condiciones.',
       },
       {
-        title: '6. Responsabilidades de negocios, transportadores y guías',
+        title: '7. Responsabilidades de negocios, transportadores y guías',
         body:
           'Quienes publican un negocio, servicio de transporte o tour se comprometen a que la información publicada (precios, disponibilidad, fotos, ubicación) sea veraz y a cumplir con el servicio ofrecido a los turistas que reservan a través de la plataforma.',
       },
       {
-        title: '7. Responsabilidades del turista',
+        title: '8. Responsabilidades del turista',
         body:
           'El turista se compromete a usar la plataforma de buena fe, proporcionar información correcta al reservar y cumplir con las condiciones acordadas con el negocio, guía o transportador.',
       },
       {
-        title: '8. Contenido publicado por usuarios',
+        title: '9. Contenido publicado por usuarios',
         body:
           'Al subir fotos, videos, descripciones o reseñas a ManTur, otorgas a la plataforma una licencia para mostrar ese contenido dentro del servicio. Está prohibido publicar contenido falso, ofensivo o que infrinja derechos de terceros.',
       },
       {
-        title: '9. Limitación de responsabilidad',
+        title: '10. Limitación de responsabilidad',
         body:
           'ManTur facilita el encuentro entre turistas y prestadores de servicios locales, pero no garantiza la calidad, seguridad o resultado de los servicios prestados por negocios, transportadores o guías, quienes actúan como terceros independientes.',
       },
       {
-        title: '10. Modificaciones a estos términos',
+        title: '11. Modificaciones a estos términos',
         body:
           'ManTur puede actualizar estos términos en cualquier momento. Los cambios importantes se reflejarán en esta página con una nueva fecha de actualización.',
       },
       {
-        title: '11. Ley aplicable y contacto',
+        title: '12. Ley aplicable y contacto',
         body:
-          'Estos términos se rigen por las leyes de Colombia. Para preguntas sobre estos términos, escríbenos a soporte@mantur.co.',
+          'Estos términos se rigen por las leyes de Colombia. MANTUR TURISMO S.A.S. (NIT 902098141) es la entidad responsable de la plataforma. Para preguntas sobre estos términos, escríbenos a soporte@mantur.co.',
       },
     ],
   },
@@ -65,7 +70,7 @@ export const legalCopy = {
   privacy: {
     title: 'Política de privacidad',
     intro:
-      'En ManTur recolectamos y usamos datos personales solo para operar la plataforma: gestionar reservas y conectar turistas con negocios, transportadores y guías locales de Manaure Balcón del Cesar. Esta política explica qué datos recolectamos, para qué los usamos y cuáles son tus derechos.',
+      'En ManTur, operado por MANTUR TURISMO S.A.S. (NIT 902098141), recolectamos y usamos datos personales solo para operar la plataforma: gestionar reservas y conectar turistas con negocios, transportadores y guías locales de Manaure Balcón del Cesar. Esta política explica qué datos recolectamos, para qué los usamos y cuáles son tus derechos.',
     sections: [
       {
         title: '1. Responsable del tratamiento',
