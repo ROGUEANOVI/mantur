@@ -277,8 +277,23 @@ plays video slides after photo slides. Migration:
   Auth redirect URLs already updated to include `https://mantur.co/**` ✅.
 - **Tourist guide enhancements**: tour image carousels, calendar availability
   picker, review/rating system.
-- **Real Wompi integration**: replace sandbox with production keys + webhook
-  signature verification.
+- **Real Wompi integration**: done ✅ — production checkout, webhook,
+  payouts, and refund engine are live (see `docs/wompi-alegra-integration-plan.md`).
+  Wompi Payouts still needs real credentials configured (currently a safe
+  no-op) before businesses/guides get paid automatically.
+- **Business/guide booking notifications**: a business owner gets an email
+  when a booking is confirmed (`src/lib/email/bookingEmails.ts`), but there is
+  still no equivalent for tourist guides (guide-tour bookings have no
+  `service_id`, so `notifyBusinessOfBooking()` in the Wompi webhook
+  deliberately skips them), and neither role has an in-app bookings list —
+  `/mi-negocio/[id]` only shows an aggregate "Reservas activas" count, with no
+  detail view (tourist name, date, notes) and no notification/badge system at
+  all in the app itself.
+- **Alegra invoicing**: contact + invoice creation on payment confirmation is
+  live (see `docs/wompi-alegra-integration-plan.md` §6.3.1), but credit notes
+  on refund and DIAN-status reconciliation (polling
+  `GET /invoices/{id}?fields=events` — no webhook is available on this
+  account tier) are not built yet.
 
 ## Data model (v1 — English names, relational)
 

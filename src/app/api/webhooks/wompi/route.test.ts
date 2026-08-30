@@ -8,10 +8,13 @@ const payoutAccountMaybeSingle = vi.fn()
 const confirmVoidMock = vi.fn()
 const getUserByIdMock = vi.fn()
 const bookingSingleMock = vi.fn()
+const bookingDetailsSingleMock = vi.fn()
 const profileSingleMock = vi.fn()
 const contactDetailsMaybeSingleMock = vi.fn()
 const contactDetailsUpsertMock = vi.fn()
 const transactionsUpdateEqMock = vi.fn()
+const businessOwnerSingleMock = vi.fn()
+const sendBusinessBookingConfirmedEmailMock = vi.fn()
 
 function makeRpcResult(result: { data: unknown; error: unknown }) {
   const promise = Promise.resolve(result)
@@ -31,10 +34,23 @@ const fromMock = vi.fn((table: string) => {
     return { select: () => ({ eq: () => ({ maybeSingle: payoutAccountMaybeSingle }) }) }
   }
   if (table === 'bookings') {
-    return { select: () => ({ eq: () => ({ single: bookingSingleMock }) }) }
+    // Two different queries hit `bookings` in the same webhook delivery:
+    // syncAlegraInvoice's `.select('tourist_id')` and
+    // notifyBusinessOfBooking's fuller `.select('service_id, ...')` —
+    // routed by columns since both share the same eq().single() shape.
+    return {
+      select: (columns: string) => ({
+        eq: () => ({
+          single: () => (columns.includes('service_id') ? bookingDetailsSingleMock() : bookingSingleMock()),
+        }),
+      }),
+    }
   }
   if (table === 'profiles') {
     return { select: () => ({ eq: () => ({ single: profileSingleMock }) }) }
+  }
+  if (table === 'businesses') {
+    return { select: () => ({ eq: () => ({ single: businessOwnerSingleMock }) }) }
   }
   if (table === 'profile_contact_details') {
     return {
@@ -68,6 +84,10 @@ vi.mock('@/lib/wompi/payouts', async (importOriginal) => {
 const sendRefundProcessedEmailMock = vi.fn()
 vi.mock('@/lib/email/refundEmails', () => ({
   sendRefundProcessedEmail: (...args: unknown[]) => sendRefundProcessedEmailMock(...args),
+}))
+
+vi.mock('@/lib/email/bookingEmails', () => ({
+  sendBusinessBookingConfirmedEmail: (...args: unknown[]) => sendBusinessBookingConfirmedEmailMock(...args),
 }))
 
 const findOrCreateContactMock = vi.fn()
@@ -107,6 +127,21 @@ beforeEach(() => {
   transactionsUpdateEqMock.mockResolvedValue({ data: null, error: null })
   findOrCreateContactMock.mockResolvedValue({ ok: true, contactId: 'alegra-contact-1' })
   createCommissionInvoiceMock.mockResolvedValue({ ok: true, invoiceId: 'alegra-invoice-1' })
+  // Defaults for the business booking-confirmation email path — a
+  // business-service booking (not a guide-tour one) with a resolvable owner.
+  bookingDetailsSingleMock.mockResolvedValue({
+    data: {
+      business_id: 'biz-1',
+      service_id: 'service-1',
+      booking_date: '2026-09-05',
+      quantity: 2,
+      notes: null,
+      tourist_id: 'tourist-1',
+      services: { name: 'Cabalgata al atardecer' },
+    },
+  })
+  businessOwnerSingleMock.mockResolvedValue({ data: { owner_id: 'owner-1' } })
+  getUserByIdMock.mockResolvedValue({ data: { user: { email: 'negocio@example.com' } } })
 })
 
 afterEach(() => {
@@ -631,6 +666,107 @@ describe('POST /api/webhooks/wompi — Alegra commission-invoice sync on a fresh
   it('still returns 200 and does not throw when an unexpected error is thrown mid-sync', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult())
     bookingSingleMock.mockRejectedValue(new Error('db down'))
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('POST /api/webhooks/wompi — business booking-confirmation email on a freshly-confirmed APPROVED payment', () => {
+  it('emails the business owner with the service, tourist name, date, and quantity', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1' }))
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(businessOwnerSingleMock).toHaveBeenCalled()
+    expect(getUserByIdMock).toHaveBeenCalledWith('owner-1')
+    expect(sendBusinessBookingConfirmedEmailMock).toHaveBeenCalledWith('negocio@example.com', {
+      serviceName: 'Cabalgata al atardecer',
+      touristName: 'Prueba Wompi Sandbox',
+      bookingDate: '2026-09-05',
+      quantity: 2,
+      notes: null,
+    })
+  })
+
+  it('never emails when the confirmed booking is a guide-tour booking (no service_id)', async () => {
+    // business_id is present here (unlike the real guide-tour case) so the
+    // call site actually enters notifyBusinessOfBooking — this test targets
+    // its internal service_id guard specifically, distinct from the
+    // "business_id absent" test below which never calls it at all.
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1' }))
+    bookingDetailsSingleMock.mockResolvedValue({
+      data: { business_id: 'biz-1', service_id: null, booking_date: '2026-09-05', quantity: 2, notes: null, tourist_id: 'tourist-1', services: null },
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendBusinessBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('never emails when the booking row itself belongs to a different business_id (defense-in-depth mismatch guard)', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1' }))
+    bookingDetailsSingleMock.mockResolvedValue({
+      data: {
+        business_id: 'some-other-biz',
+        service_id: 'service-1',
+        booking_date: '2026-09-05',
+        quantity: 2,
+        notes: null,
+        tourist_id: 'tourist-1',
+        services: { name: 'Cabalgata al atardecer' },
+      },
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendBusinessBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('never attempts to email when business_id is absent from the update result', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(businessOwnerSingleMock).not.toHaveBeenCalled()
+    expect(sendBusinessBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('never attempts to email when applied is false (duplicate/no-op webhook delivery)', async () => {
+    applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(sendBusinessBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 without emailing when the business has no resolvable owner', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1' }))
+    businessOwnerSingleMock.mockResolvedValue({ data: null })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendBusinessBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 without emailing when the owner has no resolvable email', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1' }))
+    getUserByIdMock.mockResolvedValue({ data: { user: null } })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendBusinessBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 and does not throw when an unexpected error is thrown mid-notify', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1' }))
+    bookingDetailsSingleMock.mockRejectedValue(new Error('db down'))
 
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 

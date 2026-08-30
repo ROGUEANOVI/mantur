@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { computeNetPayoutAmountCents, sendProviderPayout, type PayoutRecipient } from '@/lib/wompi/payouts'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
+import { sendBusinessBookingConfirmedEmail } from '@/lib/email/bookingEmails'
 import { findOrCreateContact } from '@/lib/alegra/contacts'
 import { createCommissionInvoice } from '@/lib/alegra/invoices'
 
@@ -311,6 +312,69 @@ async function syncAlegraInvoice(
   }
 }
 
+// Notifies the business owner that a booking just got confirmed. Scoped to
+// business-service bookings only (bookings.service_id) for now — guide-tour
+// bookings (bookings.guide_tour_id) are a natural follow-up, not yet built.
+// Before this, a business owner had no email at all for a new booking (only
+// a "Reservas activas" count on /mi-negocio) — deliberately never throws and
+// never affects the webhook's own HTTP response, same reasoning as
+// enqueueAndSendPayout/syncAlegraInvoice.
+async function notifyBusinessOfBooking(
+  admin: AdminClient,
+  params: { bookingId: string; businessId: string },
+): Promise<void> {
+  try {
+    const { data: booking } = await admin
+      .from('bookings')
+      .select('business_id, service_id, booking_date, quantity, notes, tourist_id, services(name)')
+      .eq('id', params.bookingId)
+      .single<{
+        business_id: string | null
+        service_id: string | null
+        booking_date: string
+        quantity: number
+        notes: string | null
+        tourist_id: string
+        services: { name: string } | null
+      }>()
+
+    // Guide-tour bookings have no service_id — out of scope for now.
+    // Defense-in-depth: also confirm the booking's own business_id matches
+    // the one passed in, even though both currently derive from the same
+    // trusted RPC result — this stays correct if a future call site ever
+    // sources bookingId/businessId independently.
+    if (!booking || !booking.service_id || booking.business_id !== params.businessId) return
+
+    const { data: business } = await admin
+      .from('businesses')
+      .select('owner_id')
+      .eq('id', params.businessId)
+      .single<{ owner_id: string }>()
+
+    if (!business) return
+
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', booking.tourist_id)
+      .single<{ full_name: string | null }>()
+
+    const { data: ownerUserData } = await admin.auth.admin.getUserById(business.owner_id)
+    const ownerEmail = ownerUserData?.user?.email
+    if (!ownerEmail) return
+
+    await sendBusinessBookingConfirmedEmail(ownerEmail, {
+      serviceName: booking.services?.name ?? 'Servicio',
+      touristName: touristProfile?.full_name ?? 'Un turista',
+      bookingDate: booking.booking_date,
+      quantity: booking.quantity,
+      notes: booking.notes,
+    })
+  } catch (error) {
+    console.error('Unexpected error while notifying business of a new booking', error)
+  }
+}
+
 // The missing async confirmation for a same-day refund void: Wompi's own
 // void-request response doesn't reliably confirm VOIDED synchronously (see
 // the comment on voidWompiTransaction), so this is where that confirmation
@@ -482,6 +546,10 @@ export async function POST(request: Request) {
       commissionAmountCents: updateResult.commission_amount_cents,
       transaction,
     })
+
+    if (updateResult.business_id) {
+      await notifyBusinessOfBooking(admin, { bookingId, businessId: updateResult.business_id })
+    }
   }
 
   return NextResponse.json({ received: true })
