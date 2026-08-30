@@ -3,6 +3,8 @@ import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { computeNetPayoutAmountCents, sendProviderPayout, type PayoutRecipient } from '@/lib/wompi/payouts'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
+import { findOrCreateContact } from '@/lib/alegra/contacts'
+import { createCommissionInvoice } from '@/lib/alegra/invoices'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -179,6 +181,136 @@ async function enqueueAndSendPayout(
   }
 }
 
+// Wompi's checkout collects a legal ID (billing_data.legal_id_type/
+// legal_id) for every card payment, per Colombian card-processing
+// regulation — this is the only identification source used for Alegra
+// invoicing, since ManTur never asks a tourist for one directly (see the
+// migration comment on profile_contact_details.alegra_contact_id).
+function extractBillingIdentification(
+  transaction: Record<string, unknown>,
+): { legalIdType: string; legalId: string } | null {
+  const billingData = transaction.billing_data as Record<string, unknown> | undefined
+  const customerData = transaction.customer_data as Record<string, unknown> | undefined
+  const legalIdType = (billingData?.legal_id_type ?? customerData?.legal_id_type) as string | undefined
+  const legalId = (billingData?.legal_id ?? customerData?.legal_id) as string | undefined
+  if (!legalIdType || !legalId) return null
+  return { legalIdType, legalId }
+}
+
+// Syncs the Alegra contact (cached on profile_contact_details after the
+// first booking) and creates the commission invoice for a freshly-confirmed
+// payment. Deliberately never throws and never affects the webhook's own
+// HTTP response — invoicing is a downstream bookkeeping step, not a reason
+// to make Wompi retry a webhook whose payment confirmation already
+// succeeded. A failure here is recorded as transactions.alegra_invoice_status
+// = 'rejected' for admin follow-up, not surfaced as an HTTP error.
+async function syncAlegraInvoice(
+  admin: AdminClient,
+  params: { transactionId: string; bookingId: string; commissionAmountCents: number; transaction: Record<string, unknown> },
+): Promise<void> {
+  try {
+    const identification = extractBillingIdentification(params.transaction)
+    if (!identification) {
+      console.error('Wompi webhook: no billing identification available, skipping Alegra invoice', {
+        transactionId: params.transactionId,
+      })
+      return
+    }
+
+    const { data: booking } = await admin
+      .from('bookings')
+      .select('tourist_id')
+      .eq('id', params.bookingId)
+      .single<{ tourist_id: string }>()
+
+    if (!booking) return
+
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', booking.tourist_id)
+      .single<{ full_name: string | null }>()
+
+    const { data: contactDetails } = await admin
+      .from('profile_contact_details')
+      .select('alegra_contact_id, alegra_contact_identification')
+      .eq('profile_id', booking.tourist_id)
+      .maybeSingle<{ alegra_contact_id: string | null; alegra_contact_identification: string | null }>()
+
+    // SECURITY REVIEW FINDING: only reuse the cached contact when its
+    // identification still matches the CURRENT transaction's. A legitimate
+    // identification collision (a typo at checkout, a shared family
+    // document number, two real people's cédulas colliding in Alegra's own
+    // data) would otherwise silently and PERMANENTLY attach every future
+    // invoice for this ManTur account to a different real person's Alegra
+    // contact/tax identity — trusting the cache unconditionally has no way
+    // to ever self-correct that. A mismatch falls through to re-resolving
+    // (and re-caching) the contact for the identification actually on file
+    // for this transaction.
+    let contactId =
+      contactDetails?.alegra_contact_id && contactDetails.alegra_contact_identification === identification.legalId
+        ? contactDetails.alegra_contact_id
+        : null
+
+    if (!contactId) {
+      const customerData = params.transaction.customer_data as Record<string, unknown> | undefined
+      const email = (params.transaction.customer_email as string | undefined) ?? null
+      const name = profile?.full_name || (customerData?.full_name as string | undefined) || 'Consumidor final'
+
+      const contactResult = await findOrCreateContact({
+        legalIdType: identification.legalIdType,
+        legalId: identification.legalId,
+        name,
+        email,
+      })
+
+      if (!contactResult.ok) {
+        console.error('Failed to find or create Alegra contact', contactResult.error)
+        return
+      }
+
+      contactId = contactResult.contactId
+
+      // Upsert rather than insert: a tourist might already have a
+      // profile_contact_details row (e.g. from saving a phone number in
+      // /mi-perfil) — upsert only ever touches the columns given here, so an
+      // existing phone value is never overwritten.
+      await admin.from('profile_contact_details').upsert(
+        {
+          profile_id: booking.tourist_id,
+          alegra_contact_id: contactId,
+          alegra_contact_identification: identification.legalId,
+        },
+        { onConflict: 'profile_id' },
+      )
+    }
+
+    const invoiceResult = await createCommissionInvoice({
+      contactId,
+      commissionAmountCents: params.commissionAmountCents,
+    })
+
+    if (!invoiceResult.ok) {
+      console.error('Failed to create Alegra invoice', invoiceResult.error)
+      await admin.from('transactions').update({ alegra_invoice_status: 'rejected' }).eq('id', params.transactionId)
+      return
+    }
+
+    // 'pending' here means "created in Alegra", not "DIAN-confirmed" — no
+    // webhook-based DIAN reconciliation is available on this account tier
+    // (confirmed live: Alegra's invoices.emissionFinished webhook belongs to
+    // a separate "proveedor electrónico" product, not a normal accounting
+    // account). Checking final DIAN status is a polling-based follow-up
+    // (GET /invoices/{id}?fields=events), not yet built.
+    await admin
+      .from('transactions')
+      .update({ alegra_invoice_id: invoiceResult.invoiceId, alegra_invoice_status: 'pending' })
+      .eq('id', params.transactionId)
+  } catch (error) {
+    console.error('Unexpected error while syncing an Alegra invoice', error)
+  }
+}
+
 // The missing async confirmation for a same-day refund void: Wompi's own
 // void-request response doesn't reliably confirm VOIDED synchronously (see
 // the comment on voidWompiTransaction), so this is where that confirmation
@@ -342,6 +474,13 @@ export async function POST(request: Request) {
       guideId: updateResult.guide_id,
       amountInCents: updateResult.amount_in_cents,
       commissionAmountCents: updateResult.commission_amount_cents,
+    })
+
+    await syncAlegraInvoice(admin, {
+      transactionId: updateResult.transaction_id,
+      bookingId,
+      commissionAmountCents: updateResult.commission_amount_cents,
+      transaction,
     })
   }
 

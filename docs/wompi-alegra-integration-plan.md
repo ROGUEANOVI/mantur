@@ -148,13 +148,9 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
       "Integración con otras aplicaciones" que exige la API — **confirmar
       esto puntualmente en Configuración → Integraciones/API antes de
       implementar §6**.
-- [ ] **Habilitación como facturador electrónico ante la DIAN** — todavía
-      pendiente: el propio checklist de onboarding de Alegra muestra "Crea
-      tu primera factura", "Facturación electrónica" y "Habilitar factura
-      electrónica" como pasos sin completar (0 de 4). Sin este paso, las
-      facturas creadas por API quedarán en un estado no válido ante la DIAN
-      — es un bloqueante real para el §6.3 paso 3 (webhook de
-      reconciliación), no solo un detalle administrativo.
+- [x] **Habilitación como facturador electrónico ante la DIAN** — completada
+      (confirmado en Alegra → Configurar empresa: "Facturación electrónica:
+      Completado", 2026-08-31).
 - [x] Acceso a integraciones de Alegra confirmado (`mi.alegra.com/integrations`)
       — el plan sí las incluye. Ya se activaron **Wompi** y **Bre-B** desde
       ahí (2026-08-29). **Importante para la arquitectura**: esa integración
@@ -168,7 +164,8 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
       de conciliación y para cualquier cobro manual que se haga directamente
       desde Alegra fuera de la plataforma.
 - [ ] Generar el token de API de Alegra (`ALEGRA_USER` + `ALEGRA_TOKEN`)
-      desde `developer.alegra.com` cuando se implemente §6.
+      desde `developer.alegra.com` — el código de §6 ya está implementado y
+      esperando este valor para poder probarse end-to-end.
 - [ ] **Revisión con abogado/contador**: la estructura contractual entre
       ManTur y cada negocio/guía/transportador (mandato o comisión mercantil)
       debe quedar clara para que ManTur, al recaudar el 100% del pago del
@@ -393,6 +390,54 @@ ALEGRA_WEBHOOK_URL=          # nuestro endpoint receptor
 4. **Nota crédito en reembolsos**: cuando `refund_requests.status='processed'`
    y existe `alegra_invoice_id`, disparar `POST /credit-notes` referenciando
    la factura original.
+
+### 6.3.1 Estado real de implementación (2026-08-31)
+
+Pasos 1–2 implementados (`src/lib/alegra/`, wired into
+`src/app/api/webhooks/wompi/route.ts`'s `syncAlegraInvoice()`), con
+correcciones reales encontradas al verificar contra la cuenta real de Alegra
+(no asumidas):
+
+- **IVA resuelto — NO se cobra IVA.** Investigación de doctrina DIAN
+  (Oficio 907360/2021, Concepto 10454/2025) primero concluyó que la comisión
+  de intermediación de una agencia de viajes normalmente lleva IVA 19% sobre
+  la comisión (no sobre el bruto). Pero al intentar crear el ítem de la
+  comisión en la cuenta real de Alegra, la API rechazó tanto "IVA 19%" como
+  "IVA Excluido (0%)" con `"No puedes usar impuestos IVA"` — la
+  responsabilidad tributaria configurada de MANTUR TURISMO S.A.S. en Alegra
+  (reflejo del RUT real) es **"No responsable de IVA"**. El RUT manda sobre
+  la doctrina general: las facturas se crean sin ningún campo `tax`.
+- **Sin campo de cédula nuevo.** El checkout de Wompi ya captura
+  `billing_data.legal_id_type`/`legal_id` (obligatorio para tarjetas en
+  Colombia) — se lee directamente del payload del webhook `transaction.updated`
+  en vez de agregar un campo de documento a `profiles`/`profile_contact_details`.
+- **`alegra_contact_id` vive en `profile_contact_details`**, no en `profiles`
+  (que tiene una política SELECT amplia `USING (true)` para `authenticated`,
+  ver `20260814000000`) — mismo razonamiento que ya protege `phone`.
+- **Ítem de comisión ya creado en la cuenta real**: "Comisión por
+  intermediación turística - ManTur", tipo Servicio, impuesto "Ninguno (0%)",
+  id `2` → `ALEGRA_COMMISSION_ITEM_ID=2`.
+- **Webhook de reconciliación (`invoices.emissionFinished`) NO aplica a esta
+  cuenta.** Investigado y confirmado: ese webhook vive en
+  `e-provider-docs.alegra.com`, un producto separado ("proveedor
+  electrónico"/reseller) con su propia autenticación Bearer — no accesible
+  con las credenciales normales `ALEGRA_USER`/`ALEGRA_TOKEN` de una cuenta
+  contable estándar. El mecanismo real para una cuenta normal es **polling**:
+  `GET /invoices/{id}?fields=events` devuelve el historial de eventos DIAN
+  (`ACKNOWLEDGMENT_DIAN`, `ACCEPTED_DIAN`). No implementado aún — hoy
+  `transactions.alegra_invoice_status` queda en `'pending'` tras crear la
+  factura y solo pasa a `'rejected'` si la propia llamada de creación falla;
+  nunca se confirma `'emitted'` automáticamente. Sigue pendiente: UI/acción
+  admin que llame ese endpoint y actualice el estado.
+- **Paso 4 (nota crédito en reembolsos) diferido** — no implementado en esta
+  fase; el reembolso/void ya funciona (motor de reembolsos, §5) pero no
+  dispara todavía una nota crédito en Alegra.
+- `regime: 'SIMPLIFIED_REGIME'` en `findOrCreateContact()` (para el contacto
+  del turista, no de ManTur) quedó como mejor esfuerzo sin verificar contra
+  una respuesta real de la API (no había `ALEGRA_TOKEN` disponible al
+  escribir el código) — verificar en la primera factura real y corregir si
+  Alegra la rechaza, igual que el bug de columna ambigua del webhook de
+  Wompi solo se detectó con una prueba real.
 
 ### 6.4 Módulos adicionales de Alegra a evaluar (no bloquean el MVP de esta integración)
 
