@@ -70,7 +70,7 @@ export const legalCopy = {
       {
         title: '1. Responsable del tratamiento',
         body:
-          'ManTur es responsable del tratamiento de los datos personales que recolecta a través de la plataforma. ManTur aún no está constituida como una entidad legal registrada; para cualquier solicitud sobre tus datos, escríbenos a legal@mantur.co.',
+          'MANTUR TURISMO S.A.S. (NIT 902098141) es responsable del tratamiento de los datos personales que recolecta a través de la plataforma. Para cualquier solicitud sobre tus datos, escríbenos a legal@mantur.co.',
       },
       {
         title: '2. Qué datos recolectamos',
