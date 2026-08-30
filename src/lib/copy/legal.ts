@@ -151,6 +151,11 @@ export const legalCopy = {
           'Impulsar la economía local del municipio, ofrecer un proceso de reserva y pago seguro, y apoyar un turismo comunitario que beneficie directamente a quienes viven en Manaure.',
       },
       {
+        title: 'Registro legal',
+        body:
+          'ManTur es operado por MANTUR TURISMO S.A.S. (NIT 902098141), con Matrícula Mercantil 0000232870 ante la Cámara de Comercio de Valledupar y Registro Nacional de Turismo (RNT) #299376 como Agencia de Viajes Operadora.',
+      },
+      {
         title: 'Contacto',
         body:
           '¿Tienes preguntas o quieres unirte como negocio, transportador o guía? Escríbenos a soporte@mantur.co.',

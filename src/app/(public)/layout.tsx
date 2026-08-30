@@ -49,7 +49,8 @@ export default function PublicLayout({
           </div>
 
           <div className="mt-10 border-t border-white/10 pt-6 text-center">
-            <p className="text-xs text-white/40">{footer.rights}</p>
+            <p className="text-xs text-white/40">{footer.legal}</p>
+            <p className="mt-1 text-xs text-white/40">{footer.rights}</p>
           </div>
         </div>
       </footer>
