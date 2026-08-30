@@ -491,9 +491,25 @@ funcionalidad públicamente.
 2. **Wompi checkout**: redirect real, webhook `route.ts` con verificación de
    firma, transición de estados, tests.
 3. **Wompi Payouts**: tabla `provider_payouts`, disparo automático al marcar
-   `paid`, tests de idempotencia.
+   `paid`, tests de idempotencia. **Implementado con un gap conocido**
+   (hallazgo de `security-reviewer`, alto): un payout puede quedar
+   atascado en `pending`/`failed` para siempre si el proceso falla entre
+   encolar y confirmar el resultado, o si la llamada a Wompi falla — nada
+   hoy re-intenta automáticamente. No bloquea el desarrollo del resto del
+   plan, pero **sí bloquea habilitar payouts reales** (ver ítem 9): antes de
+   eso hace falta un job de reconciliación o acción de admin que busque
+   filas `pending`/`failed` viejas y reintente `sendProviderPayout()`
+   reusando el mismo `provider_payouts.id` como idempotency-key.
 4. **Motor de reembolsos**: `refund_policy_config`, `refund_requests`, flujo
-   void/manual, notificaciones por correo, tests.
+   void/manual, notificaciones por correo, tests. **Implementado.** El
+   void automático usa un patrón claim → llamada externa → cascada/revert
+   (`claim_refund_request_for_void` / `cascade_refund_to_booking` /
+   `revert_refund_request_void_claim`) en vez de una sola RPC, porque una
+   transacción de Postgres no puede quedar abierta mientras se espera la
+   respuesta HTTP de Wompi — así una acción de admin (rechazar/procesar
+   manual) que compita por la misma fila `pending` nunca queda en un estado
+   ambiguo con el void ya aplicado del lado de Wompi (hallazgo de
+   `security-reviewer`, corregido antes de comitear).
 5. **Alegra facturación**: sync de contactos, creación de factura al
    confirmarse el pago, webhook de reconciliación, tests.
 6. **Alegra notas crédito**: enlazadas al flujo de reembolsos del paso 4.
@@ -511,6 +527,10 @@ funcionalidad públicamente.
    aprobación del comercio, banner de 3 días hábiles) y Alegra, actualizar
    `src/lib/copy/legal.ts` (quitar la nota de "aún no constituida"),
    habilitación DIAN de Alegra confirmada, des-flaggear paquetes.
+   **Payouts reales específicamente requieren además**: el job/acción de
+   reconciliación del ítem 3, y visibilidad de admin sobre `provider_payouts`
+   (aunque sea una tabla simple en `/admin`) — sin esto, un payout fallido es
+   invisible salvo revisión manual de logs.
 
 ---
 

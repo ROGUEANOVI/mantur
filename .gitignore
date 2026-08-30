@@ -30,3 +30,5 @@ coverage/
 
 # Local db dumps/backups — never commit real production data
 backups/
+.vercel
+.env*

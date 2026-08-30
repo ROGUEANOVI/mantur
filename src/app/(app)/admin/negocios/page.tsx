@@ -12,6 +12,7 @@ import {
 } from '@/app/(app)/admin/actions'
 import { cn } from '@/lib/utils'
 import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
+import WompiBankIdForm from '@/components/admin/WompiBankIdForm'
 
 type BusinessRow = {
   id: string
@@ -26,6 +27,7 @@ type BusinessRow = {
   rnt_status: string
   rnt_document_path: string | null
   profiles: { full_name: string | null } | null
+  business_payout_accounts: { bank_name: string; wompi_bank_id: string | null } | null
 }
 
 const VALID_STATUSES = ['pending', 'active', 'inactive', 'rejected'] as const
@@ -54,7 +56,7 @@ export default async function AdminNegociosPage({
 
   const { data: businesses } = await admin
     .from('businesses')
-    .select('id, name, type, address, phone, status, is_featured, created_at, rnt_number, rnt_status, rnt_document_path, profiles!owner_id(full_name)')
+    .select('id, name, type, address, phone, status, is_featured, created_at, rnt_number, rnt_status, rnt_document_path, profiles!owner_id(full_name), business_payout_accounts(bank_name, wompi_bank_id)')
     .eq('status', statusFilter)
     .order('created_at', { ascending: true })
 
@@ -207,6 +209,26 @@ export default async function AdminNegociosPage({
                       <p className="text-xs text-destructive">{adminCopy.negocios.rntMissing}</p>
                     )}
                   </div>
+
+                  {/* Payout account — only meaningful once the business is active */}
+                  {statusFilter === 'active' && (
+                    <div className="space-y-2 rounded-xl bg-muted/30 px-3 py-2">
+                      {biz.business_payout_accounts ? (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            {biz.business_payout_accounts.bank_name}
+                          </p>
+                          <WompiBankIdForm
+                            recipientType="business"
+                            recipientId={biz.id}
+                            currentWompiBankId={biz.business_payout_accounts.wompi_bank_id}
+                          />
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{adminCopy.payoutAccounts.noAccount}</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Actions */}
                   {statusFilter === 'pending' && (

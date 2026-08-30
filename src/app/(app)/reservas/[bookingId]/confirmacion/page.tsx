@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, XCircle, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { cn } from '@/lib/utils'
+import { PendingPaymentPoller } from '@/components/reservas/PendingPaymentPoller'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -107,6 +108,11 @@ export default async function ConfirmacionPage({
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
+      {/* The Wompi webhook — not this page load — is the source of truth for
+          payment status; it can resolve a few seconds after the browser
+          lands here from Wompi's checkout redirect. This polls until the
+          booking leaves pending_payment instead of requiring a manual reload. */}
+      {b.status === 'pending_payment' && <PendingPaymentPoller />}
       <div className="mx-auto max-w-lg space-y-5">
         {/* Status icon + title */}
         <div className="flex flex-col items-center text-center pt-4 pb-2 space-y-3">

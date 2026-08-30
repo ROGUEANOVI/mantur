@@ -7,6 +7,7 @@ import { deactivateGuide, activateGuide, deleteGuide } from './actions'
 import Avatar from '@/components/shared/Avatar'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
+import WompiBankIdForm from '@/components/admin/WompiBankIdForm'
 import { cn } from '@/lib/utils'
 
 const VALID_STATUSES = ['active', 'inactive'] as const
@@ -25,6 +26,7 @@ type GuideRow = {
   tarjeta_profesional_document_path: string | null
   verification_status: string
   profiles: { id: string; full_name: string | null; avatar_url: string | null; role: string } | null
+  tourist_guide_payout_accounts: { bank_name: string; wompi_bank_id: string | null } | null
 }
 
 function isExpired(dateStr: string | null): boolean {
@@ -46,7 +48,7 @@ export default async function AdminGuiasPage({
 
   let query = admin
     .from('tourist_guides')
-    .select('id, phone, specialties, languages, is_available, rnt_number, rnt_expiry_date, rnt_document_path, tarjeta_profesional_number, tarjeta_profesional_document_path, verification_status, profiles!profile_id!inner(id, full_name, avatar_url, role)')
+    .select('id, phone, specialties, languages, is_available, rnt_number, rnt_expiry_date, rnt_document_path, tarjeta_profesional_number, tarjeta_profesional_document_path, verification_status, profiles!profile_id!inner(id, full_name, avatar_url, role), tourist_guide_payout_accounts(bank_name, wompi_bank_id)')
     .order('created_at', { ascending: true })
 
   query = query.filter('profiles.role', statusFilter === 'active' ? 'eq' : 'neq', 'tourist_guide')
@@ -179,6 +181,26 @@ export default async function AdminGuiasPage({
                       <p className="text-xs text-muted-foreground">{adminCopy.guias.verification.noDocuments}</p>
                     )}
                   </div>
+
+                  {/* Payout account — only meaningful once the guide is active */}
+                  {statusFilter === 'active' && (
+                    <div className="space-y-2 rounded-xl bg-muted/30 px-3 py-2">
+                      {guide.tourist_guide_payout_accounts ? (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            {guide.tourist_guide_payout_accounts.bank_name}
+                          </p>
+                          <WompiBankIdForm
+                            recipientType="guide"
+                            recipientId={guide.id}
+                            currentWompiBankId={guide.tourist_guide_payout_accounts.wompi_bank_id}
+                          />
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{adminCopy.payoutAccounts.noAccount}</p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex gap-2 pt-1">
                     {statusFilter === 'active' ? (

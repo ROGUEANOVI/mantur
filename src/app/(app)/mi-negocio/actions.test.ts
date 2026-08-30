@@ -151,6 +151,7 @@ function categoryLinksUserTable() {
 
 const userStorageUpload = vi.fn()
 const userStorageRemove = vi.fn()
+const payoutAccountUpsertMock = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -161,6 +162,9 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'business_category_links') return categoryLinksUserTable()
       if (table === 'services') return servicesUserTable()
       if (table === 'service_types') return serviceTypesUserTable()
+      if (table === 'business_payout_accounts') {
+        return { upsert: (payload: unknown, opts: unknown) => payoutAccountUpsertMock(payload, opts) }
+      }
       throw new Error(`unexpected table on user client: ${table}`)
     },
     storage: {
@@ -218,6 +222,7 @@ const {
   requestServiceVideoUpload,
   confirmServiceVideoUpload,
   deleteServiceVideo,
+  savePayoutAccount,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[] | File>) {
@@ -1462,5 +1467,105 @@ describe('deleteBusinessImage', () => {
     await deleteBusinessImage(BIZ_ID, 'https://x/whatever.webp')
 
     expect(adminBusinessesUpdate).toHaveBeenCalledWith({ images: [] }, 'id', BIZ_ID)
+  })
+})
+
+describe('savePayoutAccount', () => {
+  const VALID_FIELDS = {
+    bank_name: 'Bancolombia',
+    account_type: 'ahorros',
+    account_number: '00011122233',
+    holder_id_type: 'NIT',
+    holder_id_number: '900123456',
+    holder_name: 'Finca La Esperanza',
+    holder_email: 'finca@example.com',
+  }
+
+  it('rejects a non-UUID businessId without querying the DB', async () => {
+    const result = await savePayoutAccount('not-a-uuid', formData(VALID_FIELDS))
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(businessOwnershipSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects when any required field is missing', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, bank_name: '' }))
+    expect(result).toEqual({ error: 'Completa todos los campos obligatorios.' })
+    expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid account_type', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, account_type: 'checking' }))
+    expect(result).toEqual({ error: 'Selecciona un tipo de cuenta válido.' })
+  })
+
+  it('rejects an invalid holder_id_type', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, holder_id_type: 'PASSPORT' }))
+    expect(result).toEqual({ error: 'Selecciona un tipo de documento válido.' })
+  })
+
+  it('rejects an invalid email', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, holder_email: 'not-an-email' }))
+    expect(result).toEqual({ error: 'Escribe un correo electrónico válido.' })
+  })
+
+  it('rejects a non-numeric account_number', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, account_number: '123-abc' }))
+    expect(result).toEqual({ error: 'El número de cuenta debe contener solo dígitos.' })
+  })
+
+  it('rejects an all-zero account_number', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, account_number: '0000' }))
+    expect(result).toEqual({ error: 'El número de cuenta debe contener solo dígitos.' })
+  })
+
+  it('accepts an account_number with leading zeros (a real, valid Colombian account format)', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    payoutAccountUpsertMock.mockResolvedValue({ error: null })
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, account_number: '00011122233' }))
+    expect(result).toEqual({ success: true })
+  })
+
+  it('rejects a too-short holder_id_number', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, holder_id_number: '12' }))
+    expect(result).toEqual({ error: 'Escribe un número de documento válido.' })
+  })
+
+  it('rejects when the business does not belong to the caller', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: null })
+    const result = await savePayoutAccount(BIZ_ID, formData(VALID_FIELDS))
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts on business_id with the validated fields, and never includes wompi_bank_id', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    payoutAccountUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await savePayoutAccount(BIZ_ID, formData(VALID_FIELDS))
+
+    expect(result).toEqual({ success: true })
+    const [payload, opts] = payoutAccountUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      business_id: BIZ_ID,
+      bank_name: 'Bancolombia',
+      account_type: 'ahorros',
+      account_number: '00011122233',
+      holder_id_type: 'NIT',
+      holder_id_number: '900123456',
+      holder_name: 'Finca La Esperanza',
+      holder_email: 'finca@example.com',
+    })
+    expect(payload).not.toHaveProperty('wompi_bank_id')
+    expect(opts).toEqual({ onConflict: 'business_id' })
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/mi-negocio/${BIZ_ID}/editar`)
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    payoutAccountUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await savePayoutAccount(BIZ_ID, formData(VALID_FIELDS))
+
+    expect(result).toEqual({ error: 'No se pudo guardar la cuenta de pagos. Intenta de nuevo.' })
   })
 })

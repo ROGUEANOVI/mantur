@@ -1,0 +1,155 @@
+'use client'
+
+import { useActionState } from 'react'
+import { saveGuidePayoutAccount } from '@/app/(app)/mi-perfil-guia/actions'
+import { guidesCopy } from '@/lib/copy/guides'
+
+type FormState = { error: string | null; saved: boolean }
+
+type Props = {
+  defaultValues: {
+    bankName: string
+    accountType: string
+    accountNumber: string
+    holderIdType: string
+    holderIdNumber: string
+    holderName: string
+    holderEmail: string
+  } | null
+}
+
+const copy = guidesCopy.payout
+
+export default function GuidePayoutAccountForm({ defaultValues }: Props) {
+  const [state, action, pending] = useActionState<FormState, FormData>(
+    async (_prev, formData) => {
+      const result = await saveGuidePayoutAccount(formData)
+      if ('error' in result) return { error: result.error, saved: false }
+      return { error: null, saved: true }
+    },
+    { error: null, saved: false },
+  )
+
+  return (
+    <form
+      action={action}
+      className="space-y-4 rounded-2xl border border-border bg-card shadow-sm p-5"
+    >
+      <div>
+        <h2 className="text-base font-semibold text-foreground">{copy.title}</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">{copy.subtitle}</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="bank_name" className="text-sm font-medium text-foreground">{copy.bankName}</label>
+        <input
+          id="bank_name"
+          type="text"
+          name="bank_name"
+          required
+          defaultValue={defaultValues?.bankName ?? ''}
+          placeholder={copy.bankNamePlaceholder}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="account_type" className="text-sm font-medium text-foreground">{copy.accountType}</label>
+        <select
+          id="account_type"
+          name="account_type"
+          required
+          defaultValue={defaultValues?.accountType ?? ''}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        >
+          <option value="" disabled>—</option>
+          {Object.entries(copy.accountTypeOptions).map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="account_number" className="text-sm font-medium text-foreground">{copy.accountNumber}</label>
+        <input
+          id="account_number"
+          type="text"
+          name="account_number"
+          required
+          defaultValue={defaultValues?.accountNumber ?? ''}
+          placeholder={copy.accountNumberPlaceholder}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="holder_id_type" className="text-sm font-medium text-foreground">{copy.holderIdType}</label>
+        <select
+          id="holder_id_type"
+          name="holder_id_type"
+          required
+          defaultValue={defaultValues?.holderIdType ?? ''}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        >
+          <option value="" disabled>—</option>
+          {Object.entries(copy.holderIdTypeOptions).map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="holder_id_number" className="text-sm font-medium text-foreground">{copy.holderIdNumber}</label>
+        <input
+          id="holder_id_number"
+          type="text"
+          name="holder_id_number"
+          required
+          defaultValue={defaultValues?.holderIdNumber ?? ''}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="holder_name" className="text-sm font-medium text-foreground">{copy.holderName}</label>
+        <input
+          id="holder_name"
+          type="text"
+          name="holder_name"
+          required
+          defaultValue={defaultValues?.holderName ?? ''}
+          placeholder={copy.holderNamePlaceholder}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="holder_email" className="text-sm font-medium text-foreground">{copy.holderEmail}</label>
+        <input
+          id="holder_email"
+          type="email"
+          name="holder_email"
+          required
+          defaultValue={defaultValues?.holderEmail ?? ''}
+          placeholder={copy.holderEmailPlaceholder}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      {state.error && (
+        <p role="alert" className="text-sm text-destructive">{state.error}</p>
+      )}
+      {state.saved && (
+        <p role="status" className="text-sm text-primary font-medium">{copy.saved}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors disabled:opacity-60"
+      >
+        {pending ? copy.saving : copy.save}
+      </button>
+    </form>
+  )
+}

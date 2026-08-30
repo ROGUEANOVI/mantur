@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import EditBusinessForm from '@/components/mi-negocio/EditBusinessForm'
+import PayoutAccountForm from '@/components/mi-negocio/PayoutAccountForm'
 import MediaManager from '@/components/shared/MediaManager'
 import {
   uploadBusinessImage,
@@ -24,7 +25,7 @@ export default async function EditarNegocioPage({
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: business }, { data: categoriesData }, { data: linksData }] = await Promise.all([
+  const [{ data: business }, { data: categoriesData }, { data: linksData }, { data: payoutAccount }] = await Promise.all([
     supabase
       .from('businesses')
       .select('id, name, description, address, phone, images, videos, lat, lng, rnt_number, rnt_status')
@@ -40,6 +41,11 @@ export default async function EditarNegocioPage({
       .from('business_category_links')
       .select('category_id')
       .eq('business_id', id),
+    supabase
+      .from('business_payout_accounts')
+      .select('bank_name, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email')
+      .eq('business_id', id)
+      .maybeSingle(),
   ])
 
   if (!business) notFound()
@@ -106,6 +112,23 @@ export default async function EditarNegocioPage({
             deleteVideoAction={boundDeleteVideo}
           />
         </div>
+
+        <PayoutAccountForm
+          businessId={business.id}
+          defaultValues={
+            payoutAccount
+              ? {
+                  bankName: payoutAccount.bank_name,
+                  accountType: payoutAccount.account_type,
+                  accountNumber: payoutAccount.account_number,
+                  holderIdType: payoutAccount.holder_id_type,
+                  holderIdNumber: payoutAccount.holder_id_number,
+                  holderName: payoutAccount.holder_name,
+                  holderEmail: payoutAccount.holder_email,
+                }
+              : null
+          }
+        />
       </div>
     </main>
   )

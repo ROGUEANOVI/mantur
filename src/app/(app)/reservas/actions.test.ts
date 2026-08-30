@@ -46,34 +46,21 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }))
 
-const rpcMock = vi.fn()
-const bookingInsertSingle = vi.fn()
-// Typed with an explicit payload param (rather than left inferred as a
-// zero-arg function) so `bookingInsertMock.mock.calls[0][0]` type-checks as
-// Record<string, unknown> instead of `undefined` — this was flagged as a
-// pre-existing TS gap in this file, unrelated to the experiences->services
-// rename, and is fixed here only because it blocks `tsc --noEmit`.
-const bookingInsertMock = vi.fn((_payload: Record<string, unknown>) => ({
-  select: () => ({ single: bookingInsertSingle }),
-}))
-const txInsertMock = vi.fn((_payload: Record<string, unknown>) => undefined as unknown)
-const bookingDeleteEq = vi.fn()
+// The admin client only ever calls .rpc() from actions.ts now — both the
+// commission lookup and the atomic booking+transaction insert are RPCs.
+// One shared mock routes to a per-function mock so each test can control
+// them independently, exactly like two real Postgres functions would.
+const commissionRpcMock = vi.fn()
+const createBookingRpcMock = vi.fn()
+const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
+  if (fn === 'get_commission_rate') return commissionRpcMock(args)
+  if (fn === 'create_booking_with_transaction') return createBookingRpcMock(args)
+  throw new Error(`unexpected rpc: ${fn}`)
+})
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
     rpc: rpcMock,
-    from: (table: string) => {
-      if (table === 'bookings') {
-        return {
-          insert: bookingInsertMock,
-          delete: () => ({ eq: bookingDeleteEq }),
-        }
-      }
-      if (table === 'transactions') {
-        return { insert: txInsertMock }
-      }
-      throw new Error(`unexpected table on admin client: ${table}`)
-    },
   })),
 }))
 
@@ -82,6 +69,16 @@ const checkRateLimitMock = vi.fn()
 vi.mock('@/lib/rate-limit', () => ({
   bookingRateLimit: {},
   checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
+// actions.ts's own responsibility ends at handing off to the Wompi checkout
+// URL builder — its internals (signature, env vars) are covered by
+// src/lib/wompi/checkout.test.ts, not here.
+const buildWompiCheckoutUrlMock = vi.fn((params: { bookingId: string }) => `https://checkout.wompi.co/p/?ref=${params.bookingId}`)
+
+vi.mock('@/lib/wompi/checkout', () => ({
+  buildWompiCheckoutUrl: (...args: [{ bookingId: string; amountInCents: number; currency: string }]) =>
+    buildWompiCheckoutUrlMock(...args),
 }))
 
 const { createBooking, createGuideTourBooking } = await import('./actions')
@@ -210,12 +207,11 @@ describe('createBooking', () => {
 
   it('allows quantity when capacity is null (no cap)', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 1000, capacity: null }) })
-    rpcMock.mockResolvedValue({ data: 10, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '500', booking_date: FUTURE_DATE })
-    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-1')
   })
 
   it('rejects a booking date in the past', async () => {
@@ -227,51 +223,63 @@ describe('createBooking', () => {
 
   it('computes total/cents/commission correctly for a per_person service and redirects to the confirmation page', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 45000, pricing_unit: 'per_person' }) })
-    rpcMock.mockResolvedValue({ data: 10, error: null }) // 10% commission
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null }) // 10% commission
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '3', booking_date: FUTURE_DATE })
-    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-1')
 
-    const bookingPayload = bookingInsertMock.mock.calls[0][0]
-    expect(bookingPayload.total_amount).toBe(135_000) // 45000 * 3
-    expect(bookingPayload.quantity).toBe(3)
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(135_000) // 45000 * 3
+    expect(payload.p_quantity).toBe(3)
+    expect(payload.p_amount_in_cents).toBe(13_500_000) // 135000 * 100
+    expect(payload.p_commission_amount_cents).toBe(1_350_000) // 10% of 13,500,000
+  })
 
-    const txPayload = txInsertMock.mock.calls[0][0]
-    expect(txPayload.amount_in_cents).toBe(13_500_000) // 135000 * 100
-    expect(txPayload.commission_amount_cents).toBe(1_350_000) // 10% of 13,500,000
+  it('creates the booking as pending_payment/pending (payment is confirmed later by the Wompi webhook, never at creation time) and redirects to the Wompi checkout URL for that booking/amount', async () => {
+    serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 45000 }) })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-55', error: null })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-55')
+
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_booking_status).toBe('pending_payment')
+    expect(payload.p_transaction_status).toBe('pending')
+
+    expect(buildWompiCheckoutUrlMock).toHaveBeenCalledWith({
+      bookingId: 'booking-55',
+      amountInCents: 4_500_000,
+      currency: 'COP',
+    })
   })
 
   it('computes total as base_price * quantity for a per_night service', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 80000, capacity: 5, pricing_unit: 'per_night', slug: 'lodging' }) })
-    rpcMock.mockResolvedValue({ data: 10, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-2' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-2', error: null })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '3', booking_date: FUTURE_DATE })
-    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-2/confirmacion')
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-2')
 
-    const bookingPayload = bookingInsertMock.mock.calls[0][0]
-    expect(bookingPayload.total_amount).toBe(240_000) // 80000 * 3 nights
-    expect(bookingPayload.quantity).toBe(3)
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(240_000) // 80000 * 3 nights
+    expect(payload.p_quantity).toBe(3)
   })
 
   it('for a fixed-price service, total equals base_price regardless of quantity, and the stored quantity is forced to 1', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 300000, capacity: 20, pricing_unit: 'fixed', slug: 'event_rental' }) })
-    rpcMock.mockResolvedValue({ data: 12, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-3' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 12, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-3', error: null })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '5', booking_date: FUTURE_DATE })
-    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-3/confirmacion')
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-3')
 
-    const bookingPayload = bookingInsertMock.mock.calls[0][0]
-    expect(bookingPayload.total_amount).toBe(300_000) // fixed — not multiplied by quantity
-    expect(bookingPayload.quantity).toBe(1) // forced to 1 regardless of the submitted quantity
-
-    const txPayload = txInsertMock.mock.calls[0][0]
-    expect(txPayload.amount_in_cents).toBe(30_000_000)
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(300_000) // fixed — not multiplied by quantity
+    expect(payload.p_quantity).toBe(1) // forced to 1 regardless of the submitted quantity
+    expect(payload.p_amount_in_cents).toBe(30_000_000)
   })
 
   it('for a fixed-price service, the capacity check still runs against the real submitted quantity before it is forced to 1', async () => {
@@ -281,26 +289,24 @@ describe('createBooking', () => {
     const result = await createBooking(fd)
 
     expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
-    expect(bookingInsertMock).not.toHaveBeenCalled()
+    expect(createBookingRpcMock).not.toHaveBeenCalled()
   })
 
   it('calls get_commission_rate with the service\'s own dynamic service_types.slug, not a hardcoded string', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 45000, slug: 'lodging', pricing_unit: 'per_night' }) })
-    rpcMock.mockResolvedValue({ data: 10, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-4' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-4', error: null })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
-    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-4/confirmacion')
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-4')
 
-    expect(rpcMock).toHaveBeenCalledWith('get_commission_rate', { p_service_type: 'lodging' })
+    expect(commissionRpcMock).toHaveBeenCalledWith({ p_service_type: 'lodging' })
   })
 
   it('ignores a client-supplied price/total/commission override and always uses the server-fetched price', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 45000 }) })
-    rpcMock.mockResolvedValue({ data: 10, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
 
     // An attacker tampering with the submitted form — none of these fields
     // exist in the real form, but a server action must ignore anything it
@@ -315,13 +321,12 @@ describe('createBooking', () => {
       commission_rate: '0',
       commission_amount_cents: '0',
     })
-    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-1')
 
-    const bookingPayload = bookingInsertMock.mock.calls[0][0]
-    const txPayload = txInsertMock.mock.calls[0][0]
-    expect(bookingPayload.total_amount).toBe(45_000) // server price, not the tampered "1"
-    expect(txPayload.amount_in_cents).toBe(4_500_000)
-    expect(txPayload.commission_amount_cents).toBe(450_000) // real 10%, not the tampered "0"
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(45_000) // server price, not the tampered "1"
+    expect(payload.p_amount_in_cents).toBe(4_500_000)
+    expect(payload.p_commission_amount_cents).toBe(450_000) // real 10%, not the tampered "0"
   })
 
   it('rounds a fractional commission amount to the nearest cent instead of truncating', async () => {
@@ -329,52 +334,38 @@ describe('createBooking', () => {
     // this combination forces Math.round to round 99.9 up to 100 — a
     // Math.floor/ceil regression here would silently under/over-charge.
     serviceSingle.mockResolvedValue({ data: serviceRow({ base_price: 9.99 }) })
-    rpcMock.mockResolvedValue({ data: 10, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-1' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
-    await expect(createBooking(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
+    await expect(createBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-1')
 
-    const txPayload = txInsertMock.mock.calls[0][0]
-    expect(txPayload.amount_in_cents).toBe(999)
-    expect(txPayload.commission_amount_cents).toBe(100) // round(99.9) = 100, not 99
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_amount_in_cents).toBe(999)
+    expect(payload.p_commission_amount_cents).toBe(100) // round(99.9) = 100, not 99
   })
 
   it('returns a generic error and never creates a booking when the commission RPC fails', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow() })
-    rpcMock.mockResolvedValue({ data: null, error: { message: 'rpc failed' } })
+    commissionRpcMock.mockResolvedValue({ data: null, error: { message: 'rpc failed' } })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
-    expect(bookingInsertMock).not.toHaveBeenCalled()
+    expect(createBookingRpcMock).not.toHaveBeenCalled()
   })
 
-  it('rolls back (deletes) the booking when the transaction insert fails', async () => {
+  it('returns a generic error when create_booking_with_transaction fails (the RPC itself rolls back atomically — no manual cleanup call is expected)', async () => {
     serviceSingle.mockResolvedValue({ data: serviceRow() })
-    rpcMock.mockResolvedValue({ data: 10, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-99' }, error: null })
-    txInsertMock.mockResolvedValue({ error: { message: 'insert failed' } })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: null, error: { message: 'insert failed' } })
 
     const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
     const result = await createBooking(fd)
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
-    expect(bookingDeleteEq).toHaveBeenCalledWith('id', 'booking-99')
-  })
-
-  it('returns a generic error when the booking insert itself fails', async () => {
-    serviceSingle.mockResolvedValue({ data: serviceRow() })
-    rpcMock.mockResolvedValue({ data: 10, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: null, error: { message: 'db error' } })
-
-    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
-    const result = await createBooking(fd)
-
-    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
-    expect(txInsertMock).not.toHaveBeenCalled()
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 })
 
@@ -395,51 +386,68 @@ describe('createGuideTourBooking', () => {
 
   it('returns a generic error when the commission RPC fails', async () => {
     guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
-    rpcMock.mockResolvedValue({ data: null, error: { message: 'rpc failed' } })
+    commissionRpcMock.mockResolvedValue({ data: null, error: { message: 'rpc failed' } })
 
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
     const result = await createGuideTourBooking(fd)
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
-    expect(bookingInsertMock).not.toHaveBeenCalled()
+    expect(createBookingRpcMock).not.toHaveBeenCalled()
   })
 
-  it('returns a generic error when the booking insert itself fails', async () => {
+  it('returns a generic error when create_booking_with_transaction fails', async () => {
     guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
-    rpcMock.mockResolvedValue({ data: 15, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: null, error: { message: 'db error' } })
+    commissionRpcMock.mockResolvedValue({ data: 15, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: null, error: { message: 'db error' } })
 
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
     const result = await createGuideTourBooking(fd)
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
-    expect(txInsertMock).not.toHaveBeenCalled()
+    expect(redirectMock).not.toHaveBeenCalled()
   })
 
   it('reads the commission rate for "guide_tour", not "experience", and inserts the booking with quantity (not people_count)', async () => {
     guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
-    rpcMock.mockResolvedValue({ data: 15, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-7' }, error: null })
-    txInsertMock.mockResolvedValue({ error: null })
+    commissionRpcMock.mockResolvedValue({ data: 15, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-7', error: null })
 
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '2', booking_date: FUTURE_DATE, notes: 'Punto de encuentro: parque' })
-    await expect(createGuideTourBooking(fd)).rejects.toThrow('redirect:/reservas/booking-7/confirmacion')
+    await expect(createGuideTourBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-7')
 
-    expect(rpcMock).toHaveBeenCalledWith('get_commission_rate', { p_service_type: 'guide_tour' })
+    expect(commissionRpcMock).toHaveBeenCalledWith({ p_service_type: 'guide_tour' })
 
-    const bookingPayload = bookingInsertMock.mock.calls[0][0]
-    expect(bookingPayload.notes).toBe('Punto de encuentro: parque')
-    expect(bookingPayload.guide_id).toBe('guide-1')
-    expect(bookingPayload.total_amount).toBe(40_000) // 20000 * 2
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_notes).toBe('Punto de encuentro: parque')
+    expect(payload.p_guide_id).toBe('guide-1')
+    expect(payload.p_total_amount).toBe(40_000) // 20000 * 2
     // The bookings table column is `quantity` (renamed from people_count) —
     // this function's own formData field name is still people_count, but
-    // the inserted DB column key must be `quantity`.
-    expect(bookingPayload.quantity).toBe(2)
-    expect(bookingPayload).not.toHaveProperty('people_count')
+    // the RPC parameter must be p_quantity.
+    expect(payload.p_quantity).toBe(2)
+    expect(payload).not.toHaveProperty('p_people_count')
 
-    const txPayload = txInsertMock.mock.calls[0][0]
-    expect(txPayload.amount_in_cents).toBe(4_000_000)
-    expect(txPayload.commission_amount_cents).toBe(600_000) // 15% of 4,000,000
+    expect(payload.p_amount_in_cents).toBe(4_000_000)
+    expect(payload.p_commission_amount_cents).toBe(600_000) // 15% of 4,000,000
+  })
+
+  it('creates a guide tour booking as pending_payment/pending and redirects to the Wompi checkout URL', async () => {
+    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
+    commissionRpcMock.mockResolvedValue({ data: 15, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-66', error: null })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    await expect(createGuideTourBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-66')
+
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_booking_status).toBe('pending_payment')
+    expect(payload.p_transaction_status).toBe('pending')
+
+    expect(buildWompiCheckoutUrlMock).toHaveBeenCalledWith({
+      bookingId: 'booking-66',
+      amountInCents: 2_000_000,
+      currency: 'COP',
+    })
   })
 
   it('rejects when the tour is missing or inactive', async () => {
@@ -461,18 +469,5 @@ describe('createGuideTourBooking', () => {
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: '2000-01-01' })
     const result = await createGuideTourBooking(fd)
     expect(result).toEqual({ error: 'La fecha debe ser hoy o en el futuro.' })
-  })
-
-  it('rolls back (deletes) the booking when the transaction insert fails', async () => {
-    guideTourSingle.mockResolvedValue({ data: { id: TOUR_ID, price: 20000, capacity: 5, status: 'active', guide_id: 'guide-1' } })
-    rpcMock.mockResolvedValue({ data: 15, error: null })
-    bookingInsertSingle.mockResolvedValue({ data: { id: 'booking-8' }, error: null })
-    txInsertMock.mockResolvedValue({ error: { message: 'insert failed' } })
-
-    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
-    const result = await createGuideTourBooking(fd)
-
-    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
-    expect(bookingDeleteEq).toHaveBeenCalledWith('id', 'booking-8')
   })
 })
