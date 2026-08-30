@@ -57,6 +57,7 @@ export const landingCopy = {
 
   footer: {
     tagline: 'Turismo con alma local · Manaure Balcón del Cesar, Colombia.',
+    legal: 'RNT #299376 · Matrícula Mercantil 0000232870, Cámara de Comercio de Valledupar.',
     rights: '© 2026 ManTur. Todos los derechos reservados.',
   },
 }
