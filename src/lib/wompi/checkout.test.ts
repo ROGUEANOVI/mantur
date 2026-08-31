@@ -25,6 +25,7 @@ describe('buildWompiCheckoutUrl', () => {
     expect(url.searchParams.get('amount-in-cents')).toBe('50000')
     expect(url.searchParams.get('reference')).toBe('booking-1')
     expect(url.searchParams.get('redirect-url')).toBe('https://mantur.co/reservas/booking-1/confirmacion')
+    expect(url.searchParams.get('collect-customer-legal-id')).toBe('true')
   })
 
   it('computes the integrity signature as SHA256(reference + amountInCents + currency + secret)', () => {

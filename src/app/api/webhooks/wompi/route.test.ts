@@ -175,6 +175,7 @@ function buildEvent(overrides: {
   badChecksum?: boolean
   billingData?: Record<string, unknown> | null
   customerEmail?: string
+  paymentMethod?: Record<string, unknown>
 } = {}) {
   const timestamp = overrides.timestamp ?? NOW_SECONDS
   const transaction: Record<string, unknown> = {
@@ -190,6 +191,9 @@ function buildEvent(overrides: {
   // real traffic would; pass billingData: null to test its absence.
   if (overrides.billingData !== null) {
     transaction.billing_data = overrides.billingData ?? { legal_id_type: 'CC', legal_id: '1002003000' }
+  }
+  if (overrides.paymentMethod) {
+    transaction.payment_method = overrides.paymentMethod
   }
 
   const data = { transaction }
@@ -652,14 +656,38 @@ describe('POST /api/webhooks/wompi — Alegra commission-invoice sync on a fresh
     expect(transactionsUpdateEqMock).toHaveBeenCalledWith({ alegra_invoice_status: 'rejected' }, 'id', 'tx-1')
   })
 
-  it('skips invoicing entirely (no crash) when Wompi sent no billing identification at all', async () => {
+  it('invoices as "Consumidor final" (NIT 222222222222), never skipping, when Wompi sent no identification at all (e.g. Nequi)', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult())
 
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED', billingData: null })))
 
     expect(res.status).toBe(200)
-    expect(findOrCreateContactMock).not.toHaveBeenCalled()
-    expect(createCommissionInvoiceMock).not.toHaveBeenCalled()
+    expect(findOrCreateContactMock).toHaveBeenCalledWith({
+      legalIdType: 'NIT',
+      legalId: '222222222222',
+      name: 'Consumidor final',
+      email: 'tourist@example.com',
+    })
+    expect(createCommissionInvoiceMock).toHaveBeenCalledWith({ contactId: 'alegra-contact-1', commissionAmountCents: 5000 })
+  })
+
+  it('reads the identification from payment_method.user_legal_id when billing_data/customer_data have none (PSE/Daviplata)', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+
+    const res = await POST(
+      postRequest(
+        buildEvent({
+          status: 'APPROVED',
+          billingData: null,
+          paymentMethod: { type: 'PSE', user_legal_id_type: 'CC', user_legal_id: '1002003000' },
+        }),
+      ),
+    )
+
+    expect(res.status).toBe(200)
+    expect(findOrCreateContactMock).toHaveBeenCalledWith(
+      expect.objectContaining({ legalIdType: 'CC', legalId: '1002003000', name: 'Prueba Wompi Sandbox' }),
+    )
   })
 
   it('never attempts invoicing when applied is false (duplicate/no-op webhook delivery)', async () => {

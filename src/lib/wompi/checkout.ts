@@ -43,6 +43,17 @@ export function buildWompiCheckoutUrl(params: {
   url.searchParams.set('amount-in-cents', String(params.amountInCents))
   url.searchParams.set('reference', params.bookingId)
   url.searchParams.set('signature:integrity', signature)
+  // Forces Wompi's hosted checkout to collect the payer's identity document
+  // regardless of payment method. Without this, Wompi's own form only asks
+  // for it on CARD (billing_data.legal_id) — Nequi/Bancolombia Transfer/QR
+  // collect no identification at all, and PSE/Daviplata put it under
+  // payment_method.user_legal_id instead (see extractBillingIdentification
+  // in src/app/api/webhooks/wompi/route.ts, which reads all of these). A
+  // live sandbox booking paid via Nequi confirmed this gap: no identification
+  // reached the webhook, so no Alegra invoice could be created for it —
+  // this flag, plus the syncAlegraInvoice "Consumidor Final" fallback for
+  // whatever slips through anyway, closes it.
+  url.searchParams.set('collect-customer-legal-id', 'true')
   // Not a validation step — Wompi's own docs explicitly warn against trusting
   // this redirect as proof of payment. It only lands the tourist back on our
   // confirmation page, which polls until the webhook has updated the booking.

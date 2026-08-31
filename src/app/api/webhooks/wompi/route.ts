@@ -183,21 +183,38 @@ async function enqueueAndSendPayout(
   }
 }
 
-// Wompi's checkout collects a legal ID (billing_data.legal_id_type/
-// legal_id) for every card payment, per Colombian card-processing
-// regulation — this is the only identification source used for Alegra
-// invoicing, since ManTur never asks a tourist for one directly (see the
-// migration comment on profile_contact_details.alegra_contact_id).
+// Wompi puts the payer's identity document in a different place depending
+// on payment method: billing_data/customer_data.legal_id for CARD (and for
+// any method when checkout.ts's collect-customer-legal-id=true flag is
+// honored), but payment_method.user_legal_id for PSE and DAVIPLATA
+// specifically (confirmed against Wompi's own docs) — NEQUI and Bancolombia
+// Transfer/QR carry no identification anywhere. Checking all three sources
+// is the only way to not miss an identification Wompi actually sent.
 function extractBillingIdentification(
   transaction: Record<string, unknown>,
 ): { legalIdType: string; legalId: string } | null {
   const billingData = transaction.billing_data as Record<string, unknown> | undefined
   const customerData = transaction.customer_data as Record<string, unknown> | undefined
-  const legalIdType = (billingData?.legal_id_type ?? customerData?.legal_id_type) as string | undefined
-  const legalId = (billingData?.legal_id ?? customerData?.legal_id) as string | undefined
+  const paymentMethod = transaction.payment_method as Record<string, unknown> | undefined
+  const legalIdType = (billingData?.legal_id_type ?? customerData?.legal_id_type ?? paymentMethod?.user_legal_id_type) as
+    | string
+    | undefined
+  const legalId = (billingData?.legal_id ?? customerData?.legal_id ?? paymentMethod?.user_legal_id) as string | undefined
   if (!legalIdType || !legalId) return null
   return { legalIdType, legalId }
 }
+
+// DIAN's own sanctioned fallback for a sale where the buyer's identification
+// was never captured (Oficio DIAN 900223 de 2022, Resolución 000042 de
+// 2020): invoice as "Consumidor final" under NIT 222222222222, rather than
+// skipping invoicing outright. A real sandbox booking paid via Nequi
+// confirmed this isn't a corner case — Wompi's Nequi flow never collects any
+// identification at all, so without this fallback every Nequi/Bancolombia
+// Transfer/QR sale would simply never get a ManTur invoice, which is a DIAN
+// compliance gap. The name is deliberately the literal "Consumidor final",
+// not the tourist's real name, matching the DIAN convention exactly — this
+// generic contact is intentionally shared across every unidentified sale.
+const CONSUMIDOR_FINAL_IDENTIFICATION = { legalIdType: 'NIT', legalId: '222222222222', name: 'Consumidor final' }
 
 // Syncs the Alegra contact (cached on profile_contact_details after the
 // first booking) and creates the commission invoice for a freshly-confirmed
@@ -211,13 +228,17 @@ async function syncAlegraInvoice(
   params: { transactionId: string; bookingId: string; commissionAmountCents: number; transaction: Record<string, unknown> },
 ): Promise<void> {
   try {
-    const identification = extractBillingIdentification(params.transaction)
-    if (!identification) {
-      console.error('Wompi webhook: no billing identification available, skipping Alegra invoice', {
+    const realIdentification = extractBillingIdentification(params.transaction)
+    if (!realIdentification) {
+      // Routine, not an error: this is the expected path for every Nequi/
+      // Bancolombia Transfer/QR payment (Wompi never collects an
+      // identification for those methods) — console.error here would drown
+      // out genuinely actionable failures below (contact/invoice creation).
+      console.info('Wompi webhook: no billing identification available, invoicing as Consumidor final', {
         transactionId: params.transactionId,
       })
-      return
     }
+    const identification = realIdentification ?? CONSUMIDOR_FINAL_IDENTIFICATION
 
     const { data: booking } = await admin
       .from('bookings')
@@ -257,7 +278,11 @@ async function syncAlegraInvoice(
     if (!contactId) {
       const customerData = params.transaction.customer_data as Record<string, unknown> | undefined
       const email = (params.transaction.customer_email as string | undefined) ?? null
-      const name = profile?.full_name || (customerData?.full_name as string | undefined) || 'Consumidor final'
+      // The literal "Consumidor final" name is deliberate when no real
+      // identification was captured — see CONSUMIDOR_FINAL_IDENTIFICATION.
+      const name = !realIdentification
+        ? CONSUMIDOR_FINAL_IDENTIFICATION.name
+        : profile?.full_name || (customerData?.full_name as string | undefined) || 'Consumidor final'
 
       const contactResult = await findOrCreateContact({
         legalIdType: identification.legalIdType,

@@ -415,10 +415,29 @@ correcciones reales encontradas al verificar contra la cuenta real de Alegra
   responsabilidad de IVA también aplicará a la venta de paquetes cuando se
   implemente el §7 (ManTur como operador cobra IVA 19% sobre el precio del
   paquete, no solo sobre una comisión).
-- **Sin campo de cédula nuevo.** El checkout de Wompi ya captura
-  `billing_data.legal_id_type`/`legal_id` (obligatorio para tarjetas en
-  Colombia) — se lee directamente del payload del webhook `transaction.updated`
-  en vez de agregar un campo de documento a `profiles`/`profile_contact_details`.
+- **Sin campo de cédula nuevo — pero con un vacío real encontrado en
+  producción (2026-08-31) y ya corregido.** El checkout de Wompi captura
+  `billing_data.legal_id_type`/`legal_id` para tarjetas (obligatorio en
+  Colombia), y `payment_method.user_legal_id`/`user_legal_id_type` para PSE y
+  Daviplata — pero **Nequi, Botón Bancolombia y Bancolombia QR no capturan
+  ninguna identificación** (confirmado contra la documentación oficial de
+  Wompi). Una reserva real de prueba pagada con Nequi expuso esto: el webhook
+  llegó sin identificación en ningún lado y `syncAlegraInvoice()` se abstenía
+  silenciosamente de facturar — un vacío de cumplimiento DIAN real, no solo
+  contable, porque cada venta pagada debe llevar factura electrónica. Se
+  corrigió con tres capas: (1) `buildWompiCheckoutUrl()` ahora envía
+  `collect-customer-legal-id=true`, que fuerza el checkout hospedado de Wompi
+  a pedir el documento sin importar el método de pago elegido; (2)
+  `extractBillingIdentification()` ahora también revisa
+  `payment_method.user_legal_id` (antes solo miraba `billing_data`/
+  `customer_data`, así que ni siquiera aprovechaba la identificación que PSE/
+  Daviplata sí traen); (3) si aun así no llega ninguna identificación,
+  `syncAlegraInvoice()` factura como **"Consumidor final" (NIT
+  `222222222222`)** — el mecanismo que la propia DIAN sanciona para este
+  caso exacto (Resolución 000042/2020, Oficio DIAN 900223/2022) — en vez de
+  omitir la factura. Se lee directamente del payload del webhook
+  `transaction.updated`, sin agregar un campo de documento a
+  `profiles`/`profile_contact_details`.
 - **`alegra_contact_id` vive en `profile_contact_details`**, no en `profiles`
   (que tiene una política SELECT amplia `USING (true)` para `authenticated`,
   ver `20260814000000`) — mismo razonamiento que ya protege `phone`.
