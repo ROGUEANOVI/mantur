@@ -489,6 +489,24 @@ describe('POST /api/webhooks/wompi — provider payout on a freshly-confirmed AP
   })
 })
 
+describe('POST /api/webhooks/wompi — estimated Wompi fee persisted on a freshly-confirmed APPROVED payment', () => {
+  it('stores the estimated fee (2.65% + $700 COP + 19% IVA) computed from the confirmed amount', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ amountInCents: 50000 }))
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(transactionsUpdateEqMock).toHaveBeenCalledWith({ wompi_fee_cents: 84877 }, 'id', 'tx-1')
+  })
+
+  it('never persists a fee estimate when applied is false (duplicate/no-op webhook delivery)', async () => {
+    applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(transactionsUpdateEqMock).not.toHaveBeenCalledWith(expect.objectContaining({ wompi_fee_cents: expect.anything() }), 'id', expect.anything())
+  })
+})
+
 describe('POST /api/webhooks/wompi — async confirmation of a same-day refund void', () => {
   // Wompi's own void-request response doesn't reliably confirm VOIDED
   // synchronously (see the comment on voidWompiTransaction) — this is where

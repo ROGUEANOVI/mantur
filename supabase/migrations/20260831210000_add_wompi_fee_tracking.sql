@@ -1,0 +1,31 @@
+-- =============================================================
+-- Migration: 20260831210000_add_wompi_fee_tracking
+--
+-- Adds transactions.wompi_fee_cents — an estimate of what Wompi actually
+-- retains per successful transaction (2.65% + $700 COP + 19% IVA on that
+-- fee, per Wompi's published "Plan de facturación" for this merchant,
+-- confirmed live in comercios.wompi.co on 2026-08-31, the day the merchant
+-- account itself was approved). Without this, /admin's "Ingresos
+-- confirmados" stat and ManTur's own commission_amount_cents both overstate
+-- ManTur's real net margin by roughly 30-40% of the commission on a typical
+-- booking — Wompi's fee comes out of ManTur's own settled balance before
+-- ManTur ever pays a business/guide their share via Payouts.
+--
+-- Deliberately an ESTIMATE, not a confirmed value from Wompi: neither the
+-- transaction.updated webhook payload nor GET /transactions/{id} expose any
+-- fee/comisión field (confirmed against Wompi's own API docs) — the actual
+-- per-transaction fee is only visible in Wompi's own settlement
+-- reports/dashboard, not through any API this codebase can call
+-- automatically. computeEstimatedWompiFeeCents() in
+-- src/app/api/webhooks/wompi/route.ts documents the exact formula and its
+-- source; revisit both if Wompi's published rate ever changes.
+--
+-- Nullable: only ever set for a transaction that actually reaches 'paid'
+-- (set alongside the payout/Alegra side effects in the webhook route, via a
+-- plain UPDATE — not folded into apply_wompi_webhook_transaction_update() to
+-- avoid touching that function's RETURNS TABLE shape again, see
+-- 20260830210000's ambiguous-column postmortem).
+-- =============================================================
+
+ALTER TABLE public.transactions
+  ADD COLUMN wompi_fee_cents bigint CHECK (wompi_fee_cents >= 0);
