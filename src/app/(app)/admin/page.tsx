@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Users,
   TrendingUp,
+  Wallet,
   CheckCircle2,
   Clock,
   XCircle,
@@ -79,7 +80,7 @@ export default async function AdminPage() {
     admin.from('places').select('id', { count: 'exact', head: true }),
     admin.from('profiles').select('id', { count: 'exact', head: true }),
     admin.from('commission_config').select('service_type, rate'),
-    admin.from('transactions').select('amount_in_cents').eq('status', 'paid'),
+    admin.from('transactions').select('amount_in_cents, commission_amount_cents, wompi_fee_cents').eq('status', 'paid'),
     admin
       .from('businesses')
       .select('id, name, type, created_at, profiles!owner_id(full_name)')
@@ -96,6 +97,14 @@ export default async function AdminPage() {
   const tourActivityRate = commissions?.find((c) => c.service_type === 'tour_activity')?.rate ?? '—'
   const totalRevenueCents = (paidTransactions ?? []).reduce(
     (sum, t) => sum + Number(t.amount_in_cents),
+    0,
+  )
+  // wompi_fee_cents is only populated for transactions confirmed after
+  // 20260831210000 shipped — older paid rows treat it as 0 (no fee estimate
+  // available), which understates their true cost slightly but never
+  // fabricates a number for a transaction this feature never ran against.
+  const netMarginCents = (paidTransactions ?? []).reduce(
+    (sum, t) => sum + Number(t.commission_amount_cents) - Number(t.wompi_fee_cents ?? 0),
     0,
   )
 
@@ -154,6 +163,13 @@ export default async function AdminPage() {
             iconColor="text-primary"
             label="Ingresos confirmados"
             value={formatCOP(totalRevenueCents)}
+            valueSmall
+          />
+          <StatCard
+            icon={Wallet}
+            iconColor="text-primary"
+            label="Margen neto real (comisión − Wompi)"
+            value={formatCOP(netMarginCents)}
             valueSmall
           />
           <StatCard

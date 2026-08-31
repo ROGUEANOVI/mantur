@@ -6,6 +6,7 @@ import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
 import { sendBusinessBookingConfirmedEmail } from '@/lib/email/bookingEmails'
 import { findOrCreateContact } from '@/lib/alegra/contacts'
 import { createCommissionInvoice } from '@/lib/alegra/invoices'
+import { estimateWompiFeeCents } from '@/lib/wompi/fees'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -539,6 +540,20 @@ export async function POST(request: Request) {
       amountInCents: updateResult.amount_in_cents,
       commissionAmountCents: updateResult.commission_amount_cents,
     })
+
+    // Plain UPDATE rather than folding into apply_wompi_webhook_transaction_update
+    // — see 20260830210000's ambiguous-column postmortem on that RPC's
+    // RETURNS TABLE shape. Fire-and-forget like alegra_invoice_id below:
+    // this is bookkeeping visibility (admin's net-margin stat), not a
+    // reason to make Wompi retry an already-confirmed payment.
+    const { error: wompiFeeUpdateError } = await admin
+      .from('transactions')
+      .update({ wompi_fee_cents: estimateWompiFeeCents(updateResult.amount_in_cents) })
+      .eq('id', updateResult.transaction_id)
+
+    if (wompiFeeUpdateError) {
+      console.error('Failed to persist estimated Wompi fee', wompiFeeUpdateError)
+    }
 
     await syncAlegraInvoice(admin, {
       transactionId: updateResult.transaction_id,
