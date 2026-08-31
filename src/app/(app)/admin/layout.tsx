@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import PublicNav from '@/components/layout/PublicNav'
 import AdminSidebar from '@/components/layout/AdminSidebar'
 import AdminMobileMenu from '@/components/layout/AdminMobileMenu'
+import { getSidebarPendingCounts } from './pendingCounts'
 
 export default async function AdminLayout({
   children,
@@ -21,6 +22,10 @@ export default async function AdminLayout({
 
   if (profile?.role !== 'admin') redirect('/')
 
+  // cache()-wrapped, so this doesn't duplicate the Supabase round trip the
+  // dashboard page itself may also make in the same request.
+  const navCounts = await getSidebarPendingCounts()
+
   return (
     <div className="min-h-screen bg-background">
       {/* Top nav — same as public pages */}
@@ -28,12 +33,12 @@ export default async function AdminLayout({
 
       <div className="flex">
         {/* Left sidebar — desktop (lg+), fixed positioned, collapsible */}
-        <AdminSidebar />
+        <AdminSidebar navCounts={navCounts} />
 
         {/* Content — ml-14 on desktop offsets the collapsed sidebar (w-14); sidebar is fixed so it never shifts this */}
         <div className="flex-1 min-w-0 flex flex-col lg:ml-14">
           {/* Mobile menu — visible below lg, opens the same vertical, grouped nav as the desktop sidebar */}
-          <AdminMobileMenu />
+          <AdminMobileMenu navCounts={navCounts} />
 
           {/* Page content */}
           {children}

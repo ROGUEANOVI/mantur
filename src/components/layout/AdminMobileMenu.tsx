@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { Menu, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ADMIN_NAV_GROUPS, type AdminNavItem } from './admin-nav'
+import { ADMIN_NAV_GROUPS, type AdminNavItem, type AdminNavCountKey } from './admin-nav'
 
 const HEADER_OFFSET = 'top-14' // 3.5rem — below the sticky site header
 const EXIT_MS = 200
@@ -22,7 +22,11 @@ function currentLabel(pathname: string) {
   return active?.label ?? 'Menú'
 }
 
-export default function AdminMobileMenu() {
+export default function AdminMobileMenu({
+  navCounts,
+}: {
+  navCounts?: Partial<Record<AdminNavCountKey, number>>
+}) {
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false) // drawer is in the DOM
   const [entered, setEntered] = useState(false) // drawer has slid in from the left
@@ -112,8 +116,9 @@ export default function AdminMobileMenu() {
                 <div key={gi}>
                   {gi > 0 && <div className="my-1.5 mx-2 border-t border-border" />}
                   <div className="space-y-0.5">
-                    {group.map(({ href, label, exact, Icon }) => {
+                    {group.map(({ href, label, exact, Icon, countKey }) => {
                       const isActive = isItemActive({ href, label, exact, Icon }, pathname)
+                      const count = countKey ? navCounts?.[countKey] ?? 0 : 0
                       return (
                         <a
                           key={href}
@@ -126,7 +131,12 @@ export default function AdminMobileMenu() {
                           )}
                         >
                           <Icon className="size-4 shrink-0" strokeWidth={1.5} aria-hidden="true" />
-                          {label}
+                          <span className="flex-1">{label}</span>
+                          {count > 0 && (
+                            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-accent/15 text-accent text-[11px] font-semibold tabular-nums">
+                              {count}
+                            </span>
+                          )}
                         </a>
                       )
                     })}
