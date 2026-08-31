@@ -7,16 +7,26 @@ import { alegraRequest } from './client'
 // taxable base (confirmed against DIAN doctrine on travel-agency
 // intermediation commissions — see docs/wompi-alegra-integration-plan.md §6).
 //
-// No `tax` field on the line item: MANTUR TURISMO S.A.S.'s own Alegra
-// company configuration is "No responsable de IVA" (Configuración →
-// Configurar empresa → Responsabilidad tributaria) — confirmed live against
-// the real account, which rejects an IVA-family tax (even "IVA Excluido" at
-// 0%) with "No puedes usar impuestos IVA" for a non-IVA-responsible account.
-// ALEGRA_COMMISSION_ITEM_ID must reference an item created with tax
-// "Ninguno (0%)" to match.
+// 19% IVA is charged on the commission: MANTUR TURISMO S.A.S. added
+// responsibility code 48 (Impuesto sobre las ventas - IVA) to its RUT on
+// 2026-08-30 and its Alegra company configuration was updated to "Responsable
+// de IVA" to match (Configuración → Configurar empresa → Responsabilidad
+// tributaria) — until then Alegra's API rejected any IVA-family tax (even
+// "IVA Excluido" at 0%) with "No puedes usar impuestos IVA" for a
+// non-IVA-responsible account, which is why an earlier version of this file
+// sent no tax at all. ALEGRA_COMMISSION_ITEM_ID must reference an item
+// configured with a 19% IVA tax to match, and ALEGRA_IVA_TAX_ID is that same
+// tax's id (Configuración → Impuestos in Alegra) so the invoice line item
+// references it explicitly rather than relying on the item's own default.
 function requireCommissionItemId(): string {
   const value = process.env.ALEGRA_COMMISSION_ITEM_ID
   if (!value) throw new Error('ALEGRA_COMMISSION_ITEM_ID is not configured')
+  return value
+}
+
+function requireIvaTaxId(): string {
+  const value = process.env.ALEGRA_IVA_TAX_ID
+  if (!value) throw new Error('ALEGRA_IVA_TAX_ID is not configured')
   return value
 }
 
@@ -31,10 +41,13 @@ export async function createCommissionInvoice(params: {
   commissionAmountCents: number
 }): Promise<CreateCommissionInvoiceResult> {
   const itemId = requireCommissionItemId()
+  const taxId = requireIvaTaxId()
   const date = todayIsoDate()
 
   // Alegra's price fields are decimal COP (e.g. 35000.00), not integer
-  // cents like Wompi's API — convert once, here, at the API boundary.
+  // cents like Wompi's API — convert once, here, at the API boundary. This
+  // is the pre-tax commission amount; Alegra computes and adds the 19% IVA
+  // itself from the referenced tax id, same as it does in the item editor.
   const commissionAmount = params.commissionAmountCents / 100
 
   const result = await alegraRequest<{ id: string | number }>('/invoices', {
@@ -48,6 +61,7 @@ export async function createCommissionInvoice(params: {
           id: itemId,
           price: commissionAmount,
           quantity: 1,
+          tax: [{ id: taxId }],
         },
       ],
     },

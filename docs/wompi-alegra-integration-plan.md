@@ -398,15 +398,23 @@ Pasos 1–2 implementados (`src/lib/alegra/`, wired into
 correcciones reales encontradas al verificar contra la cuenta real de Alegra
 (no asumidas):
 
-- **IVA resuelto — NO se cobra IVA.** Investigación de doctrina DIAN
-  (Oficio 907360/2021, Concepto 10454/2025) primero concluyó que la comisión
-  de intermediación de una agencia de viajes normalmente lleva IVA 19% sobre
-  la comisión (no sobre el bruto). Pero al intentar crear el ítem de la
-  comisión en la cuenta real de Alegra, la API rechazó tanto "IVA 19%" como
-  "IVA Excluido (0%)" con `"No puedes usar impuestos IVA"` — la
-  responsabilidad tributaria configurada de MANTUR TURISMO S.A.S. en Alegra
-  (reflejo del RUT real) es **"No responsable de IVA"**. El RUT manda sobre
-  la doctrina general: las facturas se crean sin ningún campo `tax`.
+- **IVA — actualizado 2026-08-31: SÍ se cobra IVA 19%.** Investigación de
+  doctrina DIAN (Oficio 907360/2021, Concepto 10454/2025) concluyó que la
+  comisión de intermediación de una agencia de viajes lleva IVA 19% sobre la
+  comisión (no sobre el bruto). Al intentar crear el ítem de la comisión en
+  la cuenta real de Alegra el 2026-08-30, la API rechazó tanto "IVA 19%" como
+  "IVA Excluido (0%)" con `"No puedes usar impuestos IVA"`, porque el RUT de
+  MANTUR TURISMO S.A.S. aún no tenía la responsabilidad de IVA — así que la
+  factura se creó sin ningún campo `tax` como solución temporal correcta para
+  ese momento. El 2026-08-30/31 se agregó al RUT la responsabilidad código
+  **48 - Impuesto sobre las ventas - IVA** (formulario DIAN 141273224537), y
+  la configuración de la empresa en Alegra se actualizó a **"Responsable de
+  IVA"** para reflejarlo. Con esto, la doctrina original vuelve a aplicar
+  íntegramente: `createCommissionInvoice()` ahora sí adjunta el impuesto IVA
+  19% (`ALEGRA_IVA_TAX_ID`) a la línea de la comisión. Esta misma
+  responsabilidad de IVA también aplicará a la venta de paquetes cuando se
+  implemente el §7 (ManTur como operador cobra IVA 19% sobre el precio del
+  paquete, no solo sobre una comisión).
 - **Sin campo de cédula nuevo.** El checkout de Wompi ya captura
   `billing_data.legal_id_type`/`legal_id` (obligatorio para tarjetas en
   Colombia) — se lee directamente del payload del webhook `transaction.updated`
@@ -415,8 +423,11 @@ correcciones reales encontradas al verificar contra la cuenta real de Alegra
   (que tiene una política SELECT amplia `USING (true)` para `authenticated`,
   ver `20260814000000`) — mismo razonamiento que ya protege `phone`.
 - **Ítem de comisión ya creado en la cuenta real**: "Comisión por
-  intermediación turística - ManTur", tipo Servicio, impuesto "Ninguno (0%)",
-  id `2` → `ALEGRA_COMMISSION_ITEM_ID=2`.
+  intermediación turística - ManTur", tipo Servicio, id `2` →
+  `ALEGRA_COMMISSION_ITEM_ID=2`. Impuesto actualizado el 2026-08-31 de
+  "Ninguno (0%)" a **"IVA - (19.00%)"** (el impuesto propio de Alegra, no el
+  "IVA 19%" creado manualmente antes de que la cuenta fuera responsable de
+  IVA — ese queda sin usar), id de impuesto `4` → `ALEGRA_IVA_TAX_ID=4`.
 - **Webhook de reconciliación (`invoices.emissionFinished`) NO aplica a esta
   cuenta.** Investigado y confirmado: ese webhook vive en
   `e-provider-docs.alegra.com`, un producto separado ("proveedor
@@ -469,6 +480,15 @@ una bandera de configuración (`platform_config.packages_enabled` o similar,
 análogo a un `commission_config`) para poder mergear e ir probando el código
 en producción de forma controlada (soft-launch) antes de anunciar la
 funcionalidad públicamente.
+
+**IVA en paquetes**: a diferencia de la comisión de intermediación (§6, IVA
+19% solo sobre la comisión), cuando ManTur vende un paquete actúa como
+**operador/principal**, no como intermediario — el IVA 19% aplica sobre el
+`base_price` completo que paga el turista, no sobre un margen. Definir en la
+implementación si `base_price` se maneja como valor antes de IVA (Alegra
+calcula y suma el impuesto, mismo patrón que `createCommissionInvoice()`) o
+como valor final con IVA incluido — decisión pendiente para cuando se
+construya este módulo.
 
 ### 7.1 Esquema nuevo
 
