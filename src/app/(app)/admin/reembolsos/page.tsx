@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { cn } from '@/lib/utils'
+import { computeNetRefundAmountCents } from '@/lib/refunds'
 import RefundPolicyForm from '@/components/admin/RefundPolicyForm'
 import RejectRefundForm from './RejectRefundForm'
 import { markRefundProcessedManually } from './actions'
@@ -16,6 +17,8 @@ type RefundRequestRow = {
   id: string
   refund_percentage: number
   refund_amount_cents: number
+  wompi_fee_cents: number | null
+  net_refund_amount_cents: number | null
   reason: string | null
   status: string
   refund_method: string | null
@@ -58,7 +61,7 @@ export default async function AdminReembolsosPage({
   const { data: requests } = await admin
     .from('refund_requests')
     .select(
-      'id, refund_percentage, refund_amount_cents, reason, status, refund_method, admin_notes, created_at, profiles!requested_by(full_name), bookings!booking_id(booking_date, services(name), guide_tours(name))',
+      'id, refund_percentage, refund_amount_cents, wompi_fee_cents, net_refund_amount_cents, reason, status, refund_method, admin_notes, created_at, profiles!requested_by(full_name), bookings!booking_id(booking_date, services(name), guide_tours(name))',
     )
     .eq('status', statusFilter)
     .order('created_at', { ascending: true })
@@ -116,6 +119,18 @@ export default async function AdminReembolsosPage({
             {items.map((req) => {
               const serviceName = req.bookings?.guide_tours?.name ?? req.bookings?.services?.name ?? '—'
 
+              // Processed rows show the real persisted net amount. Pending/
+              // processing rows predict the 'manual' outcome — the only
+              // method markRefundProcessedManually can ever apply, and the
+              // only way a row reaches these statuses (a successful/in-
+              // flight void never shows as 'pending', and only ever resolves
+              // to 'processed' via the void path — see requestRefund()).
+              const netCents =
+                req.status === 'processed'
+                  ? (req.net_refund_amount_cents ?? req.refund_amount_cents)
+                  : computeNetRefundAmountCents(req.refund_amount_cents, req.wompi_fee_cents, 'manual')
+              const feeDeductedCents = req.refund_amount_cents - netCents
+
               return (
                 <div key={req.id} className="rounded-2xl border border-border bg-card shadow-sm p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -138,9 +153,21 @@ export default async function AdminReembolsosPage({
                       </p>
                     )}
                     <p>
-                      <span className="font-medium text-foreground">{copy.amount}: </span>
-                      ${Math.round(req.refund_amount_cents / 100).toLocaleString('es-CO')} COP
+                      <span className="font-medium text-foreground">{copy.netAmount}: </span>
+                      ${Math.round(netCents / 100).toLocaleString('es-CO')} COP
                     </p>
+                    {feeDeductedCents > 0 && (
+                      <>
+                        <p>
+                          <span className="font-medium text-foreground">{copy.grossAmount}: </span>
+                          ${Math.round(req.refund_amount_cents / 100).toLocaleString('es-CO')} COP
+                        </p>
+                        <p>
+                          <span className="font-medium text-foreground">{copy.wompiFeeDeducted}: </span>
+                          ${Math.round(feeDeductedCents / 100).toLocaleString('es-CO')} COP
+                        </p>
+                      </>
+                    )}
                     {req.reason && (
                       <p>
                         <span className="font-medium text-foreground">{copy.reason}: </span>
@@ -158,7 +185,10 @@ export default async function AdminReembolsosPage({
                   </div>
 
                   {statusFilter === 'processing' && (
-                    <p className="text-xs text-muted-foreground">{copy.processingHint}</p>
+                    <>
+                      <p className="text-xs text-muted-foreground">{copy.processingHint}</p>
+                      <p className="text-xs text-muted-foreground">{copy.processingManualFallbackNote}</p>
+                    </>
                   )}
 
                   {(statusFilter === 'pending' || statusFilter === 'processing') && (

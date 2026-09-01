@@ -108,9 +108,12 @@ describe('markRefundProcessedManually', () => {
     expect(markProcessedRpcMock).not.toHaveBeenCalled()
   })
 
-  it("calls mark_refund_request_processed with method 'manual' and the admin's id", async () => {
+  it("calls mark_refund_request_processed with method 'manual' and the admin's id, then emails the net (fee-deducted) amount", async () => {
     markProcessedRpcMock.mockResolvedValue({ data: true, error: null })
-    refundSelectSingle.mockResolvedValue({ data: { refund_amount_cents: 50000, requested_by: 'tourist-1' }, error: null })
+    refundSelectSingle.mockResolvedValue({
+      data: { refund_amount_cents: 50000, net_refund_amount_cents: 46250, requested_by: 'tourist-1' },
+      error: null,
+    })
 
     await markRefundProcessedManually(formData({ refundRequestId: REFUND_ID }))
 
@@ -119,9 +122,21 @@ describe('markRefundProcessedManually', () => {
       p_method: 'manual',
       p_processed_by: 'admin-1',
     })
-    expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 50000, 'manual')
+    expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 46250, 'manual')
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/reembolsos')
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('falls back to the gross amount if net_refund_amount_cents is unexpectedly null', async () => {
+    markProcessedRpcMock.mockResolvedValue({ data: true, error: null })
+    refundSelectSingle.mockResolvedValue({
+      data: { refund_amount_cents: 50000, net_refund_amount_cents: null, requested_by: 'tourist-1' },
+      error: null,
+    })
+
+    await markRefundProcessedManually(formData({ refundRequestId: REFUND_ID }))
+
+    expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 50000, 'manual')
   })
 
   it('does not look up the requester or send an email when the RPC reports it was already processed', async () => {

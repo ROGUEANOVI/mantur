@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeHoursUntilBooking, computeRefundAmountCents } from './refunds'
+import { computeHoursUntilBooking, computeRefundAmountCents, computeNetRefundAmountCents } from './refunds'
 
 describe('computeHoursUntilBooking', () => {
   it('returns 240 hours (10 days) for a booking 10 days out', () => {
@@ -43,5 +43,27 @@ describe('computeRefundAmountCents', () => {
   it('rounds to the nearest cent instead of truncating', () => {
     // 999 * 50 / 100 = 499.5 -> rounds to 500, not 499
     expect(computeRefundAmountCents(999, 50)).toBe(500)
+  })
+})
+
+describe('computeNetRefundAmountCents', () => {
+  it("passes through the full gross amount for 'void', regardless of the fee", () => {
+    expect(computeNetRefundAmountCents(100_000, 88_030, 'void')).toBe(100_000)
+  })
+
+  it("passes through the full gross amount for 'void' even with no fee snapshot", () => {
+    expect(computeNetRefundAmountCents(100_000, null, 'void')).toBe(100_000)
+  })
+
+  it("deducts the Wompi fee from the gross amount for 'manual'", () => {
+    expect(computeNetRefundAmountCents(100_000, 3_750, 'manual')).toBe(96_250)
+  })
+
+  it("treats a missing fee snapshot as 0 deduction for 'manual'", () => {
+    expect(computeNetRefundAmountCents(100_000, null, 'manual')).toBe(100_000)
+  })
+
+  it("floors the result at 0 when the fee exceeds the gross amount for 'manual'", () => {
+    expect(computeNetRefundAmountCents(500, 88_030, 'manual')).toBe(0)
   })
 })

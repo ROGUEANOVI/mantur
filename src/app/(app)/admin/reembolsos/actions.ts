@@ -54,13 +54,18 @@ export async function markRefundProcessedManually(formData: FormData): Promise<v
   if (applied) {
     const { data: refund } = await admin
       .from('refund_requests')
-      .select('refund_amount_cents, requested_by')
+      .select('refund_amount_cents, net_refund_amount_cents, requested_by')
       .eq('id', refundRequestId)
       .single()
 
     if (refund) {
       const email = await getRequesterEmail(admin, refund.requested_by)
-      if (email) await sendRefundProcessedEmail(email, refund.refund_amount_cents, 'manual')
+      // net_refund_amount_cents is the real money movement (gross minus
+      // Wompi's non-refundable fee) — the RPC above always sets it, the
+      // gross fallback only guards against a defensive/unexpected NULL.
+      if (email) {
+        await sendRefundProcessedEmail(email, refund.net_refund_amount_cents ?? refund.refund_amount_cents, 'manual')
+      }
     }
   }
 

@@ -119,6 +119,7 @@ function transactionRow(overrides: Partial<{
   amount_in_cents: number
   wompi_reference: string | null
   created_at: string
+  wompi_fee_cents: number | null
 }> = {}) {
   return {
     id: 'tx-1',
@@ -126,6 +127,7 @@ function transactionRow(overrides: Partial<{
     amount_in_cents: overrides.amount_in_cents ?? 100000,
     wompi_reference: 'wompi_reference' in overrides ? overrides.wompi_reference : 'wompi-tx-1',
     created_at: overrides.created_at ?? TODAY_ISO,
+    wompi_fee_cents: 'wompi_fee_cents' in overrides ? overrides.wompi_fee_cents : 8_803,
   }
 }
 
@@ -237,6 +239,17 @@ describe('percentage/amount computation and RPC wiring', () => {
     })
   })
 
+  it("stores the transaction's snapshotted wompi_fee_cents on the refund request", async () => {
+    bookingSingle.mockResolvedValue({ data: bookingRow() })
+    transactionSingle.mockResolvedValue({ data: transactionRow({ wompi_fee_cents: 8_803 }) })
+    percentageRpcMock.mockResolvedValue({ data: 50, error: null })
+    refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID }))
+
+    expect(refundInsertMock.mock.calls[0][0]).toMatchObject({ wompi_fee_cents: 8_803 })
+  })
+
   it('stores a trimmed reason, or null when none is provided', async () => {
     bookingSingle.mockResolvedValue({ data: bookingRow() })
     transactionSingle.mockResolvedValue({ data: transactionRow() })
@@ -269,6 +282,22 @@ describe('same-day 100% refund → automatic Wompi void', () => {
     expect(revertRpcMock).not.toHaveBeenCalled()
     expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 100000, 'void')
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('emails the full gross amount for a void, ignoring the Wompi fee (a void is fee-free by design)', async () => {
+    bookingSingle.mockResolvedValue({ data: bookingRow({ booking_date: '2026-09-10' }) })
+    transactionSingle.mockResolvedValue({
+      data: transactionRow({ created_at: TODAY_ISO, wompi_reference: 'wompi-tx-99', amount_in_cents: 100000, wompi_fee_cents: 88_030 }),
+    })
+    percentageRpcMock.mockResolvedValue({ data: 100, error: null })
+    refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
+    claimRpcMock.mockResolvedValue({ data: true, error: null })
+    voidWompiTransactionMock.mockResolvedValue({ ok: true, status: 'VOIDED' })
+    cascadeRpcMock.mockResolvedValue({ data: true, error: null })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID }))
+
+    expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 100000, 'void')
   })
 
   it('does not email when cascade reports it was a no-op (e.g. the webhook already won the race and cascaded first)', async () => {

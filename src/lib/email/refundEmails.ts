@@ -47,7 +47,7 @@ export function refundProcessedEmail(
   const methodNote =
     method === 'void'
       ? 'El reembolso se procesó automáticamente y debería reflejarse en tu medio de pago original en los próximos días hábiles.'
-      : 'El reembolso se procesó mediante transferencia bancaria manual.'
+      : 'El reembolso se procesó mediante transferencia bancaria manual, con un descuento por la comisión no reembolsable de la pasarela de pago.'
 
   const html = emailLayout(`
     <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>

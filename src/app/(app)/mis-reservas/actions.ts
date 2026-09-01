@@ -67,7 +67,7 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
 
   const { data: transaction } = await admin
     .from('transactions')
-    .select('id, status, amount_in_cents, wompi_reference, created_at')
+    .select('id, status, amount_in_cents, wompi_reference, created_at, wompi_fee_cents')
     .eq('booking_id', bookingId)
     .single()
 
@@ -91,6 +91,7 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
       requested_by: userId,
       refund_percentage: refundPercentage,
       refund_amount_cents: refundAmountCents,
+      wompi_fee_cents: transaction.wompi_fee_cents,
       reason,
     })
     .select('id')
