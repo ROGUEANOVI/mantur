@@ -268,6 +268,30 @@ export const adminCopy = {
     },
   },
 
+  pagosProveedores: {
+    title: 'Pagos a proveedores atascados',
+    subtitle:
+      'Pagos a negocios o guías que no se completaron automáticamente. No hay reintento automático todavía — resuélvelos manualmente en Supabase usando los identificadores de abajo.',
+    empty: 'No hay pagos atascados en este momento.',
+    recipient: 'Destinatario',
+    amount: 'Monto',
+    status: 'Estado',
+    reason: 'Motivo',
+    wompiReference: 'Referencia Wompi (transacción original)',
+    payoutId: 'ID del pago (provider_payouts.id)',
+    transactionId: 'ID de la transacción',
+    since: 'Desde',
+    unknownRecipient: 'Destinatario no encontrado',
+    statusLabels: {
+      pending: 'Pendiente (sin enviar)',
+      failed: 'Falló al enviarse',
+    } as Record<string, string>,
+    recipientTypeLabels: {
+      business: 'Negocio',
+      guide: 'Guía',
+    } as Record<string, string>,
+  },
+
   lugares: {
     title: 'Lugares turísticos',
     subtitle: 'Atracciones y puntos de interés de Manaure Balcón del Cesar.',
