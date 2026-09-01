@@ -667,6 +667,7 @@ describe('uploadTourImage / deleteTourImage', () => {
 describe('saveGuidePayoutAccount', () => {
   const VALID_FIELDS = {
     bank_name: 'Bancolombia',
+    wompi_bank_id: 'bank-bancolombia',
     account_type: 'ahorros',
     account_number: '00011122233',
     holder_id_type: 'CC',
@@ -678,6 +679,12 @@ describe('saveGuidePayoutAccount', () => {
   it('rejects when any required field is missing', async () => {
     const result = await saveGuidePayoutAccount(formData({ ...VALID_FIELDS, bank_name: '' }))
     expect(result).toEqual({ error: 'Completa todos los campos obligatorios.' })
+    expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing wompi_bank_id', async () => {
+    const result = await saveGuidePayoutAccount(formData({ ...VALID_FIELDS, wompi_bank_id: '' }))
+    expect(result).toEqual({ error: 'Selecciona un banco válido.' })
     expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
   })
 
@@ -711,7 +718,7 @@ describe('saveGuidePayoutAccount', () => {
     expect(result).toEqual({ error: 'Escribe un número de documento válido.' })
   })
 
-  it('upserts on guide_id (resolved server-side, never from client input) with the validated fields, and never includes wompi_bank_id', async () => {
+  it('upserts on guide_id (resolved server-side, never from client input) with the validated fields, including wompi_bank_id', async () => {
     payoutAccountUpsertMock.mockResolvedValue({ error: null })
 
     const result = await saveGuidePayoutAccount(formData(VALID_FIELDS))
@@ -721,6 +728,7 @@ describe('saveGuidePayoutAccount', () => {
     expect(payload).toEqual({
       guide_id: GUIDE_ID,
       bank_name: 'Bancolombia',
+      wompi_bank_id: 'bank-bancolombia',
       account_type: 'ahorros',
       account_number: '00011122233',
       holder_id_type: 'CC',
@@ -728,7 +736,6 @@ describe('saveGuidePayoutAccount', () => {
       holder_name: 'María Guía',
       holder_email: 'maria@example.com',
     })
-    expect(payload).not.toHaveProperty('wompi_bank_id')
     expect(opts).toEqual({ onConflict: 'guide_id' })
     expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-guia/editar')
   })

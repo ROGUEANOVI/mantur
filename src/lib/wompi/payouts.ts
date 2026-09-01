@@ -82,6 +82,60 @@ function requireEnv(
   return value
 }
 
+export type PayoutBank = { id: string; name: string }
+export type ListPayoutBanksResult = { ok: true; banks: PayoutBank[] } | { ok: false; error: string }
+
+// GET /banks — Wompi's bank catalog for Payouts, used to populate the "Banco"
+// dropdown on the payout account forms so a recipient picks a bank Wompi
+// actually recognizes and we capture its id — the exact value
+// sendProviderPayout() needs as transactions[].bankId (via
+// PayoutRecipient.wompiBankId above). Cached for an hour via Next's fetch
+// cache: this catalog is identical for every merchant and changes rarely, so
+// there's no reason to hit Wompi on every edit-form page load. Like
+// WOMPI_PAYOUTS_BASE_URL and sendProviderPayout()'s request/response shape,
+// the exact /banks response envelope isn't published in Wompi's docs — this
+// mirrors the {data: [...]} envelope confirmed live for GET /accounts and
+// reads each entry defensively rather than assuming more than that.
+export async function listPayoutBanks(): Promise<ListPayoutBanksResult> {
+  try {
+    const baseUrl = requireEnv('WOMPI_PAYOUTS_BASE_URL')
+    const apiKey = requireEnv('WOMPI_PAYOUTS_API_KEY')
+    const userPrincipalId = requireEnv('WOMPI_PAYOUTS_USER_PRINCIPAL_ID')
+
+    const response = await fetch(`${baseUrl}/banks`, {
+      headers: {
+        'x-api-key': apiKey,
+        'user-principal-id': userPrincipalId,
+      },
+      next: { revalidate: 3600 },
+    })
+
+    const body = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      return { ok: false, error: `Wompi Payouts API returned ${response.status}: ${JSON.stringify(body)}` }
+    }
+
+    const rawBanks = body?.data
+    if (!Array.isArray(rawBanks)) {
+      return { ok: false, error: `Wompi Payouts API /banks response missing a data array: ${JSON.stringify(body)}` }
+    }
+
+    const banks: PayoutBank[] = rawBanks
+      .map((entry: unknown) => {
+        const bank = entry as Record<string, unknown> | null
+        const id = bank?.id
+        const name = bank?.name
+        return typeof id === 'string' && typeof name === 'string' ? { id, name } : null
+      })
+      .filter((bank): bank is PayoutBank => bank !== null)
+
+    return { ok: true, banks }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 // amount_in_cents (what the tourist paid) minus commission_amount_cents
 // (ManTur's cut, already computed and stored at booking time) — the net
 // amount owed to the business/guide.

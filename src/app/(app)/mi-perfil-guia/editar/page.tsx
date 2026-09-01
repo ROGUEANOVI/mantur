@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
 import EditGuideProfileForm from '@/components/mi-perfil-guia/EditGuideProfileForm'
 import GuidePayoutAccountForm from '@/components/mi-perfil-guia/GuidePayoutAccountForm'
+import { listPayoutBanks } from '@/lib/wompi/payouts'
 
 export default async function EditGuideProfilePage() {
   const supabase = await createClient()
@@ -20,11 +21,21 @@ export default async function EditGuideProfilePage() {
 
   if (!guide) redirect('/mi-perfil-guia')
 
-  const { data: payoutAccount } = await supabase
-    .from('tourist_guide_payout_accounts')
-    .select('bank_name, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email')
-    .eq('guide_id', guide.id)
-    .maybeSingle()
+  const [{ data: payoutAccount }, banksResult] = await Promise.all([
+    supabase
+      .from('tourist_guide_payout_accounts')
+      .select(
+        'bank_name, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email, wompi_bank_id',
+      )
+      .eq('guide_id', guide.id)
+      .maybeSingle(),
+    listPayoutBanks(),
+  ])
+
+  if (!banksResult.ok) {
+    console.error('Failed to load Wompi payout bank catalog', banksResult.error)
+  }
+  const banks = banksResult.ok ? banksResult.banks : []
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -44,10 +55,12 @@ export default async function EditGuideProfilePage() {
         </div>
 
         <GuidePayoutAccountForm
+          banks={banks}
           defaultValues={
             payoutAccount
               ? {
                   bankName: payoutAccount.bank_name,
+                  wompiBankId: payoutAccount.wompi_bank_id ?? '',
                   accountType: payoutAccount.account_type,
                   accountNumber: payoutAccount.account_number,
                   holderIdType: payoutAccount.holder_id_type,
