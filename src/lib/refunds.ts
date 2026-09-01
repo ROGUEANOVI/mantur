@@ -2,6 +2,15 @@
 // without mocking Supabase/Next.js, same reasoning as
 // computeNetPayoutAmountCents in src/lib/wompi/payouts.ts.
 
+// Extracted from src/app/(app)/mis-reservas/actions.ts (was a local,
+// unexported helper there) so mis-reservas/page.tsx can use the exact same
+// "same Bogotá calendar day" comparison to predict whether a refund request
+// is likely to qualify for an instant same-day void, without duplicating
+// the logic.
+export function bogotaDateString(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(date)
+}
+
 // bookings.booking_date is a plain DATE with no time-of-day (see
 // docs/wompi-alegra-integration-plan.md §5.2 and src/app/(app)/reservas/actions.ts).
 // The finest granularity available is whole calendar days in Bogotá time

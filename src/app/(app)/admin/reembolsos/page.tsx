@@ -20,6 +20,7 @@ type RefundRequestRow = {
   wompi_fee_cents: number | null
   net_refund_amount_cents: number | null
   reason: string | null
+  payout_instructions: string | null
   status: string
   refund_method: string | null
   admin_notes: string | null
@@ -61,7 +62,7 @@ export default async function AdminReembolsosPage({
   const { data: requests } = await admin
     .from('refund_requests')
     .select(
-      'id, refund_percentage, refund_amount_cents, wompi_fee_cents, net_refund_amount_cents, reason, status, refund_method, admin_notes, created_at, profiles!requested_by(full_name), bookings!booking_id(booking_date, services(name), guide_tours(name))',
+      'id, refund_percentage, refund_amount_cents, wompi_fee_cents, net_refund_amount_cents, reason, payout_instructions, status, refund_method, admin_notes, created_at, profiles!requested_by(full_name), bookings!booking_id(booking_date, services(name), guide_tours(name))',
     )
     .eq('status', statusFilter)
     .order('created_at', { ascending: true })
@@ -172,6 +173,12 @@ export default async function AdminReembolsosPage({
                       <p>
                         <span className="font-medium text-foreground">{copy.reason}: </span>
                         {req.reason}
+                      </p>
+                    )}
+                    {req.payout_instructions && (
+                      <p>
+                        <span className="font-medium text-foreground">{copy.payoutInstructions}: </span>
+                        {req.payout_instructions}
                       </p>
                     )}
                     {req.refund_method && (

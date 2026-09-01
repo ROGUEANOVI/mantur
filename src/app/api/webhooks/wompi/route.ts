@@ -480,6 +480,13 @@ export async function POST(request: Request) {
   const wompiStatus = transaction.status as string | undefined
   const wompiAmountInCents = transaction.amount_in_cents
   const wompiCurrency = transaction.currency as string | undefined
+  // Drives refund eligibility (only CARD supports Wompi's automated
+  // same-day void, confirmed against Wompi's own support docs — see
+  // 20260901010000_add_refund_payout_destination.sql). Not part of the
+  // checksummed signature.properties, same trust posture as `reference`.
+  const wompiPaymentMethodType = (transaction.payment_method as Record<string, unknown> | undefined)?.type as
+    | string
+    | undefined
 
   if (
     !bookingId ||
@@ -510,6 +517,7 @@ export async function POST(request: Request) {
       p_wompi_status: wompiStatus,
       p_wompi_amount_in_cents: wompiAmountInCents,
       p_wompi_currency: wompiCurrency,
+      p_payment_method_type: wompiPaymentMethodType ?? null,
     })
     .single<{
       applied: boolean

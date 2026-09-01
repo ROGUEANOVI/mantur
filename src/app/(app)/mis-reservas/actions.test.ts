@@ -120,6 +120,7 @@ function transactionRow(overrides: Partial<{
   wompi_reference: string | null
   created_at: string
   wompi_fee_cents: number | null
+  payment_method_type: string | null
 }> = {}) {
   return {
     id: 'tx-1',
@@ -128,6 +129,10 @@ function transactionRow(overrides: Partial<{
     wompi_reference: 'wompi_reference' in overrides ? overrides.wompi_reference : 'wompi-tx-1',
     created_at: overrides.created_at ?? TODAY_ISO,
     wompi_fee_cents: 'wompi_fee_cents' in overrides ? overrides.wompi_fee_cents : 8_803,
+    // Defaults to 'CARD' so every pre-existing void-path test (written
+    // before payment-method gating existed) keeps exercising the void
+    // attempt unchanged — only the dedicated non-card test below overrides it.
+    payment_method_type: 'payment_method_type' in overrides ? overrides.payment_method_type : 'CARD',
   }
 }
 
@@ -262,6 +267,30 @@ describe('percentage/amount computation and RPC wiring', () => {
     await requestRefund(formData({ booking_id: BOOKING_ID }))
     expect(refundInsertMock.mock.calls[1][0]).toMatchObject({ reason: null })
   })
+
+  it('stores a trimmed payout_instructions, or null when none is provided', async () => {
+    bookingSingle.mockResolvedValue({ data: bookingRow() })
+    transactionSingle.mockResolvedValue({ data: transactionRow() })
+    percentageRpcMock.mockResolvedValue({ data: 100, error: null })
+    refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID, payout_instructions: '  Nequi 3001234567  ' }))
+    expect(refundInsertMock.mock.calls[0][0]).toMatchObject({ payout_instructions: 'Nequi 3001234567' })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID }))
+    expect(refundInsertMock.mock.calls[1][0]).toMatchObject({ payout_instructions: null })
+  })
+
+  it('caps payout_instructions at 500 characters server-side, independent of the form', async () => {
+    bookingSingle.mockResolvedValue({ data: bookingRow() })
+    transactionSingle.mockResolvedValue({ data: transactionRow() })
+    percentageRpcMock.mockResolvedValue({ data: 100, error: null })
+    refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID, payout_instructions: 'a'.repeat(600) }))
+
+    expect(refundInsertMock.mock.calls[0][0]).toMatchObject({ payout_instructions: 'a'.repeat(500) })
+  })
 })
 
 describe('same-day 100% refund → automatic Wompi void', () => {
@@ -364,6 +393,20 @@ describe('same-day 100% refund → automatic Wompi void', () => {
     await requestRefund(formData({ booking_id: BOOKING_ID }))
 
     expect(voidWompiTransactionMock).not.toHaveBeenCalled()
+  })
+
+  it('does not attempt a void for a non-CARD payment method, even at 100%/same-day (Wompi has no automated refund path for Nequi/PSE/Bancolombia)', async () => {
+    bookingSingle.mockResolvedValue({ data: bookingRow({ booking_date: '2026-09-10' }) })
+    transactionSingle.mockResolvedValue({
+      data: transactionRow({ created_at: TODAY_ISO, payment_method_type: 'NEQUI' }),
+    })
+    percentageRpcMock.mockResolvedValue({ data: 100, error: null })
+    refundInsertSingle.mockResolvedValue({ data: { id: 'refund-1' }, error: null })
+
+    await requestRefund(formData({ booking_id: BOOKING_ID }))
+
+    expect(voidWompiTransactionMock).not.toHaveBeenCalled()
+    expect(claimRpcMock).not.toHaveBeenCalled()
   })
 
   it('does not attempt a void when the transaction has no wompi_reference yet', async () => {

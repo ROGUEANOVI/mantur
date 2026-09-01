@@ -77,6 +77,12 @@ export const bookingsCopy = {
       'El porcentaje de reembolso depende de cuánto falte para la fecha reservada.',
     disclaimerFee:
       'Si el reembolso no se procesa el mismo día del pago, se descuenta la comisión no reembolsable de la pasarela de pago del monto que recibes.',
+    payoutInstructionsLabel: '¿Cómo quieres recibir tu reembolso?',
+    payoutInstructionsPlaceholder: 'Ej: Nequi 300 000 0000, o cuenta de ahorros Bancolombia a nombre de...',
+    payoutInstructionsHintOptional:
+      'Si tu pago no califica para reverso automático a tu tarjeta, usaremos esto para transferirte el dinero. Opcional, pero te ahorra que te contactemos después.',
+    payoutInstructionsHintRequired:
+      'Tu reembolso no puede procesarse automáticamente — necesitamos esta información para transferirte el dinero.',
     status: {
       pending: 'Reembolso solicitado',
       processing: 'Reembolso en proceso',

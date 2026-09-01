@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { refundRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
-import { computeHoursUntilBooking, computeRefundAmountCents } from '@/lib/refunds'
+import { computeHoursUntilBooking, computeRefundAmountCents, bogotaDateString } from '@/lib/refunds'
 import { voidWompiTransaction } from '@/lib/wompi/refunds'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
 
@@ -33,10 +33,6 @@ async function getAuthenticatedTourist() {
   return { userId: user.id, email: user.email ?? null }
 }
 
-function bogotaDateString(date: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(date)
-}
-
 export async function requestRefund(formData: FormData): Promise<RefundResult> {
   const { userId, email } = await getAuthenticatedTourist()
 
@@ -47,6 +43,11 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
   if (!UUID_RE.test(bookingId)) return { error: bookingsCopy.errors.notFound }
 
   const reason = (formData.get('reason') as string | null)?.trim() || null
+  // Server-side cap independent of the form's maxLength (which only guards
+  // the normal UI path, not a direct call to this action) — same 500-char
+  // limit, so a truncated value is never silently accepted past what the
+  // admin-facing display expects.
+  const payoutInstructions = (formData.get('payout_instructions') as string | null)?.trim().slice(0, 500) || null
 
   const admin = createAdminClient()
 
@@ -67,7 +68,7 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
 
   const { data: transaction } = await admin
     .from('transactions')
-    .select('id, status, amount_in_cents, wompi_reference, created_at, wompi_fee_cents')
+    .select('id, status, amount_in_cents, wompi_reference, created_at, wompi_fee_cents, payment_method_type')
     .eq('booking_id', bookingId)
     .single()
 
@@ -93,6 +94,7 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
       refund_amount_cents: refundAmountCents,
       wompi_fee_cents: transaction.wompi_fee_cents,
       reason,
+      payout_instructions: payoutInstructions,
     })
     .select('id')
     .single()
@@ -104,15 +106,25 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
     return { error: bookingsCopy.errors.generic }
   }
 
-  // Only a same-day, full-refund charge is eligible for an instant Wompi
-  // void: voiding reverses the ENTIRE original charge (no partial void),
-  // and is only possible before settlement. Anything else — a partial
-  // percentage, or a charge from an earlier day — is left 'pending' here
-  // for an admin to process manually (see /admin/reembolsos), per
-  // docs/wompi-alegra-integration-plan.md §5.2.
+  // Only a same-day, full-refund, CARD-paid charge is eligible for an
+  // instant Wompi void: voiding reverses the ENTIRE original charge (no
+  // partial void), and is only possible before settlement. The CARD check
+  // is required, not an optimization — confirmed against Wompi's own
+  // support docs, refunds/voids only exist for VISA/MASTERCARD/AMEX via
+  // Redeban/Credibanco; PSE, Nequi, and Bancolombia Transfer have no
+  // automated reversal path at all, so attempting one for those would only
+  // ever fail. Anything that doesn't qualify — a partial percentage, a
+  // charge from an earlier day, or a non-card payment method — is left
+  // 'pending' here for an admin to process manually (see
+  // /admin/reembolsos), per docs/wompi-alegra-integration-plan.md §5.2.
   const chargedTodayBogota = bogotaDateString(new Date(transaction.created_at)) === todayBogota
 
-  if (Number(refundPercentage) === 100 && chargedTodayBogota && transaction.wompi_reference) {
+  if (
+    Number(refundPercentage) === 100 &&
+    chargedTodayBogota &&
+    transaction.wompi_reference &&
+    transaction.payment_method_type === 'CARD'
+  ) {
     // Claim the row BEFORE calling Wompi: a Postgres transaction can't stay
     // open across the external HTTP call, so the claim/revert split (see
     // the migration comment on claim_refund_request_for_void) is what
