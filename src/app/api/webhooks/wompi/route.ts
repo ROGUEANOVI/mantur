@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { computeNetPayoutAmountCents, sendProviderPayout, type PayoutRecipient } from '@/lib/wompi/payouts'
+import { computeNetPayoutAmountCents, sendProviderPayout, resolvePayoutAccount } from '@/lib/wompi/payouts'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
 import { sendBusinessBookingConfirmedEmail } from '@/lib/email/bookingEmails'
 import { findOrCreateContact } from '@/lib/alegra/contacts'
@@ -70,17 +70,6 @@ function isFreshTimestamp(timestamp: number): boolean {
   return age >= -MAX_CLOCK_SKEW_SECONDS && age <= MAX_EVENT_AGE_SECONDS
 }
 
-type PayoutAccountRow = {
-  bank_name: string
-  wompi_bank_id: string | null
-  account_type: 'ahorros' | 'corriente'
-  account_number: string
-  holder_id_type: 'CC' | 'CE' | 'NIT'
-  holder_id_number: string
-  holder_name: string
-  holder_email: string
-}
-
 // Resolves the recipient's stored bank details and attempts the actual
 // Wompi Payouts call. Deliberately never throws and never affects the
 // webhook's own HTTP response — the payment was already confirmed by the
@@ -129,37 +118,37 @@ async function enqueueAndSendPayout(
       return
     }
 
-    // Only attempt to send when the ledger row is still pending — if a
-    // previous attempt already sent/failed it, this webhook delivery is a
-    // retry of an already-confirmed payment and there is nothing left to do.
-    if (enqueued.status !== 'pending') return
+    // Atomically claim the row before calling Wompi — a plain status read
+    // here (the original implementation) left no DB-level exclusion between
+    // this webhook delivery and a concurrent admin retry both reaching
+    // sendProviderPayout() for the same row while it sat at 'pending' for
+    // the full duration of the outbound call. claim_provider_payout_for_send
+    // is shared with the admin retry action (src/app/(app)/admin/pagos-
+    // proveedores/actions.ts) for exactly this reason — p_admin_id is
+    // omitted here (defaults to NULL) since no admin is involved in the
+    // automatic path. 0 rows (no error) means a previous attempt already
+    // sent/failed it, or a concurrent claimant won the race — either way,
+    // nothing left to do. A genuine RPC error is logged separately so it's
+    // distinguishable from that ordinary no-op case.
+    const { data: claimed, error: claimError } = await admin
+      .rpc('claim_provider_payout_for_send', { p_payout_id: enqueued.id })
+      .single<{ transaction_id: string; recipient_type: string; recipient_id: string; amount_cents: number }>()
 
-    const table = recipientType === 'business' ? 'business_payout_accounts' : 'tourist_guide_payout_accounts'
-    const idColumn = recipientType === 'business' ? 'business_id' : 'guide_id'
+    if (claimError) {
+      console.error('Failed to claim provider payout for automatic send', claimError)
+      return
+    }
+    if (!claimed) return
 
-    const { data: account, error: accountError } = await admin
-      .from(table)
-      .select('bank_name, wompi_bank_id, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email')
-      .eq(idColumn, recipientId)
-      .maybeSingle<PayoutAccountRow>()
+    const recipient = await resolvePayoutAccount(admin, recipientType, recipientId)
 
-    if (accountError || !account) {
+    if (!recipient) {
       await admin.rpc('mark_provider_payout_result', {
         p_payout_id: enqueued.id,
         p_status: 'failed',
         p_error_message: `no payout account configured for ${recipientType} ${recipientId}`,
       })
       return
-    }
-
-    const recipient: PayoutRecipient = {
-      legalIdType: account.holder_id_type,
-      legalId: account.holder_id_number,
-      wompiBankId: account.wompi_bank_id ?? '',
-      accountType: account.account_type,
-      accountNumber: account.account_number,
-      name: account.holder_name,
-      email: account.holder_email,
     }
 
     const result = await sendProviderPayout({ idempotencyKey: enqueued.id, amountCents, recipient })

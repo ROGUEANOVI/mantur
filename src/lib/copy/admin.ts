@@ -271,7 +271,7 @@ export const adminCopy = {
   pagosProveedores: {
     title: 'Pagos a proveedores atascados',
     subtitle:
-      'Pagos a negocios o guías que no se completaron automáticamente. No hay reintento automático todavía — resuélvelos manualmente en Supabase usando los identificadores de abajo.',
+      'Pagos a negocios o guías que no se completaron automáticamente. Puedes reintentar el envío o marcarlo como resuelto manualmente si ya se pagó por fuera del sistema.',
     empty: 'No hay pagos atascados en este momento.',
     recipient: 'Destinatario',
     amount: 'Monto',
@@ -281,9 +281,17 @@ export const adminCopy = {
     payoutId: 'ID del pago (provider_payouts.id)',
     transactionId: 'ID de la transacción',
     since: 'Desde',
+    resolvedBy: 'Resuelto por',
     unknownRecipient: 'Destinatario no encontrado',
+    retry: 'Reintentar',
+    sendingHint: 'Enviándose a Wompi ahora mismo — espera unos minutos antes de poder resolverlo manualmente.',
+    resolveManually: 'Marcar como resuelto manualmente',
+    resolveManuallyNotesPlaceholder: '¿Cómo se le pagó al proveedor? (transferencia, efectivo, etc.)',
+    confirmResolveManually: 'Confirmar resolución',
+    cancel: 'Cancelar',
     statusLabels: {
       pending: 'Pendiente (sin enviar)',
+      sending: 'Enviando...',
       failed: 'Falló al enviarse',
     } as Record<string, string>,
     recipientTypeLabels: {

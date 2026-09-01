@@ -12,6 +12,54 @@
 // docs/wompi-alegra-integration-plan.md §4.4 and the migration comment on
 // business_payout_accounts.wompi_bank_id.
 
+import type { createAdminClient } from '@/lib/supabase/admin'
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
+type PayoutAccountRow = {
+  bank_name: string
+  wompi_bank_id: string | null
+  account_type: 'ahorros' | 'corriente'
+  account_number: string
+  holder_id_type: 'CC' | 'CE' | 'NIT'
+  holder_id_number: string
+  holder_name: string
+  holder_email: string
+}
+
+// Resolves a business/guide's stored bank details into a PayoutRecipient.
+// recipient_id on provider_payouts is deliberately not a FK (recipient_type
+// picks which table it belongs to, and one column can't reference two
+// tables), so this always needs an explicit table/column branch rather than
+// a PostgREST embed. Shared by the webhook route's automatic payout attempt
+// and the admin retry Server Action — both need the exact same lookup.
+export async function resolvePayoutAccount(
+  admin: AdminClient,
+  recipientType: 'business' | 'guide',
+  recipientId: string,
+): Promise<PayoutRecipient | null> {
+  const table = recipientType === 'business' ? 'business_payout_accounts' : 'tourist_guide_payout_accounts'
+  const idColumn = recipientType === 'business' ? 'business_id' : 'guide_id'
+
+  const { data: account } = await admin
+    .from(table)
+    .select('bank_name, wompi_bank_id, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email')
+    .eq(idColumn, recipientId)
+    .maybeSingle<PayoutAccountRow>()
+
+  if (!account) return null
+
+  return {
+    legalIdType: account.holder_id_type,
+    legalId: account.holder_id_number,
+    wompiBankId: account.wompi_bank_id ?? '',
+    accountType: account.account_type,
+    accountNumber: account.account_number,
+    name: account.holder_name,
+    email: account.holder_email,
+  }
+}
+
 export type PayoutRecipient = {
   legalIdType: 'CC' | 'CE' | 'NIT'
   legalId: string

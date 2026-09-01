@@ -1,6 +1,15 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { STUCK_PAYOUT_HOURS } from '../pendingCounts'
+import { retryProviderPayout } from './actions'
+import ResolvePayoutManuallyForm from './ResolvePayoutManuallyForm'
+
+// Mirrors the 10-minute floor in mark_provider_payout_resolved_manually
+// (supabase/migrations/20260901000000_add_provider_payout_manual_resolution.sql)
+// — a live Wompi call completes or times out in seconds, so a 'sending' row
+// younger than this is presumed still genuinely in flight. Kept in sync
+// manually since one runs in Postgres and the other gates the button here.
+const SENDING_ORPHAN_MINUTES = 10
 
 type PayoutRow = {
   id: string
@@ -10,12 +19,16 @@ type PayoutRow = {
   amount_cents: number
   status: string
   error_message: string | null
+  admin_notes: string | null
   created_at: string
+  updated_at: string
+  resolver: { full_name: string | null } | null
 }
 
 type EnrichedPayoutRow = PayoutRow & {
   recipientName: string
   wompiReference: string | null
+  canResolveManually: boolean
 }
 
 function formatDatetime(iso: string): string {
@@ -41,17 +54,25 @@ export default async function AdminPagosProveedoresPage() {
   const copy = adminCopy.pagosProveedores
   const stuckPayoutCutoff = new Date(Date.now() - STUCK_PAYOUT_HOURS * 60 * 60 * 1000).toISOString()
 
+  const sendingOrphanCutoff = new Date(Date.now() - SENDING_ORPHAN_MINUTES * 60 * 1000).toISOString()
+
   const { data: payoutRows } = await admin
     .from('provider_payouts')
-    .select('id, transaction_id, recipient_type, recipient_id, amount_cents, status, error_message, created_at')
-    .in('status', ['failed', 'pending'])
+    .select(
+      'id, transaction_id, recipient_type, recipient_id, amount_cents, status, error_message, admin_notes, created_at, updated_at, resolver:profiles!resolved_by(full_name)',
+    )
+    // 'sending' is included so a row orphaned by a crash mid-retry (rare —
+    // that status has no automatic timeout, see the migration comment on
+    // claim_provider_payout_for_retry) stays visible and resolvable instead
+    // of silently disappearing from this page.
+    .in('status', ['failed', 'pending', 'sending'])
     .order('created_at', { ascending: true })
 
-  // 'failed' is stuck at any age; 'pending' is only stuck once it's sat
-  // unsent past STUCK_PAYOUT_HOURS — same definition the dashboard's
-  // attention-queue count uses, so the two numbers never disagree.
-  const stuck = ((payoutRows ?? []) as PayoutRow[]).filter(
-    (p) => p.status === 'failed' || p.created_at < stuckPayoutCutoff,
+  // 'failed' and 'sending' are stuck at any age; 'pending' is only stuck
+  // once it's sat unsent past STUCK_PAYOUT_HOURS — same definition the
+  // dashboard's attention-queue count uses, so the two numbers never disagree.
+  const stuck = ((payoutRows ?? []) as unknown as PayoutRow[]).filter(
+    (p) => p.status === 'failed' || p.status === 'sending' || p.created_at < stuckPayoutCutoff,
   )
 
   // recipient_id is deliberately not a FK (recipient_type picks which table
@@ -87,6 +108,12 @@ export default async function AdminPagosProveedoresPage() {
       (p.recipient_type === 'business' ? businessNameById.get(p.recipient_id) : guideNameById.get(p.recipient_id)) ??
       copy.unknownRecipient,
     wompiReference: wompiReferenceByTxId.get(p.transaction_id) ?? null,
+    // Mirrors mark_provider_payout_resolved_manually's own WHERE exactly —
+    // 'pending'/'failed' are always resolvable; 'sending' only once it's
+    // provably not still a live in-flight Wompi call (see the constant's
+    // comment). Rendering the button only when the RPC would actually
+    // succeed keeps the UI honest instead of offering an action that fails.
+    canResolveManually: p.status !== 'sending' || p.updated_at < sendingOrphanCutoff,
   }))
 
   return (
@@ -138,6 +165,15 @@ export default async function AdminPagosProveedoresPage() {
                       {row.wompiReference}
                     </p>
                   )}
+                  {row.admin_notes && (
+                    <p>
+                      <span className="font-medium text-foreground">
+                        {copy.resolvedBy}
+                        {row.resolver?.full_name ? ` (${row.resolver.full_name})` : ''}:{' '}
+                      </span>
+                      {row.admin_notes}
+                    </p>
+                  )}
                   <p className="pt-1 font-mono text-[11px] text-muted-foreground/70">
                     {copy.payoutId}: {row.id}
                   </p>
@@ -145,6 +181,31 @@ export default async function AdminPagosProveedoresPage() {
                     {copy.transactionId}: {row.transaction_id}
                   </p>
                 </div>
+
+                {row.status === 'sending' && !row.canResolveManually && (
+                  <p className="text-xs text-muted-foreground">{copy.sendingHint}</p>
+                )}
+
+                {(row.status !== 'sending' || row.canResolveManually) && (
+                  <div className="flex gap-2 pt-1">
+                    {row.status !== 'sending' && (
+                      <form action={retryProviderPayout} className="flex-1">
+                        <input type="hidden" name="payoutId" value={row.id} />
+                        <button
+                          type="submit"
+                          className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-xs font-semibold min-h-8.5 hover:bg-primary/90 transition-colors"
+                        >
+                          {copy.retry}
+                        </button>
+                      </form>
+                    )}
+                    {row.canResolveManually && (
+                      <div className="flex-1">
+                        <ResolvePayoutManuallyForm payoutId={row.id} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
