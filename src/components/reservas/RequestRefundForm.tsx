@@ -37,6 +37,7 @@ export default function RequestRefundForm({ bookingId }: { bookingId: string }) 
     <form action={action} className="w-full space-y-2 pt-2">
       <input type="hidden" name="booking_id" value={bookingId} />
       <p className="text-xs text-muted-foreground">{copy.disclaimer}</p>
+      <p className="text-xs text-muted-foreground">{copy.disclaimerFee}</p>
       <textarea
         name="reason"
         rows={2}

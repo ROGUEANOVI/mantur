@@ -24,3 +24,21 @@ export function computeHoursUntilBooking(bookingDate: string, todayBogotaDate: s
 export function computeRefundAmountCents(amountInCents: number, refundPercentage: number): number {
   return Math.round((amountInCents * refundPercentage) / 100)
 }
+
+// A same-day Wompi void reverses the charge before it ever settles, so no
+// processing fee accrues — net equals gross. Any other refund happens after
+// settlement, when Wompi has already kept its fee; that fee is deducted from
+// what the tourist receives, floored at zero. Mirrors the SQL in
+// mark_refund_request_processed() / cascade_refund_to_booking() (see
+// supabase/migrations/20260831220000_add_refund_fee_deduction.sql) — kept in
+// sync manually since one runs in Postgres and the other previews on the
+// admin page before a request resolves.
+export function computeNetRefundAmountCents(
+  refundAmountCents: number,
+  wompiFeeCents: number | null,
+  refundMethod: 'void' | 'manual',
+): number {
+  if (refundMethod === 'void') return refundAmountCents
+  const fee = wompiFeeCents ?? 0
+  return refundAmountCents - Math.min(fee, refundAmountCents)
+}

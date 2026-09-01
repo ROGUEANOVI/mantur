@@ -27,9 +27,10 @@ describe('refundProcessedEmail', () => {
     expect(html).toContain('https://mantur.co/mis-reservas')
   })
 
-  it('mentions manual bank transfer for a manual refund', () => {
+  it('mentions manual bank transfer and the non-refundable processor fee deduction for a manual refund', () => {
     const { html } = refundProcessedEmail(50_000_00, 'manual')
     expect(html).toContain('transferencia bancaria manual')
+    expect(html).toContain('comisión no reembolsable de la pasarela de pago')
   })
 })
 

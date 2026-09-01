@@ -75,6 +75,8 @@ export const bookingsCopy = {
     cancel: 'Cancelar',
     disclaimer:
       'El porcentaje de reembolso depende de cuánto falte para la fecha reservada.',
+    disclaimerFee:
+      'Si el reembolso no se procesa el mismo día del pago, se descuenta la comisión no reembolsable de la pasarela de pago del monto que recibes.',
     status: {
       pending: 'Reembolso solicitado',
       processing: 'Reembolso en proceso',
