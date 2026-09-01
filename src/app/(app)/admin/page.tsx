@@ -22,7 +22,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { approveBusiness, rejectBusiness } from '@/app/(app)/admin/actions'
-import { getSidebarPendingCounts } from './pendingCounts'
+import { getSidebarPendingCounts, STUCK_PAYOUT_HOURS } from './pendingCounts'
 import StatCard from '@/components/admin/StatCard'
 import AttentionQueue, { type PendingQueueItem } from '@/components/admin/AttentionQueue'
 import { cn } from '@/lib/utils'
@@ -54,7 +54,6 @@ type VerificationRow = {
 
 type PayoutRow = { status: string; created_at: string }
 
-const STUCK_PAYOUT_HOURS = 48
 const REVENUE_TREND_DAYS = 14
 
 const BOOKING_STATUS_ORDER = ['pending_payment', 'confirmed', 'completed', 'cancelled'] as const
@@ -204,6 +203,7 @@ export default async function AdminPage() {
       icon: Banknote,
       tone: 'critical',
       hint: attentionCopy.stuckPayoutsHint,
+      href: '/admin/pagos-proveedores',
     },
     {
       key: 'pendingRefunds',
@@ -211,7 +211,11 @@ export default async function AdminPage() {
       count: counts.reembolsos,
       icon: Undo2,
       tone: 'critical',
-      href: '/admin/reembolsos?status=pending',
+      // Land on whichever status actually has something to review — a
+      // hardcoded '?status=pending' would show an empty list whenever every
+      // unresolved refund happens to be 'processing' (e.g. a same-day void
+      // awaiting Wompi's webhook confirmation).
+      href: counts.reembolsosPending > 0 ? '/admin/reembolsos?status=pending' : '/admin/reembolsos?status=processing',
     },
     {
       key: 'pendingBusinesses',
