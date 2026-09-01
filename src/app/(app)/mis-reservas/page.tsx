@@ -2,8 +2,10 @@ import Link from 'next/link'
 import { CalendarDays, Users, Banknote, ShoppingBag } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { cn } from '@/lib/utils'
+import { bogotaDateString } from '@/lib/refunds'
 import RequestRefundForm from '@/components/reservas/RequestRefundForm'
 
 type BookingItem = {
@@ -49,6 +51,33 @@ export default async function MisReservasPage() {
     .order('created_at', { ascending: false })
 
   const items = (bookings ?? []) as unknown as BookingItem[]
+
+  // Only bookings where RequestRefundForm actually renders (confirmed, no
+  // existing refund_requests row) need this — everything else never shows
+  // the form. `transactions` is admin-only under RLS ("clients never
+  // interact with this table directly"), so this reads via the admin client
+  // like every other tourist-scoped lookup that needs fields beyond what
+  // RLS itself exposes — safe here because the booking ids themselves come
+  // from the RLS-scoped `bookings` query above, already proven to belong to
+  // this tourist, not from any client-supplied input.
+  const eligibleBookingIds = items
+    .filter((b) => b.status === 'confirmed' && !b.refund_requests)
+    .map((b) => b.id)
+
+  const likelyAutoVoidByBookingId = new Map<string, boolean>()
+  if (eligibleBookingIds.length > 0) {
+    const admin = createAdminClient()
+    const { data: txRows } = await admin
+      .from('transactions')
+      .select('booking_id, payment_method_type, created_at')
+      .in('booking_id', eligibleBookingIds)
+
+    const todayBogota = bogotaDateString(new Date())
+    for (const tx of txRows ?? []) {
+      const chargedToday = bogotaDateString(new Date(tx.created_at)) === todayBogota
+      likelyAutoVoidByBookingId.set(tx.booking_id, tx.payment_method_type === 'CARD' && chargedToday)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -163,7 +192,10 @@ export default async function MisReservasPage() {
                     </div>
                   ) : booking.status === 'confirmed' ? (
                     <div className="mt-3 pt-3 border-t border-border">
-                      <RequestRefundForm bookingId={booking.id} />
+                      <RequestRefundForm
+                        bookingId={booking.id}
+                        likelyAutoVoid={likelyAutoVoidByBookingId.get(booking.id) ?? false}
+                      />
                     </div>
                   ) : null}
                 </div>

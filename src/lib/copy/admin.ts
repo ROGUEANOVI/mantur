@@ -254,6 +254,7 @@ export const adminCopy = {
     processingManualFallbackNote:
       'Si Wompi confirma el reverso automático, el turista recibe el monto bruto completo sin descuentos. Si lo resuelves manualmente, se descuenta la comisión de Wompi del monto a enviar.',
     reason: 'Motivo del turista',
+    payoutInstructions: 'Instrucciones de pago del turista',
     markProcessed: 'Marcar como procesado (manual)',
     reject: 'Rechazar',
     rejectionReasonPlaceholder: 'Explica por qué se rechaza este reembolso',

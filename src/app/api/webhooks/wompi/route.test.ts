@@ -346,7 +346,20 @@ describe('POST /api/webhooks/wompi — signature/status handling', () => {
       p_wompi_status: 'APPROVED',
       p_wompi_amount_in_cents: 135000,
       p_wompi_currency: 'COP',
+      p_payment_method_type: null,
     })
+  })
+
+  it('extracts payment_method.type from the event and passes it as p_payment_method_type', async () => {
+    await POST(postRequest(buildEvent({ status: 'APPROVED', paymentMethod: { type: 'NEQUI' } })))
+
+    expect(applyUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ p_payment_method_type: 'NEQUI' }))
+  })
+
+  it('passes null (not undefined/crash) when the event carries no payment_method.type at all — e.g. some Nequi/Bancolombia events', async () => {
+    await POST(postRequest(buildEvent({ status: 'APPROVED', paymentMethod: {} })))
+
+    expect(applyUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ p_payment_method_type: null }))
   })
 
   it('returns 500 (so Wompi retries) when the RPC itself errors', async () => {

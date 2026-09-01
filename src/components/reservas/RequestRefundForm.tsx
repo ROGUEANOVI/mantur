@@ -13,7 +13,13 @@ async function requestRefundFormAction(
   return (await requestRefund(formData)) ?? undefined
 }
 
-export default function RequestRefundForm({ bookingId }: { bookingId: string }) {
+export default function RequestRefundForm({
+  bookingId,
+  likelyAutoVoid,
+}: {
+  bookingId: string
+  likelyAutoVoid: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [state, action, isPending] = useActionState<FormState, FormData>(
     requestRefundFormAction,
@@ -44,6 +50,22 @@ export default function RequestRefundForm({ bookingId }: { bookingId: string }) 
         placeholder={copy.reasonPlaceholder}
         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
       />
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground">
+          {copy.payoutInstructionsLabel}
+        </label>
+        <p className="text-xs text-muted-foreground">
+          {likelyAutoVoid ? copy.payoutInstructionsHintOptional : copy.payoutInstructionsHintRequired}
+        </p>
+        <textarea
+          name="payout_instructions"
+          rows={2}
+          required={!likelyAutoVoid}
+          maxLength={500}
+          placeholder={copy.payoutInstructionsPlaceholder}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
+        />
+      </div>
       {state?.error && (
         <p className="text-xs font-medium text-destructive" role="alert">
           {state.error}
