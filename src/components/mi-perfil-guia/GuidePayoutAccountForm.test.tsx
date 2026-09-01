@@ -73,6 +73,32 @@ describe('GuidePayoutAccountForm', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Cuenta de pagos guardada.')
   })
 
+  // Regression: React 19 resets a <form>'s uncontrolled fields after a
+  // successful action. A <select> using defaultValue (rather than a
+  // controlled value) gets reset to its first (disabled placeholder) option
+  // by that native reset, since React never marks the chosen <option> as
+  // `selected` in the DOM — even though the save itself succeeded and the
+  // value is correctly persisted server-side. Both dropdowns must survive it.
+  it('keeps the selected dropdown values visible after a successful save', async () => {
+    saveGuidePayoutAccountMock.mockResolvedValue({ success: true })
+    const user = userEvent.setup()
+    render(<GuidePayoutAccountForm defaultValues={null} />)
+
+    await user.type(screen.getByLabelText('Banco'), 'Nequi')
+    await user.selectOptions(screen.getByLabelText('Tipo de cuenta'), 'corriente')
+    await user.type(screen.getByLabelText('Número de cuenta'), '999888')
+    await user.selectOptions(screen.getByLabelText('Tipo de documento del titular'), 'CC')
+    await user.type(screen.getByLabelText('Número de documento del titular'), '1002003000')
+    await user.type(screen.getByLabelText('Nombre del titular'), 'Carlos Guía')
+    await user.type(screen.getByLabelText('Correo del titular'), 'carlos@example.com')
+    await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
+
+    await screen.findByRole('status')
+
+    expect(screen.getByLabelText('Tipo de cuenta')).toHaveValue('corriente')
+    expect(screen.getByLabelText('Tipo de documento del titular')).toHaveValue('CC')
+  })
+
   it('shows the server-returned error message', async () => {
     saveGuidePayoutAccountMock.mockResolvedValue({ error: 'Selecciona un tipo de cuenta válido.' })
     const user = userEvent.setup()
