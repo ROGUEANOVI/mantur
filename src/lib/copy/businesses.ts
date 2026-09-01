@@ -2,6 +2,7 @@ export const miNegocioCopy = {
   nav: {
     overview: 'Mi negocio',
     services: 'Servicios',
+    bookings: 'Reservas',
   },
   setup: {
     title: 'Registra tu negocio',
@@ -84,6 +85,27 @@ export const miNegocioCopy = {
     invalidDocument: 'Formato no válido. Usa PDF, JPEG, PNG o WebP.',
     documentTooLarge: 'El archivo no puede superar 8 MB.',
     uploadFailed: 'No se pudo subir el documento. Intenta de nuevo.',
+  },
+  bookings: {
+    title: 'Reservas',
+    backToBusiness: 'Volver al negocio',
+    tourist: 'Turista',
+    notesLabel: 'Notas del turista',
+    quantity: 'personas',
+    empty: 'Sin reservas en este estado.',
+    all: 'Todas',
+    status: {
+      pending_payment: 'Pago pendiente',
+      confirmed: 'Confirmada',
+      completed: 'Completada',
+      cancelled: 'Cancelada',
+    } as Record<string, string>,
+    statusColors: {
+      pending_payment: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+      confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+      completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    } as Record<string, string>,
   },
   payout: {
     title: 'Cuenta para pagos',
