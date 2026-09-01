@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState, type FormEvent } from 'react'
 import { saveGuidePayoutAccount } from '@/app/(app)/mi-perfil-guia/actions'
 import { guidesCopy } from '@/lib/copy/guides'
 
@@ -21,6 +21,16 @@ type Props = {
 const copy = guidesCopy.payout
 
 export default function GuidePayoutAccountForm({ defaultValues }: Props) {
+  // Plain React state, not defaultValue: a <form>'s action prop puts React
+  // in charge of the DOM node (React 19 resets its fields after a successful
+  // action, the same way a native form does after a real submission), so a
+  // <select> using defaultValue gets reset to its first option by that
+  // mechanism even though the save succeeded and the value is correctly
+  // persisted server-side — unlike <input>, whose defaultValue is at least
+  // reflected as a real HTML attribute the reset can fall back to.
+  const [accountType, setAccountType] = useState(defaultValues?.accountType ?? '')
+  const [holderIdType, setHolderIdType] = useState(defaultValues?.holderIdType ?? '')
+
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => {
       const result = await saveGuidePayoutAccount(formData)
@@ -30,9 +40,19 @@ export default function GuidePayoutAccountForm({ defaultValues }: Props) {
     { error: null, saved: false },
   )
 
+  // Submitting via onSubmit + a manual action() call (both supported ways to
+  // invoke a useActionState action, per the React docs) rather than the
+  // <form action={action}> binding sidesteps the automatic post-submission
+  // reset described above entirely — it's specifically tied to that binding,
+  // not to useActionState itself.
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    action(new FormData(event.currentTarget))
+  }
+
   return (
     <form
-      action={action}
+      onSubmit={handleSubmit}
       className="space-y-4 rounded-2xl border border-border bg-card shadow-sm p-5"
     >
       <div>
@@ -59,7 +79,8 @@ export default function GuidePayoutAccountForm({ defaultValues }: Props) {
           id="account_type"
           name="account_type"
           required
-          defaultValue={defaultValues?.accountType ?? ''}
+          value={accountType}
+          onChange={(e) => setAccountType(e.target.value)}
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
           <option value="" disabled>—</option>
@@ -88,7 +109,8 @@ export default function GuidePayoutAccountForm({ defaultValues }: Props) {
           id="holder_id_type"
           name="holder_id_type"
           required
-          defaultValue={defaultValues?.holderIdType ?? ''}
+          value={holderIdType}
+          onChange={(e) => setHolderIdType(e.target.value)}
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
           <option value="" disabled>—</option>
