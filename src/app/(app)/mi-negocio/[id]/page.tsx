@@ -140,14 +140,22 @@ export default async function MiNegocioDetailPage({
           )}
         </div>
 
-        {/* Bookings stat */}
-        <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
-          <p className="text-sm text-muted-foreground">{miNegocioCopy.overview.activeBookings}</p>
-          <p className="text-3xl font-bold text-foreground mt-1">{activeBookingsCount ?? 0}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {miNegocioCopy.overview.activeBookingsNote}
-          </p>
-        </div>
+        {/* Bookings stat — links to the full reservation list/detail view */}
+        <Link
+          href={`/mi-negocio/${b.id}/reservas`}
+          className="block rounded-2xl border border-border bg-card shadow-sm p-5 hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">{miNegocioCopy.overview.activeBookings}</p>
+              <p className="text-3xl font-bold text-foreground mt-1">{activeBookingsCount ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {miNegocioCopy.overview.activeBookingsNote}
+              </p>
+            </div>
+            <ChevronRight className="size-5 text-muted-foreground shrink-0 mt-1" aria-hidden="true" />
+          </div>
+        </Link>
 
         {/* Services link */}
         <Link
