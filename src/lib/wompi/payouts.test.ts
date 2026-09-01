@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { computeNetPayoutAmountCents, sendProviderPayout } from './payouts'
+import { computeNetPayoutAmountCents, sendProviderPayout, resolvePayoutAccount } from './payouts'
 
 const ORIGINAL_ENV = { ...process.env }
 
@@ -127,5 +127,64 @@ describe('sendProviderPayout', () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network unreachable'))
     const result = await sendProviderPayout({ idempotencyKey: 'payout-1', amountCents: 90000, recipient: RECIPIENT })
     expect(result).toEqual({ ok: false, error: 'network unreachable' })
+  })
+})
+
+const ACCOUNT_ROW = {
+  bank_name: 'Bancolombia',
+  wompi_bank_id: 'bank-uuid-1',
+  account_type: 'ahorros' as const,
+  account_number: '00011122233',
+  holder_id_type: 'CC' as const,
+  holder_id_number: '123456789',
+  holder_name: 'Finca El Paraíso',
+  holder_email: 'finca@example.com',
+}
+
+function fakeAdminClient(row: typeof ACCOUNT_ROW | null) {
+  const fromMock = vi.fn((_table: string) => ({
+    select: () => ({
+      eq: () => ({
+        maybeSingle: () => Promise.resolve({ data: row, error: null }),
+      }),
+    }),
+  }))
+  return { from: fromMock } as unknown as Parameters<typeof resolvePayoutAccount>[0]
+}
+
+describe('resolvePayoutAccount', () => {
+  it('reads business_payout_accounts by business_id and maps it to a PayoutRecipient for a business recipient', async () => {
+    const admin = fakeAdminClient(ACCOUNT_ROW)
+    const result = await resolvePayoutAccount(admin, 'business', 'biz-1')
+
+    expect(admin.from).toHaveBeenCalledWith('business_payout_accounts')
+    expect(result).toEqual({
+      legalIdType: 'CC',
+      legalId: '123456789',
+      wompiBankId: 'bank-uuid-1',
+      accountType: 'ahorros',
+      accountNumber: '00011122233',
+      name: 'Finca El Paraíso',
+      email: 'finca@example.com',
+    })
+  })
+
+  it('reads tourist_guide_payout_accounts by guide_id for a guide recipient', async () => {
+    const admin = fakeAdminClient(ACCOUNT_ROW)
+    await resolvePayoutAccount(admin, 'guide', 'guide-1')
+
+    expect(admin.from).toHaveBeenCalledWith('tourist_guide_payout_accounts')
+  })
+
+  it('returns null when no payout account row exists', async () => {
+    const admin = fakeAdminClient(null)
+    const result = await resolvePayoutAccount(admin, 'business', 'biz-1')
+    expect(result).toBeNull()
+  })
+
+  it('defaults wompiBankId to an empty string when the account has none configured yet', async () => {
+    const admin = fakeAdminClient({ ...ACCOUNT_ROW, wompi_bank_id: null })
+    const result = await resolvePayoutAccount(admin, 'business', 'biz-1')
+    expect(result?.wompiBankId).toBe('')
   })
 })

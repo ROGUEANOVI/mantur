@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 
 const applyUpdateMock = vi.fn()
 const enqueuePayoutMock = vi.fn()
+const claimPayoutForSendMock = vi.fn()
 const markPayoutResultMock = vi.fn()
 const payoutAccountMaybeSingle = vi.fn()
 const confirmVoidMock = vi.fn()
@@ -24,6 +25,7 @@ function makeRpcResult(result: { data: unknown; error: unknown }) {
 const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
   if (fn === 'apply_wompi_webhook_transaction_update') return makeRpcResult(applyUpdateMock(args))
   if (fn === 'enqueue_provider_payout') return makeRpcResult(enqueuePayoutMock(args))
+  if (fn === 'claim_provider_payout_for_send') return makeRpcResult(claimPayoutForSendMock(args))
   if (fn === 'mark_provider_payout_result') return makeRpcResult(markPayoutResultMock(args))
   if (fn === 'confirm_refund_request_void_by_wompi_reference') return makeRpcResult(confirmVoidMock(args))
   throw new Error(`unexpected rpc: ${fn}`)
@@ -112,6 +114,14 @@ beforeEach(() => {
   // Default: no update applied, so payout code paths don't fire unless a
   // test explicitly opts in via applyUpdateMock.mockReturnValue(...).
   applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
+  // Default: the atomic post-enqueue claim succeeds (its own returned row
+  // data is unused by the webhook route — only truthiness gates whether it
+  // proceeds — so a fixed dummy payload is fine for every test that isn't
+  // specifically exercising the claim step itself).
+  claimPayoutForSendMock.mockReturnValue({
+    data: { transaction_id: 'tx-1', recipient_type: 'business', recipient_id: 'biz-1', amount_cents: 1 },
+    error: null,
+  })
   // Default: no matching refund_requests row awaiting void confirmation.
   confirmVoidMock.mockReturnValue({
     data: { confirmed: false, refund_request_id: null, requested_by: null, refund_amount_cents: null, bookkeeping_mismatch: false },
@@ -455,13 +465,45 @@ describe('POST /api/webhooks/wompi — provider payout on a freshly-confirmed AP
   it('does not attempt to send again when the payout row already exists with a non-pending status (a retried webhook for an already-processed payment)', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult())
     enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-6', status: 'sent', is_new: false }, error: null })
+    // The atomic claim's WHERE (status IN ('pending','failed')) is what
+    // actually enforces this now — a 'sent' row finds 0 matching rows.
+    claimPayoutForSendMock.mockReturnValue({ data: null, error: null })
 
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
     expect(res.status).toBe(200)
+    expect(claimPayoutForSendMock).toHaveBeenCalledWith({ p_payout_id: 'payout-6' })
     expect(fromMock).not.toHaveBeenCalledWith('business_payout_accounts')
     expect(fromMock).not.toHaveBeenCalledWith('tourist_guide_payout_accounts')
     expect(sendProviderPayoutMock).not.toHaveBeenCalled()
+  })
+
+  it('does not attempt to send when a concurrent claimant (e.g. an admin retry) already won the claim race', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-7', status: 'pending', is_new: true }, error: null })
+    claimPayoutForSendMock.mockReturnValue({ data: null, error: null })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
+    expect(markPayoutResultMock).not.toHaveBeenCalled()
+  })
+
+  it('logs and does not attempt to send when the claim RPC itself errors (distinct from an ordinary lost-race no-op)', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    applyUpdateMock.mockReturnValue(approvedUpdateResult())
+    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-8', status: 'pending', is_new: true }, error: null })
+    claimPayoutForSendMock.mockReturnValue({ data: null, error: { message: 'connection reset' } })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to claim provider payout for automatic send', {
+      message: 'connection reset',
+    })
+    consoleErrorSpy.mockRestore()
   })
 
   it('logs and skips payout processing (still returns 200) when neither business_id nor guide_id is present', async () => {
