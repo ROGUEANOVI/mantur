@@ -377,6 +377,17 @@ so they read well in the changelog/history.
 - `ui-agent` — builds and reviews pages/components following the ManTur
   design system (mobile-first, tourism aesthetic, shadcn/ui Vega)
 
+## Rules and skills (repo-local)
+
+- `.claude/rules/` — path-scoped instructions that auto-load when Claude
+  reads a matching file: `money-and-payments.md`, `rls-and-migrations.md`,
+  `components.md`, `testing.md`.
+- `.claude/skills/` — vendored copies of the Skills this project relies on
+  most, so anyone who clones the repo has them without a user-level install:
+  `supabase-postgres-best-practices`, `vercel-react-best-practices`,
+  `web-design-guidelines`, `ui-ux-pro-max`, `impeccable`, `frontend-design`,
+  `caveman`.
+
 ## Testing
 
 Vitest (unit/integration) + Playwright (e2e). See `TESTING.md` for full conventions.
