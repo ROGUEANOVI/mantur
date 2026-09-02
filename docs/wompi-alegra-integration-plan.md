@@ -278,6 +278,28 @@ Nuevo Route Handler: `src/app/api/webhooks/wompi/route.ts` (POST).
   del catálogo de Wompi — antes quedaban en `null` para siempre y
   `sendProviderPayout()` fallaba con "recipient has no wompi_bank_id
   configured" en cualquier intento de payout real.
+- **Confirmación async vía webhook — implementado.** `sendProviderPayout()`
+  solo confirma que Wompi *aceptó* el payout (`status='sent'`); nunca supo si
+  el banco destino lo terminó pagando o rechazando después, así que `'paid'`
+  quedaba reservado sin código que lo alcanzara. Nuevo endpoint
+  `src/app/api/webhooks/wompi-payouts/route.ts` recibe la suscripción propia
+  de "URL de Eventos" bajo Pagos a Terceros (secreto propio,
+  `WOMPI_PAYOUTS_EVENTS_SECRET`, distinto de `WOMPI_EVENTS_SECRET` del
+  checkout) y llama la nueva RPC `confirm_provider_payout_from_webhook`
+  (`20260902000000_add_provider_payout_webhook_confirmation.sql`) para
+  transicionar `'sent' → 'paid'/'failed'`. El vocabulario de estados reales
+  (`PROCESSING/PENDING/APPROVED/FAILED/REJECTED` a nivel de transacción,
+  `PENDING/REJECTED/TOTAL_PAYMENT/PARTIAL_PAYMENT/PENDING_APPROVAL/NOT_APPROVED`
+  a nivel de lote) está confirmado contra la documentación real de Wompi —
+  lo único que sigue sin confirmar es el nombre exacto del evento y dónde
+  vive el id/estado dentro del JSON del webhook (Wompi no lo publica, igual
+  que pasó con `WOMPI_PAYOUTS_BASE_URL`); el parseo queda deliberadamente
+  defensivo y solo loguea la *forma* de cada entrega válida (nombres y tipos
+  de campo, nunca los valores — un hallazgo de revisión de seguridad
+  automática corrigió una primera versión que sí logueaba el payload crudo,
+  exponiendo potencialmente cédula/cuenta bancaria/nombre/correo del
+  destinatario) para poder confirmar/corregir el parseo contra el primer
+  evento real.
 
 ### 4.5 Testing
 
@@ -592,6 +614,8 @@ construya este módulo.
    eso hace falta un job de reconciliación o acción de admin que busque
    filas `pending`/`failed` viejas y reintente `sendProviderPayout()`
    reusando el mismo `provider_payouts.id` como idempotency-key.
+   **Webhook de confirmación async (`'sent' → 'paid'/'failed'`) —
+   implementado**, ver §4.4.
 4. **Motor de reembolsos**: `refund_policy_config`, `refund_requests`, flujo
    void/manual, notificaciones por correo, tests. **Implementado.** El
    void automático usa un patrón claim → llamada externa → cascada/revert
