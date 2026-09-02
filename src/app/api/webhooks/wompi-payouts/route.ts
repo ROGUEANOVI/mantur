@@ -26,12 +26,27 @@ import { type WompiWebhookEvent, isValidChecksum, isFreshTimestamp } from '@/lib
 // where in the JSON payload the payout id/status actually live — Wompi's
 // docs don't publish this for Payouts the way they do for
 // transaction.updated. parsePayoutEvent() below is a best-effort reading of
-// the most likely shape, deliberately defensive, with the full raw payload
-// logged on every valid delivery so the first real event can confirm or
-// correct it — same practice already used in this codebase for
-// WOMPI_PAYOUTS_BASE_URL and the /banks response shape.
+// the most likely shape, deliberately defensive, with a shape summary (field
+// names/types, never values) logged on every valid delivery so the first
+// real event can confirm or correct it — same practice already used in this
+// codebase for WOMPI_PAYOUTS_BASE_URL and the /banks response shape.
 const PAID_STATUSES = new Set(['APPROVED', 'TOTAL_PAYMENT'])
 const FAILED_STATUSES = new Set(['FAILED', 'REJECTED', 'NOT_APPROVED'])
+
+// A payout event's payload can carry real PII/financial data — legal id
+// (cédula/NIT), name, email, bank account number — per the transaction shape
+// Wompi's own sandbox docs show for POST /payouts. This must never reach
+// application logs verbatim. Recursively replaces every value with its own
+// type name, keeping field names and nesting intact so the shape can still
+// be confirmed against the field names parsePayoutEvent() assumes (id,
+// status, reason/message/error), without ever logging an actual value.
+function summarizeShape(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(summarizeShape)
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, summarizeShape(v)]))
+  }
+  return value === null ? 'null' : typeof value
+}
 
 function parsePayoutEvent(
   event: WompiWebhookEvent,
@@ -74,12 +89,16 @@ export async function POST(request: Request) {
   }
 
   // Evidence trail for correcting parsePayoutEvent()'s shape assumption
-  // against the first real event — see the header comment above.
-  console.info('Wompi Payouts webhook received', { event: event.event, data: event.data })
+  // against the first real event — see the header comment above. Shape only
+  // (field names/types), never actual values — the payload can carry real
+  // PII/financial data.
+  console.info('Wompi Payouts webhook received', { event: event.event, shape: summarizeShape(event.data) })
 
   const parsed = parsePayoutEvent(event)
   if (!parsed) {
-    console.error('Wompi Payouts webhook payload missing an id/status in the expected shape', { data: event.data })
+    console.error('Wompi Payouts webhook payload missing an id/status in the expected shape', {
+      shape: summarizeShape(event.data),
+    })
     return NextResponse.json({ received: true })
   }
 

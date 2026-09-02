@@ -44,14 +44,16 @@ function buildEvent(overrides: {
   badChecksum?: boolean
   nested?: boolean
   omitPayoutFields?: boolean
+  extraFields?: Record<string, unknown>
 } = {}) {
   const timestamp = overrides.timestamp ?? NOW_SECONDS
   const payoutFields = overrides.omitPayoutFields
-    ? {}
+    ? { ...(overrides.extraFields ?? {}) }
     : {
         id: overrides.payoutId ?? 'wompi-payout-1',
         status: overrides.status ?? 'APPROVED',
         ...(overrides.reason ? { reason: overrides.reason } : {}),
+        ...(overrides.extraFields ?? {}),
       }
 
   const data = overrides.nested === false ? payoutFields : { payout: payoutFields }
@@ -185,5 +187,55 @@ describe('POST /api/webhooks/wompi-payouts', () => {
     confirmPayoutMock.mockReturnValue({ data: null, error: { message: 'db error' } })
     const response = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
     expect(response.status).toBe(500)
+  })
+
+  // Regression: this route used to log the raw event payload verbatim for
+  // debugging the unconfirmed shape assumption — but a real payout event can
+  // carry PII/financial data (legal id, name, email, bank account number).
+  // Whatever gets logged must never contain the actual values, only field
+  // names/types, on both the success path and the "unrecognized shape" path.
+  it('never logs raw PII/financial field values from the payload, only their shape', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const sensitive = {
+      legalId: '1002003000',
+      accountNumber: '00011122233',
+      name: 'Finca El Paraíso',
+      email: 'finca@example.com',
+    }
+
+    await POST(
+      postRequest(buildEvent({ status: 'APPROVED', extraFields: sensitive })),
+    )
+
+    const loggedCalls = [...infoSpy.mock.calls, ...errorSpy.mock.calls]
+    const loggedText = JSON.stringify(loggedCalls)
+    for (const value of Object.values(sensitive)) {
+      expect(loggedText).not.toContain(value)
+    }
+    expect(loggedText).toContain('"legalId":"string"')
+
+    infoSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  it('never logs raw PII/financial field values on the unrecognized-shape path either', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const sensitive = { legalId: '1002003000', accountNumber: '00011122233' }
+
+    // omitPayoutFields drops id/status so parsePayoutEvent() returns null,
+    // exercising the "missing an id/status in the expected shape" log path —
+    // extraFields still rides along in the payload to prove even that
+    // failure branch never echoes real values.
+    await POST(
+      postRequest(buildEvent({ omitPayoutFields: true, extraFields: sensitive })),
+    )
+
+    const loggedText = JSON.stringify(errorSpy.mock.calls)
+    for (const value of Object.values(sensitive)) {
+      expect(loggedText).not.toContain(value)
+    }
+
+    errorSpy.mockRestore()
   })
 })
