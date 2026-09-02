@@ -7,8 +7,10 @@ import { guidesCopy } from '@/lib/copy/guides'
 type FormState = { error: string | null; saved: boolean }
 
 type Props = {
+  banks: { id: string; name: string }[]
   defaultValues: {
     bankName: string
+    wompiBankId: string
     accountType: string
     accountNumber: string
     holderIdType: string
@@ -20,7 +22,7 @@ type Props = {
 
 const copy = guidesCopy.payout
 
-export default function GuidePayoutAccountForm({ defaultValues }: Props) {
+export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) {
   // Plain React state, not defaultValue: a <form>'s action prop puts React
   // in charge of the DOM node (React 19 resets its fields after a successful
   // action, the same way a native form does after a real submission), so a
@@ -30,6 +32,16 @@ export default function GuidePayoutAccountForm({ defaultValues }: Props) {
   // reflected as a real HTML attribute the reset can fall back to.
   const [accountType, setAccountType] = useState(defaultValues?.accountType ?? '')
   const [holderIdType, setHolderIdType] = useState(defaultValues?.holderIdType ?? '')
+  const [wompiBankId, setWompiBankId] = useState(defaultValues?.wompiBankId ?? '')
+
+  // If the previously saved bank id isn't in the current catalog (a transient
+  // Wompi API failure, or the bank was removed from it), keep it selectable
+  // as a synthetic option instead of silently blanking a valid saved value.
+  const bankOptions =
+    defaultValues?.wompiBankId && !banks.some((b) => b.id === defaultValues.wompiBankId)
+      ? [{ id: defaultValues.wompiBankId, name: defaultValues.bankName }, ...banks]
+      : banks
+  const selectedBankName = bankOptions.find((b) => b.id === wompiBankId)?.name ?? ''
 
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => {
@@ -61,16 +73,21 @@ export default function GuidePayoutAccountForm({ defaultValues }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="bank_name" className="text-sm font-medium text-foreground">{copy.bankName}</label>
-        <input
-          id="bank_name"
-          type="text"
-          name="bank_name"
+        <label htmlFor="wompi_bank_id" className="text-sm font-medium text-foreground">{copy.bankName}</label>
+        <select
+          id="wompi_bank_id"
+          name="wompi_bank_id"
           required
-          defaultValue={defaultValues?.bankName ?? ''}
-          placeholder={copy.bankNamePlaceholder}
+          value={wompiBankId}
+          onChange={(e) => setWompiBankId(e.target.value)}
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
-        />
+        >
+          <option value="" disabled>—</option>
+          {bankOptions.map((bank) => (
+            <option key={bank.id} value={bank.id}>{bank.name}</option>
+          ))}
+        </select>
+        <input type="hidden" name="bank_name" value={selectedBankName} />
       </div>
 
       <div className="space-y-1.5">

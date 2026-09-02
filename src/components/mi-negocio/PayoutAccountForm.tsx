@@ -11,8 +11,10 @@ type FormState = { error: string | null; saved: boolean }
 
 type Props = {
   businessId: string
+  banks: { id: string; name: string }[]
   defaultValues: {
     bankName: string
+    wompiBankId: string
     accountType: string
     accountNumber: string
     holderIdType: string
@@ -22,7 +24,7 @@ type Props = {
   } | null
 }
 
-export default function PayoutAccountForm({ businessId, defaultValues }: Props) {
+export default function PayoutAccountForm({ businessId, banks, defaultValues }: Props) {
   const copy = miNegocioCopy.payout
   const boundAction = savePayoutAccount.bind(null, businessId)
 
@@ -35,6 +37,16 @@ export default function PayoutAccountForm({ businessId, defaultValues }: Props) 
   // reflected as a real HTML attribute the reset can fall back to.
   const [accountType, setAccountType] = useState(defaultValues?.accountType ?? '')
   const [holderIdType, setHolderIdType] = useState(defaultValues?.holderIdType ?? '')
+  const [wompiBankId, setWompiBankId] = useState(defaultValues?.wompiBankId ?? '')
+
+  // If the previously saved bank id isn't in the current catalog (a transient
+  // Wompi API failure, or the bank was removed from it), keep it selectable
+  // as a synthetic option instead of silently blanking a valid saved value.
+  const bankOptions =
+    defaultValues?.wompiBankId && !banks.some((b) => b.id === defaultValues.wompiBankId)
+      ? [{ id: defaultValues.wompiBankId, name: defaultValues.bankName }, ...banks]
+      : banks
+  const selectedBankName = bankOptions.find((b) => b.id === wompiBankId)?.name ?? ''
 
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (_prev, formData) => {
@@ -63,14 +75,25 @@ export default function PayoutAccountForm({ businessId, defaultValues }: Props) 
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="bank_name">{copy.bankName}</Label>
-        <Input
-          id="bank_name"
-          name="bank_name"
+        <Label htmlFor="wompi_bank_id">{copy.bankName}</Label>
+        <select
+          id="wompi_bank_id"
+          name="wompi_bank_id"
           required
-          defaultValue={defaultValues?.bankName ?? ''}
-          placeholder={copy.bankNamePlaceholder}
-        />
+          value={wompiBankId}
+          onChange={(e) => setWompiBankId(e.target.value)}
+          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+        >
+          <option value="" disabled>
+            —
+          </option>
+          {bankOptions.map((bank) => (
+            <option key={bank.id} value={bank.id}>
+              {bank.name}
+            </option>
+          ))}
+        </select>
+        <input type="hidden" name="bank_name" value={selectedBankName} />
       </div>
 
       <div className="space-y-1.5">

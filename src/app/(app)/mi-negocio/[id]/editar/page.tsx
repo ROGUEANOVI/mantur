@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import EditBusinessForm from '@/components/mi-negocio/EditBusinessForm'
 import PayoutAccountForm from '@/components/mi-negocio/PayoutAccountForm'
 import MediaManager from '@/components/shared/MediaManager'
+import { listPayoutBanks } from '@/lib/wompi/payouts'
 import {
   uploadBusinessImage,
   deleteBusinessImage,
@@ -25,30 +26,39 @@ export default async function EditarNegocioPage({
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: business }, { data: categoriesData }, { data: linksData }, { data: payoutAccount }] = await Promise.all([
-    supabase
-      .from('businesses')
-      .select('id, name, description, address, phone, images, videos, lat, lng, rnt_number, rnt_status')
-      .eq('id', id)
-      .eq('owner_id', user!.id)
-      .maybeSingle(),
-    supabase
-      .from('business_categories')
-      .select('id, name')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true }),
-    supabase
-      .from('business_category_links')
-      .select('category_id')
-      .eq('business_id', id),
-    supabase
-      .from('business_payout_accounts')
-      .select('bank_name, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email')
-      .eq('business_id', id)
-      .maybeSingle(),
-  ])
+  const [{ data: business }, { data: categoriesData }, { data: linksData }, { data: payoutAccount }, banksResult] =
+    await Promise.all([
+      supabase
+        .from('businesses')
+        .select('id, name, description, address, phone, images, videos, lat, lng, rnt_number, rnt_status')
+        .eq('id', id)
+        .eq('owner_id', user!.id)
+        .maybeSingle(),
+      supabase
+        .from('business_categories')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
+      supabase
+        .from('business_category_links')
+        .select('category_id')
+        .eq('business_id', id),
+      supabase
+        .from('business_payout_accounts')
+        .select(
+          'bank_name, account_type, account_number, holder_id_type, holder_id_number, holder_name, holder_email, wompi_bank_id',
+        )
+        .eq('business_id', id)
+        .maybeSingle(),
+      listPayoutBanks(),
+    ])
 
   if (!business) notFound()
+
+  if (!banksResult.ok) {
+    console.error('Failed to load Wompi payout bank catalog', banksResult.error)
+  }
+  const banks = banksResult.ok ? banksResult.banks : []
 
   const categories = (categoriesData ?? []) as { id: string; name: string }[]
   const selectedCategoryIds = (linksData ?? []).map((l) => l.category_id)
@@ -115,10 +125,12 @@ export default async function EditarNegocioPage({
 
         <PayoutAccountForm
           businessId={business.id}
+          banks={banks}
           defaultValues={
             payoutAccount
               ? {
                   bankName: payoutAccount.bank_name,
+                  wompiBankId: payoutAccount.wompi_bank_id ?? '',
                   accountType: payoutAccount.account_type,
                   accountNumber: payoutAccount.account_number,
                   holderIdType: payoutAccount.holder_id_type,

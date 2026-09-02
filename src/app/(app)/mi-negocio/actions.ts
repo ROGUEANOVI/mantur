@@ -228,12 +228,15 @@ const HOLDER_ID_NUMBER_RE = /^[\d-]{5,20}$/
 type PayoutActionResult = { error: string } | { success: true }
 
 // Saves the bank account ManTur pays this business's net share (amount
-// minus commission) into once a booking is confirmed. Deliberately never
-// accepts wompi_bank_id from the owner — that is Wompi's own internal bank
-// catalog id (looked up from the merchant dashboard), set by an admin
-// separately from /admin/negocios. Upserts on business_id (the table's
-// primary key), since the owner may be creating this row for the first
-// time or editing an existing one.
+// minus commission) into once a booking is confirmed. wompi_bank_id is
+// Wompi's own internal bank catalog id — the owner picks it from a <select>
+// populated server-side via listPayoutBanks() (GET /banks), so this is
+// still a value chosen from Wompi's real catalog, not free text. The
+// separate admin-only updateWompiBankId (src/app/(app)/admin/actions.ts)
+// remains as a correction path (e.g. the catalog fetch failed at save time,
+// or the value needs fixing without the owner re-submitting the whole
+// form). Upserts on business_id (the table's primary key), since the owner
+// may be creating this row for the first time or editing an existing one.
 export async function savePayoutAccount(
   businessId: string,
   formData: FormData,
@@ -243,6 +246,7 @@ export async function savePayoutAccount(
   const { supabase, userId } = await getAuthenticatedOwner()
 
   const bankName = (formData.get('bank_name') as string | null)?.trim() || ''
+  const wompiBankId = (formData.get('wompi_bank_id') as string | null)?.trim() || ''
   const accountType = formData.get('account_type') as string
   const accountNumber = (formData.get('account_number') as string | null)?.trim() || ''
   const holderIdType = formData.get('holder_id_type') as string
@@ -253,6 +257,7 @@ export async function savePayoutAccount(
   if (!bankName || !accountNumber || !holderIdNumber || !holderName || !holderEmail) {
     return { error: 'Completa todos los campos obligatorios.' }
   }
+  if (!wompiBankId) return { error: 'Selecciona un banco válido.' }
   if (!VALID_ACCOUNT_TYPES.has(accountType)) return { error: 'Selecciona un tipo de cuenta válido.' }
   if (!VALID_HOLDER_ID_TYPES.has(holderIdType)) return { error: 'Selecciona un tipo de documento válido.' }
   if (!EMAIL_RE.test(holderEmail)) return { error: 'Escribe un correo electrónico válido.' }
@@ -276,6 +281,7 @@ export async function savePayoutAccount(
     {
       business_id: businessId,
       bank_name: bankName,
+      wompi_bank_id: wompiBankId,
       account_type: accountType,
       account_number: accountNumber,
       holder_id_type: holderIdType,

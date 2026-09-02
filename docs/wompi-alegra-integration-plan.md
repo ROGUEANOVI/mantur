@@ -270,6 +270,14 @@ Nuevo Route Handler: `src/app/api/webhooks/wompi/route.ts` (POST).
 - Cada negocio/guía necesita capturar datos bancarios (tipo/número de cuenta,
   banco, tipo de identificación) durante `approveRoleRequest` o en su panel
   de perfil — extensión de esquema pequeña sobre `businesses`/`tourist_guides`.
+- **`wompi_bank_id` — cerrado.** `PayoutAccountForm`/`GuidePayoutAccountForm`
+  capturan el banco vía un `<select>` poblado desde `listPayoutBanks()`
+  (`src/lib/wompi/payouts.ts`, `GET /banks`) en vez del campo de texto libre
+  original, así que `business_payout_accounts.wompi_bank_id` /
+  `tourist_guide_payout_accounts.wompi_bank_id` ya se guardan con el id real
+  del catálogo de Wompi — antes quedaban en `null` para siempre y
+  `sendProviderPayout()` fallaba con "recipient has no wompi_bank_id
+  configured" en cualquier intento de payout real.
 
 ### 4.5 Testing
 

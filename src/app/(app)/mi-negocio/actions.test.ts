@@ -1473,6 +1473,7 @@ describe('deleteBusinessImage', () => {
 describe('savePayoutAccount', () => {
   const VALID_FIELDS = {
     bank_name: 'Bancolombia',
+    wompi_bank_id: 'bank-bancolombia',
     account_type: 'ahorros',
     account_number: '00011122233',
     holder_id_type: 'NIT',
@@ -1490,6 +1491,12 @@ describe('savePayoutAccount', () => {
   it('rejects when any required field is missing', async () => {
     const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, bank_name: '' }))
     expect(result).toEqual({ error: 'Completa todos los campos obligatorios.' })
+    expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing wompi_bank_id', async () => {
+    const result = await savePayoutAccount(BIZ_ID, formData({ ...VALID_FIELDS, wompi_bank_id: '' }))
+    expect(result).toEqual({ error: 'Selecciona un banco válido.' })
     expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
   })
 
@@ -1537,7 +1544,7 @@ describe('savePayoutAccount', () => {
     expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
   })
 
-  it('upserts on business_id with the validated fields, and never includes wompi_bank_id', async () => {
+  it('upserts on business_id with the validated fields, including wompi_bank_id', async () => {
     businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
     payoutAccountUpsertMock.mockResolvedValue({ error: null })
 
@@ -1548,6 +1555,7 @@ describe('savePayoutAccount', () => {
     expect(payload).toEqual({
       business_id: BIZ_ID,
       bank_name: 'Bancolombia',
+      wompi_bank_id: 'bank-bancolombia',
       account_type: 'ahorros',
       account_number: '00011122233',
       holder_id_type: 'NIT',
@@ -1555,7 +1563,6 @@ describe('savePayoutAccount', () => {
       holder_name: 'Finca La Esperanza',
       holder_email: 'finca@example.com',
     })
-    expect(payload).not.toHaveProperty('wompi_bank_id')
     expect(opts).toEqual({ onConflict: 'business_id' })
     expect(revalidatePathMock).toHaveBeenCalledWith(`/mi-negocio/${BIZ_ID}/editar`)
   })
