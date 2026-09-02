@@ -13,6 +13,7 @@ import DetailSplitLayout from '@/components/shared/DetailSplitLayout'
 import FavoriteButton from '@/components/shared/FavoriteButton'
 import ExpandableText from '@/components/shared/ExpandableText'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
+import WhatsappButton from '@/components/shared/WhatsappButton'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
 import { MANAURE_CENTER } from '@/lib/geo'
@@ -102,15 +103,6 @@ export default async function NegocioDetailPage({
 
   const { data: { user } } = await supabase.auth.getUser()
   const isGuest = !user
-  let isTourist = false
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    isTourist = profile?.role === 'tourist'
-  }
 
   const isLegacyId = UUID_RE.test(slug)
   const { data: business, error } = await supabase
@@ -276,8 +268,7 @@ export default async function NegocioDetailPage({
                     <ServiceCard
                       service={svc}
                       businessSlug={b.slug}
-                      isTourist={isTourist}
-                      isGuest={isGuest}
+                      businessName={b.name}
                     />
                   </Reveal>
                 ))}
@@ -293,13 +284,11 @@ export default async function NegocioDetailPage({
 function ServiceCard({
   service: svc,
   businessSlug,
-  isTourist,
-  isGuest,
+  businessName,
 }: {
   service: ServiceRow
   businessSlug: string
-  isTourist: boolean
-  isGuest: boolean
+  businessName: string
 }) {
   const copy = businessesCopy.services
   const imageUrl = svc.images?.[0]
@@ -354,21 +343,11 @@ function ServiceCard({
           )}
         </div>
 
-        {isTourist ? (
-          <Link
-            href={`/reservas/nueva?service=${svc.id}`}
-            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 active:scale-[0.98] transition-all"
-          >
-            {copy.book}
-          </Link>
-        ) : isGuest ? (
-          <Link
-            href="/login"
-            className="relative z-10 mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 active:scale-[0.98] transition-all"
-          >
-            {copy.bookGuest}
-          </Link>
-        ) : null}
+        <WhatsappButton
+          className="mt-2"
+          message={`Hola, quiero más información sobre "${svc.name}" de ${businessName}.`}
+          label={copy.contactWhatsapp}
+        />
       </div>
     </div>
   )

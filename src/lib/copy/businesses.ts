@@ -184,8 +184,7 @@ export const businessesCopy = {
   services: {
     sectionTitle: 'Servicios disponibles',
     empty: 'Este establecimiento no tiene servicios disponibles por el momento.',
-    book: 'Reservar',
-    bookGuest: 'Inicia sesión para reservar',
+    contactWhatsapp: 'Consultar por WhatsApp',
     duration: 'Duración',
     capacity: 'Cupo',
     minutes: 'min',

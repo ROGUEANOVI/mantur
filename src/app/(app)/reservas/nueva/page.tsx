@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { PRICING_UNIT_LABELS, type PricingUnit } from '@/lib/services/attributeConfig'
-import BookingForm from '@/components/reservas/BookingForm'
+import WhatsappButton from '@/components/shared/WhatsappButton'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -83,14 +83,16 @@ export default async function NuevaReservaPage({
           </p>
         </div>
 
-        {/* Booking form */}
+        {/* Direct in-platform booking is disabled during ManTur's manual-
+            operation validation phase (2026-09-02 business decision) —
+            gated here too, not just at the links pointing to this page, so
+            this URL can't be used to bypass the WhatsApp-only flow even if
+            bookmarked or guessed. BookingForm and createBooking are
+            untouched and can be wired back in later. */}
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
-          <BookingForm
-            serviceId={service.id}
-            price={Number(service.base_price)}
-            capacity={service.capacity}
-            serviceName={service.name}
-            pricingUnit={pricingUnit}
+          <WhatsappButton
+            message={`Hola, quiero más información sobre "${service.name}"${businessName ? ` de ${businessName}` : ''}.`}
+            label={businessesCopy.services.contactWhatsapp}
           />
         </div>
       </div>

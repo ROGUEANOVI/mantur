@@ -11,6 +11,7 @@ import MediaGallery from '@/components/shared/MediaGallery'
 import DetailSplitLayout from '@/components/shared/DetailSplitLayout'
 import ExpandableText from '@/components/shared/ExpandableText'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
+import WhatsappButton from '@/components/shared/WhatsappButton'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
 
@@ -82,18 +83,6 @@ export default async function ServicioDetailPage({
 }) {
   const { slug, serviceId } = await params
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  const isGuest = !user
-  let isTourist = false
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    isTourist = profile?.role === 'tourist'
-  }
 
   const { data: serviceRow, error } = await supabase
     .from('services')
@@ -209,21 +198,11 @@ export default async function ServicioDetailPage({
               </p>
             </div>
 
-            {isTourist ? (
-              <Link
-                href={`/reservas/nueva?service=${svc.id}`}
-                className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 active:scale-[0.98] transition-all"
-              >
-                {copy.book}
-              </Link>
-            ) : isGuest ? (
-              <Link
-                href="/login"
-                className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-primary text-primary text-sm font-semibold min-h-11 hover:bg-primary/10 active:scale-[0.98] transition-all"
-              >
-                {copy.bookGuest}
-              </Link>
-            ) : null}
+            <WhatsappButton
+              className="mt-2"
+              message={`Hola, quiero más información sobre "${svc.name}" de ${svc.businesses.name}.`}
+              label={copy.contactWhatsapp}
+            />
           </Reveal>
         </DetailSplitLayout>
       </div>
