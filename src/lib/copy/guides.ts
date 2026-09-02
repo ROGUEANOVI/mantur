@@ -24,17 +24,7 @@ export const guidesCopy = {
   },
 
   bookingForm: {
-    title: 'Reservar tour',
-    tourLabel: 'Tour',
-    peopleCount: 'Número de personas',
-    bookingDate: 'Fecha del tour',
-    pricePerPerson: 'Precio por persona',
-    totalLabel: 'Total estimado',
-    notesLabel: 'Notas para el guía',
-    notesPlaceholder: 'Ej: Prefiero ir en la mañana, ¿puedes pasar por la plaza?',
-    notesOptional: '(opcional)',
-    submit: 'Confirmar reserva',
-    submitting: 'Procesando...',
+    contactWhatsapp: 'Consultar por WhatsApp',
   },
 
   guidePanel: {

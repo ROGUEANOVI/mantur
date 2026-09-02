@@ -1,9 +1,10 @@
 import { FaInstagram, FaFacebook, FaWhatsapp, FaTiktok } from 'react-icons/fa6'
+import { MANTUR_WHATSAPP_NUMBER } from '@/lib/whatsapp'
 
 const SOCIAL_LINKS = [
   { name: 'Instagram', href: 'https://instagram.com/mantur.oficial', Icon: FaInstagram },
   { name: 'Facebook', href: 'https://www.facebook.com/share/196SHnZWw5/', Icon: FaFacebook },
-  { name: 'WhatsApp', href: 'https://wa.me/573217203264', Icon: FaWhatsapp },
+  { name: 'WhatsApp', href: `https://wa.me/${MANTUR_WHATSAPP_NUMBER}`, Icon: FaWhatsapp },
   { name: 'TikTok', href: 'https://www.tiktok.com/@mantur432', Icon: FaTiktok },
 ]
 

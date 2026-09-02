@@ -255,7 +255,8 @@ export default async function GuideProfilePage({
                     </div>
 
                     <TourBookingForm
-                      guideTourId={tour.id}
+                      tourName={tour.name}
+                      guideName={name}
                       price={Number(tour.price)}
                       access={bookingAccess}
                     />
