@@ -270,6 +270,14 @@ Nuevo Route Handler: `src/app/api/webhooks/wompi/route.ts` (POST).
 - Cada negocio/guía necesita capturar datos bancarios (tipo/número de cuenta,
   banco, tipo de identificación) durante `approveRoleRequest` o en su panel
   de perfil — extensión de esquema pequeña sobre `businesses`/`tourist_guides`.
+- **`wompi_bank_id` — cerrado.** `PayoutAccountForm`/`GuidePayoutAccountForm`
+  capturan el banco vía un `<select>` poblado desde `listPayoutBanks()`
+  (`src/lib/wompi/payouts.ts`, `GET /banks`) en vez del campo de texto libre
+  original, así que `business_payout_accounts.wompi_bank_id` /
+  `tourist_guide_payout_accounts.wompi_bank_id` ya se guardan con el id real
+  del catálogo de Wompi — antes quedaban en `null` para siempre y
+  `sendProviderPayout()` fallaba con "recipient has no wompi_bank_id
+  configured" en cualquier intento de payout real.
 - **Confirmación async vía webhook — implementado.** `sendProviderPayout()`
   solo confirma que Wompi *aceptó* el payout (`status='sent'`); nunca supo si
   el banco destino lo terminó pagando o rechazando después, así que `'paid'`
@@ -286,8 +294,12 @@ Nuevo Route Handler: `src/app/api/webhooks/wompi/route.ts` (POST).
   lo único que sigue sin confirmar es el nombre exacto del evento y dónde
   vive el id/estado dentro del JSON del webhook (Wompi no lo publica, igual
   que pasó con `WOMPI_PAYOUTS_BASE_URL`); el parseo queda deliberadamente
-  defensivo y loguea el payload crudo de cada entrega válida para poder
-  confirmarlo/corregirlo contra el primer evento real.
+  defensivo y solo loguea la *forma* de cada entrega válida (nombres y tipos
+  de campo, nunca los valores — un hallazgo de revisión de seguridad
+  automática corrigió una primera versión que sí logueaba el payload crudo,
+  exponiendo potencialmente cédula/cuenta bancaria/nombre/correo del
+  destinatario) para poder confirmar/corregir el parseo contra el primer
+  evento real.
 
 ### 4.5 Testing
 

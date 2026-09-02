@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { computeNetPayoutAmountCents, sendProviderPayout, resolvePayoutAccount } from './payouts'
+import { computeNetPayoutAmountCents, sendProviderPayout, resolvePayoutAccount, listPayoutBanks } from './payouts'
 
 const ORIGINAL_ENV = { ...process.env }
 
@@ -126,6 +126,82 @@ describe('sendProviderPayout', () => {
   it('returns ok:false (never throws) when fetch itself rejects, e.g. a network error', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('network unreachable'))
     const result = await sendProviderPayout({ idempotencyKey: 'payout-1', amountCents: 90000, recipient: RECIPIENT })
+    expect(result).toEqual({ ok: false, error: 'network unreachable' })
+  })
+})
+
+describe('listPayoutBanks', () => {
+  it('returns a clear failure (never throws) when WOMPI_PAYOUTS_BASE_URL is not configured', async () => {
+    delete process.env.WOMPI_PAYOUTS_BASE_URL
+    const result = await listPayoutBanks()
+    expect(result).toEqual({ ok: false, error: 'WOMPI_PAYOUTS_BASE_URL is not configured' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('returns a clear failure when WOMPI_PAYOUTS_API_KEY is not configured', async () => {
+    delete process.env.WOMPI_PAYOUTS_API_KEY
+    const result = await listPayoutBanks()
+    expect(result).toEqual({ ok: false, error: 'WOMPI_PAYOUTS_API_KEY is not configured' })
+  })
+
+  it('calls GET /banks with the auth headers', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+
+    await listPayoutBanks()
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://payouts.example.wompi.co/banks',
+      expect.objectContaining({
+        headers: {
+          'x-api-key': 'test-api-key',
+          'user-principal-id': 'test-principal-id',
+        },
+      }),
+    )
+  })
+
+  it('maps the data array to {id, name} entries, dropping malformed ones', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: 'bank-1', name: 'Bancolombia' },
+            { id: 'bank-2', name: 'Davivienda', code: 'DAVI' },
+            { id: 123, name: 'missing valid id' },
+            { name: 'missing id entirely' },
+          ],
+        }),
+        { status: 200 },
+      ),
+    )
+
+    const result = await listPayoutBanks()
+
+    expect(result).toEqual({
+      ok: true,
+      banks: [
+        { id: 'bank-1', name: 'Bancolombia' },
+        { id: 'bank-2', name: 'Davivienda' },
+      ],
+    })
+  })
+
+  it('returns ok:false when the response has no data array', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ message: 'unexpected shape' }), { status: 200 }))
+    const result = await listPayoutBanks()
+    expect(result.ok).toBe(false)
+  })
+
+  it('returns ok:false (never throws) on a non-2xx response', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ message: 'unauthorized' }), { status: 401 }))
+    const result = await listPayoutBanks()
+    expect(result.ok).toBe(false)
+    expect((result as { ok: false; error: string }).error).toContain('401')
+  })
+
+  it('returns ok:false (never throws) when fetch itself rejects', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('network unreachable'))
+    const result = await listPayoutBanks()
     expect(result).toEqual({ ok: false, error: 'network unreachable' })
   })
 })
