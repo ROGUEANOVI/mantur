@@ -38,6 +38,23 @@ turísticos de referencia (Civitatis, Airbnb, GetYourGuide); los paquetes son
 inventario propio de ManTur como operador (no de negocios individuales);
 monetizar transporte queda fuera de alcance de este plan.
 
+**Actualización 2026-09-02 — pivote a operación manual**: dado que ManTur aún
+no ha empezado a operar y la demanda inicial es incierta, se decidió validar
+con un modelo manual (WhatsApp + transferencia, `mantur.co` como vitrina, sin
+cierre de venta ni recaudo automatizado) antes de reactivar el checkout
+automatizado descrito en este plan. Como parte de esto, la reserva directa de
+servicios de negocios y tours de guías **se desactivó en la plataforma** (la
+UI ya no ofrece "Reservar"; los Server Actions/esquema/checkout de Wompi
+siguen intactos, solo desconectados de la interfaz) porque ManTur no tiene
+control real de disponibilidad de esos proveedores. Todo lo ya construido en
+este documento (Wompi checkout/Payouts, motor de reembolsos, facturación
+Alegra) sigue funcionando y desplegado — es el "plus" que se reactivará
+cuando la operación manual valide la demanda y se resuelva el control de
+disponibilidad. §6 (notas crédito, reconciliación DIAN) y §7 (paquetes) por
+ahora quedan solo **diseñados, no construidos** — ver la nota de contexto al
+inicio de §7 sobre por qué paquetes sí contempla un flujo de pre-reserva en
+vez de quedar 100% manual como el resto.
+
 ---
 
 ## 1. Estado actual del código (línea base)
@@ -530,6 +547,19 @@ análogo a un `commission_config`) para poder mergear e ir probando el código
 en producción de forma controlada (soft-launch) antes de anunciar la
 funcionalidad públicamente.
 
+**Contexto actualizado (2026-09-02 — pivote a operación manual, ver la nota
+al inicio del documento y `docs/manual-operation-pivot` en la memoria del
+proyecto):** la reserva directa de servicios de negocios/tours de guías se
+desactivó porque ManTur no tenía control real de disponibilidad de esos
+proveedores (mercado abierto, cualquier negocio verificado publica sus
+propios servicios). **Paquetes es un modelo distinto y deliberadamente más
+controlado**: solo incluye proveedores (hospedaje/restaurantes, guías,
+transporte) que ManTur cura y vetea directamente como "seguros" — de ahí que
+sí tenga sentido construir aquí un flujo de **pre-reserva** en vez de dejarlo
+100% manual por WhatsApp como el resto de la plataforma. Este módulo sigue
+sin construirse (0% implementado); esta sección documenta el diseño acordado
+para cuando se retome, no código ya escrito.
+
 **IVA en paquetes**: a diferencia de la comisión de intermediación (§6, IVA
 19% solo sobre la comisión), cuando ManTur vende un paquete actúa como
 **operador/principal**, no como intermediario — el IVA 19% aplica sobre el
@@ -538,6 +568,57 @@ implementación si `base_price` se maneja como valor antes de IVA (Alegra
 calcula y suma el impuesto, mismo patrón que `createCommissionInvoice()`) o
 como valor final con IVA incluido — decisión pendiente para cuando se
 construya este módulo.
+
+### 7.0 Modelo de confirmación de disponibilidad (pre-reserva, dos fases)
+
+**El problema que resuelve**: un paquete depende de 2-3 proveedores a la vez
+(hospedaje + guía + transporte). Si cobras primero y luego descubres que uno
+no tiene cupo, terminas gestionando un reembolso evitable. La pre-reserva
+invierte el orden: **primero se confirma disponibilidad, después se cobra**.
+
+**Flujo de la pre-reserva**:
+1. Turista solicita el paquete (fecha, personas) en `/paquetes/[id]` →
+   se crea una fila en `bookings` con `package_id` y un nuevo estado
+   `pending_availability` — **sin cobrar nada todavía** (a diferencia del
+   flujo actual de `pending_payment`, que sí asume que ya se va a cobrar).
+2. ManTur confirma con cada proveedor de cada `package_item` involucrado.
+3. Si todos confirman → la reserva pasa a `pending_payment` (aquí sí aplica
+   el cobro manual — transferencia o link de Wompi — según el modelo
+   operativo vigente).
+4. Si algún proveedor no confirma → se cancela sin haber cobrado nada. Cero
+   reembolsos que gestionar, porque el dinero nunca se movió.
+
+**Nueva tabla `provider_availability`** — el corazón de por qué esto se
+puede automatizar después sin fricción:
+- `id`, `provider_type` (`business|guide|transporter` — mismo patrón que
+  `provider_payouts.recipient_type`, no es un FK real porque apunta a tres
+  tablas distintas), `provider_id`, `date`, `status`
+  (`available|unavailable`, **default `available`** — se marca la fecha
+  cuando el proveedor NO puede, no al revés, que es como realmente funciona
+  un calendario de reservas), `source` (`admin_manual|provider_self_service`
+  — de auditoría, ver Fase 2), `notes` (ej. "confirmado por WhatsApp con
+  Doña Mary el 2/sep"), timestamps. `UNIQUE (provider_type, provider_id,
+  date)`.
+- **Fase 1 (con lo que se construye este módulo — lo único a implementar
+  ahora)**: un admin llama/escribe al proveedor y **él mismo** llena esta
+  tabla desde `/admin/paquetes` tras confirmar por WhatsApp — mismo espíritu
+  operativo que el resto de la plataforma hoy, pero con el resultado
+  registrado en vez de vivir solo en una conversación de WhatsApp. Ventaja
+  práctica: una fecha ya confirmada para un proveedor sirve para *cualquier*
+  paquete futuro que lo incluya — el trabajo manual decrece con el tiempo en
+  vez de repetirse por cada pre-reserva.
+- **Fase 2 (NO se construye ahora — es la razón de ser de este diseño)**:
+  cuando un proveedor esté listo para autoservicio, se agrega una vista de
+  calendario simple en su propio panel (`/mi-negocio/[id]/disponibilidad`,
+  `/mi-perfil-guia/disponibilidad`, `/mi-perfil-transporte/disponibilidad`)
+  que escribe en la **misma tabla**, para su propio `provider_id`, con una
+  nueva política RLS `provider_availability_insert_own`/`_update_own` —
+  calcada del patrón ya usado en `business_payout_accounts_insert_own`. Solo
+  cambia quién escribe (`source` pasa a `provider_self_service`); ManTur dejar
+  de tener que confirmar manualmente solo para los proveedores que ya
+  adoptaron el autoservicio. **Cero migración de esquema para pasar de Fase 1
+  a Fase 2** — es exactamente lo que hace que la arquitectura quede "lista
+  para automatizar sin fricción".
 
 ### 7.1 Esquema nuevo
 
@@ -554,10 +635,15 @@ construya este módulo.
   directo), `quantity_included`. Esto es la pieza central del modelo
   "operador": el margen de ManTur en un paquete es
   `base_price - Σ(internal_cost_cents)`, no un `commission_rate` de tabla.
-- **Extender `bookings`**: agregar `package_id` (nullable, FK), y ampliar el
-  CHECK/trigger XOR actual (`service_id` XOR `guide_tour_id`) a una
-  constraint de "exactamente uno de tres" — mismo patrón ya usado cuando se
-  agregó `guide_tour_id` como segunda opción en
+- **`provider_availability`**: ver §7.0 arriba — nueva tabla, no
+  específica de paquetes (podría en teoría reutilizarse para servicios de
+  negocios si algún día se reactiva su reserva directa, pero se construye
+  aquí porque paquetes es lo que primero la necesita).
+- **Extender `bookings`**: agregar `package_id` (nullable, FK), un nuevo
+  valor de estado `pending_availability` (antes de `pending_payment` en el
+  ciclo de vida), y ampliar el CHECK/trigger XOR actual (`service_id` XOR
+  `guide_tour_id`) a una constraint de "exactamente uno de tres" — mismo
+  patrón ya usado cuando se agregó `guide_tour_id` como segunda opción en
   `20260802000000_create_tourist_guides.sql`.
 - **Payout por paquete vendido**: cuando un paquete se vende y se confirma el
   pago, generar tantas filas en `provider_payouts` como `package_items` tenga
@@ -569,16 +655,39 @@ construya este módulo.
 - `/paquetes` — listado público (mismo patrón visual que `/negocios`/`/guias`:
   cards, filtros, paginación).
 - `/paquetes/[id]` — detalle con desglose de qué incluye (sin exponer el
-  costo interno negociado, solo el precio final al turista).
-- `/mi-perfil-admin` o extensión de `/admin` — CRUD de paquetes y asignación
-  de `package_items` con su costo interno.
-- Reutilizar `MediaGallery`/gestor de medios existente para fotos/videos del
-  paquete (mismo bucket pattern que `business-images`/`business-videos`).
+  costo interno negociado, solo el precio final al turista) + formulario de
+  pre-reserva (fecha, personas) en vez de un botón de pago directo.
+- **`/admin/paquetes`** — CRUD completo, mismo patrón visual/estructural que
+  `/admin/categorias`:
+  - **Crear**: nombre, descripción, `base_price`, `pricing_unit`, capacidad,
+    fotos/videos (reutilizando `MediaGallery`/`MediaManager`, mismo bucket
+    pattern que negocios).
+  - **Editar**: el mismo formulario + gestor de `package_items` (multi-select
+    de servicios/tours ya existentes, con su `internal_cost_cents` y
+    `quantity_included` cada uno).
+  - **Activar/desactivar**: toggle `is_active`, igual que
+    `business_categories`.
+  - **Eliminar**: borrado real solo si el paquete nunca tuvo reservas
+    (mismo principio de `ON DELETE RESTRICT` que ya protege
+    `business_category_links`); si ya tiene historial, solo se puede
+    desactivar.
+  - Cola de **pre-reservas pendientes de confirmar disponibilidad**
+    (`bookings.status = 'pending_availability'`) con acción rápida para
+    marcar cada `package_item` como confirmado/no disponible en
+    `provider_availability` tras la llamada/WhatsApp con el proveedor.
 
 ### 7.3 Testing
 
 - Constraint de "exactamente uno de tres" en `bookings` (service/guide_tour/
   package) — casos válidos e inválidos.
+- Transición de estados de la pre-reserva:
+  `pending_availability → pending_payment` (todos los proveedores
+  confirman) y `pending_availability → cancelled` (al menos uno no
+  confirma) — y que ningún cobro se dispare en el segundo caso.
+- `provider_availability`: UNIQUE por (`provider_type`, `provider_id`,
+  `date`); default `available` cuando no hay fila; RLS admin-only en Fase 1
+  (público SELECT no aplica — esta tabla es operativa, no se expone a
+  turistas).
 - Cálculo de payouts múltiples por un solo paquete vendido.
 - RLS de `packages`/`package_items` (público SELECT solo activos; admin-only
   write, mismo patrón que `service_types`).
@@ -629,9 +738,14 @@ construya este módulo.
 5. **Alegra facturación**: sync de contactos, creación de factura al
    confirmarse el pago, webhook de reconciliación, tests.
 6. **Alegra notas crédito**: enlazadas al flujo de reembolsos del paso 4.
+   **Diferido por el pivote a operación manual (2026-09-02)** — facturación
+   hoy es manual en Alegra, no dispara este flujo.
 7. **Paquetes/tours**: esquema, `/admin/paquetes`, `/paquetes` público,
    extensión de la constraint XOR de `bookings`, payouts múltiples por
-   paquete — **detrás de bandera hasta que el código esté probado**.
+   paquete, flujo de pre-reserva + `provider_availability` (ver §7.0) —
+   **detrás de bandera hasta que el código esté probado**. **Diseño
+   actualizado 2026-09-02, sin construir todavía** — es la línea de negocio
+   principal una vez la operación manual valide demanda.
 8. **Revisión de seguridad obligatoria** (`security-reviewer` subagent, por
    CLAUDE.md) antes de cualquier PR de este trabajo que toque dinero —
    especial atención a: verificación de firma de webhooks, que ningún monto
