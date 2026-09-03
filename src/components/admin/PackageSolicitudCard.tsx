@@ -133,6 +133,7 @@ function AvailabilityStage({
 }) {
   const confirmDispatch = useToastAction(confirmPackagePrereserva)
   const cancelDispatch = useToastAction(cancelPackagePrereserva)
+  const confirmFormId = `confirm-prereserva-${bookingId}`
   const cancelFormId = `cancel-prereserva-${bookingId}`
 
   return (
@@ -145,14 +146,17 @@ function AvailabilityStage({
       </div>
 
       <div className="flex items-center gap-2">
-        <form action={confirmDispatch} className="flex-1">
+        <form id={confirmFormId} action={confirmDispatch}>
           <input type="hidden" name="bookingId" value={bookingId} />
-          <SubmitButton
-            className="w-full rounded-lg bg-primary text-primary-foreground text-xs font-semibold min-h-[36px] px-3 hover:bg-primary/90 transition-colors"
-            label={copy.confirmAndCharge}
-            pendingLabel={copy.confirming}
-          />
         </form>
+        <ConfirmDeleteButton
+          formId={confirmFormId}
+          title={copy.confirmChargeTitle}
+          description={copy.confirmChargeDescription}
+          confirmLabel={copy.confirmAndCharge}
+          trigger={copy.confirmAndCharge}
+          triggerClassName="flex-1 inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-semibold min-h-[36px] px-3 hover:bg-primary/90 transition-colors"
+        />
 
         <form id={cancelFormId} action={cancelDispatch}>
           <input type="hidden" name="bookingId" value={bookingId} />
@@ -238,11 +242,11 @@ function PaymentStage({ bookingId }: { bookingId: string }) {
 // see /admin/paquetes/page.tsx's activate/deactivate button). useFormStatus()
 // only sees the nearest parent <form>, so this must be its own component
 // rendered *inside* each <form> above, not inline in the parent.
-function SubmitButton({ className, label, pendingLabel }: { className: string; label: string; pendingLabel?: string }) {
+function SubmitButton({ className, label }: { className: string; label: string }) {
   const { pending } = useFormStatus()
   return (
     <button type="submit" className={className} disabled={pending}>
-      {pending && pendingLabel ? pendingLabel : label}
+      {label}
     </button>
   )
 }

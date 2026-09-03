@@ -134,12 +134,16 @@ describe('PackageSolicitudCard — pending_availability stage (items provided)',
     })
   })
 
-  it('submits the bookingId when "Confirmar y pasar a pago" is clicked', async () => {
+  it('requires confirmation before submitting, then submits the bookingId', async () => {
     confirmPackagePrereservaMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<PackageSolicitudCard {...BASE_PROPS} items={ITEMS} />)
 
     await user.click(screen.getByRole('button', { name: 'Confirmar y pasar a pago' }))
+    expect(confirmPackagePrereservaMock).not.toHaveBeenCalled()
+
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar y pasar a pago' }))
 
     expect(confirmPackagePrereservaMock).toHaveBeenCalledTimes(1)
     const fd = confirmPackagePrereservaMock.mock.calls[0][0] as FormData
@@ -152,6 +156,8 @@ describe('PackageSolicitudCard — pending_availability stage (items provided)',
     render(<PackageSolicitudCard {...BASE_PROPS} items={ITEMS} />)
 
     await user.click(screen.getByRole('button', { name: 'Confirmar y pasar a pago' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar y pasar a pago' }))
 
     await vi.waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Aún hay proveedores marcados como no disponibles para esta fecha.')

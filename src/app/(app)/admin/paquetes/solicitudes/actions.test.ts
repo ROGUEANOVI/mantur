@@ -37,6 +37,7 @@ const upsertMock = vi.fn()
 const getUserByIdMock = vi.fn()
 const confirmRpcMock = vi.fn()
 const markPaidRpcMock = vi.fn()
+const packageItemsSelectMock = vi.fn()
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
@@ -55,6 +56,9 @@ vi.mock('@/lib/supabase/admin', () => ({
       }
       if (table === 'provider_availability') {
         return { upsert: (payload: unknown, opts: unknown) => upsertMock(payload, opts) }
+      }
+      if (table === 'package_items') {
+        return { select: () => ({ eq: () => packageItemsSelectMock() }) }
       }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
@@ -110,6 +114,9 @@ beforeEach(() => {
   profileSingle.mockResolvedValue({ data: { role: 'admin' } })
   bookingSingleMock.mockResolvedValue({ data: BOOKING_ROW })
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'turista@example.com' } } })
+  packageItemsSelectMock.mockResolvedValue({
+    data: [{ services: { business_id: PROVIDER_ID }, guide_tours: null }],
+  })
 })
 
 describe('getAuthenticatedAdmin guard (shared by every action in this file)', () => {
@@ -154,6 +161,32 @@ describe('setProviderAvailability', () => {
   it('rejects a malformed date', async () => {
     const result = await setProviderAvailability(formData({ ...baseFields, date: 'not-a-date' }))
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+
+  it('rejects when the booking has no package_id', async () => {
+    bookingSingleMock.mockResolvedValue({ data: { ...BOOKING_ROW, package_id: null } })
+    const result = await setProviderAvailability(formData(baseFields))
+    expect(result).toEqual({ error: 'Reserva no encontrada.' })
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a providerId that does not belong to any package_item of this booking\'s package', async () => {
+    packageItemsSelectMock.mockResolvedValue({
+      data: [{ services: { business_id: 'some-other-business' }, guide_tours: null }],
+    })
+    const result = await setProviderAvailability(formData(baseFields))
+    expect(result).toEqual({ error: 'Reserva no encontrada.' })
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a guide provider resolved via guide_tours.guide_id', async () => {
+    packageItemsSelectMock.mockResolvedValue({
+      data: [{ services: null, guide_tours: { guide_id: PROVIDER_ID } }],
+    })
+    upsertMock.mockResolvedValue({ error: null })
+    const result = await setProviderAvailability(formData({ ...baseFields, providerType: 'guide' }))
+    expect(result).toBeUndefined()
+    expect(upsertMock).toHaveBeenCalled()
   })
 
   it('upserts with source admin_manual and the admin as resolved_by, then revalidates', async () => {

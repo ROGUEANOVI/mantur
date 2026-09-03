@@ -12,7 +12,11 @@ import {
 } from '@/lib/email/bookingEmails'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const PROVIDER_TYPES = new Set(['business', 'guide', 'transporter'])
+// Only 'business'/'guide' are actually producible by a package_item today
+// (transport is excluded from packages entirely — see Fase 1's schema
+// comment in 20260903000000_create_packages.sql) — 'transporter' isn't in
+// this allowlist since nothing in this queue can ever legitimately submit it.
+const PROVIDER_TYPES = new Set(['business', 'guide'])
 
 async function getAuthenticatedAdmin() {
   const supabase = await createClient()
@@ -63,6 +67,34 @@ async function getTouristEmail(
   return data.user?.email ?? null
 }
 
+// Confirms (providerType, providerId) actually belongs to a package_item of
+// this booking's own package — an admin is trusted, but a toggle should
+// still only be able to write availability for a provider genuinely part of
+// the request in front of them, not an arbitrary id typed into devtools.
+async function isProviderInBookingPackage(
+  admin: ReturnType<typeof createAdminClient>,
+  bookingId: string,
+  providerType: string,
+  providerId: string,
+): Promise<boolean> {
+  const { data: booking } = await admin.from('bookings').select('package_id').eq('id', bookingId).single()
+  if (!booking?.package_id) return false
+
+  const { data: items } = await admin
+    .from('package_items')
+    .select('service_id, guide_tour_id, services(business_id), guide_tours(guide_id)')
+    .eq('package_id', booking.package_id)
+
+  return ((items ?? []) as unknown as {
+    services: { business_id: string } | null
+    guide_tours: { guide_id: string } | null
+  }[]).some((item) =>
+    providerType === 'business'
+      ? item.services?.business_id === providerId
+      : item.guide_tours?.guide_id === providerId,
+  )
+}
+
 // Upserts a provider_availability row. Absence of a row means "available" by
 // default (§7.0), so this is the only write the admin queue needs — a
 // single toggle per package_item that records the opposite of whatever the
@@ -82,6 +114,10 @@ export async function setProviderAvailability(formData: FormData): Promise<{ err
   if (!PROVIDER_TYPES.has(providerType)) return { error: copy.generic }
   if (status !== 'available' && status !== 'unavailable') return { error: copy.generic }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: copy.generic }
+
+  if (!(await isProviderInBookingPackage(admin, bookingId, providerType, providerId))) {
+    return { error: copy.notFound }
+  }
 
   const { error } = await admin
     .from('provider_availability')
