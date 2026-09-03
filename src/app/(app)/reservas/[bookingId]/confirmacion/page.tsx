@@ -26,6 +26,7 @@ type BookingDetail = {
     name: string
     tourist_guides: { phone: string; profiles: { full_name: string | null } | null } | null
   } | null
+  packages: { name: string } | null
 }
 
 function formatDate(dateStr: string): string {
@@ -39,6 +40,7 @@ function formatDate(dateStr: string): string {
 
 const STATUS_ICON: Record<string, React.ElementType> = {
   confirmed: CheckCircle2,
+  pending_availability: Clock,
   pending_payment: Clock,
   cancelled: XCircle,
   completed: CheckCircle2,
@@ -46,6 +48,7 @@ const STATUS_ICON: Record<string, React.ElementType> = {
 
 const STATUS_ICON_CLASS: Record<string, string> = {
   confirmed: 'text-green-600 dark:text-green-400',
+  pending_availability: 'text-indigo-600 dark:text-indigo-400',
   pending_payment: 'text-yellow-600 dark:text-yellow-400',
   cancelled: 'text-red-600 dark:text-red-400',
   completed: 'text-blue-600 dark:text-blue-400',
@@ -56,6 +59,7 @@ function getTitle(status: string): string {
     return bookingsCopy.confirmation.titleConfirmed
   }
   if (status === 'cancelled') return bookingsCopy.confirmation.titleCancelled
+  if (status === 'pending_availability') return bookingsCopy.confirmation.titlePendingAvailability
   return bookingsCopy.confirmation.titlePending
 }
 
@@ -64,6 +68,7 @@ function getSubtitle(status: string): string {
     return bookingsCopy.confirmation.subtitleConfirmed
   }
   if (status === 'cancelled') return bookingsCopy.confirmation.subtitleCancelled
+  if (status === 'pending_availability') return bookingsCopy.confirmation.subtitlePendingAvailability
   return bookingsCopy.confirmation.subtitlePending
 }
 
@@ -81,7 +86,7 @@ export default async function ConfirmacionPage({
   const { data: booking, error } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, notes, services(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles!profile_id(full_name)))',
+      'id, booking_date, quantity, total_amount, status, created_at, notes, services(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles!profile_id(full_name))), packages(name)',
     )
     .eq('id', bookingId)
     .single()
@@ -98,13 +103,18 @@ export default async function ConfirmacionPage({
   const StatusIcon = STATUS_ICON[b.status] ?? Clock
   const iconClass = STATUS_ICON_CLASS[b.status] ?? STATUS_ICON_CLASS.pending_payment
 
+  const isPackage = b.packages != null
   const isGuideTour = b.guide_tours != null
-  const serviceName = isGuideTour
-    ? (b.guide_tours?.name ?? '—')
-    : (b.services?.name ?? '—')
-  const businessName = isGuideTour
-    ? (b.guide_tours?.tourist_guides?.profiles?.full_name ?? '—')
-    : (b.services?.businesses?.name ?? '—')
+  const serviceName = isPackage
+    ? (b.packages?.name ?? '—')
+    : isGuideTour
+      ? (b.guide_tours?.name ?? '—')
+      : (b.services?.name ?? '—')
+  const businessName = isPackage
+    ? 'ManTur'
+    : isGuideTour
+      ? (b.guide_tours?.tourist_guides?.profiles?.full_name ?? '—')
+      : (b.services?.businesses?.name ?? '—')
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -165,13 +175,14 @@ export default async function ConfirmacionPage({
 
             <div className="flex items-start justify-between gap-3">
               <dt className="text-sm text-muted-foreground shrink-0">
-                {isGuideTour ? 'Tour' : bookingsCopy.confirmation.serviceLabel}
+                {isPackage ? bookingsCopy.confirmation.packageLabel : isGuideTour ? 'Tour' : bookingsCopy.confirmation.serviceLabel}
               </dt>
               <dd className="text-sm font-medium text-foreground text-right">
                 {serviceName}
               </dd>
             </div>
 
+            {!isPackage && (
             <div className="flex items-start justify-between gap-3">
               <dt className="text-sm text-muted-foreground shrink-0">
                 {isGuideTour ? 'Guía' : bookingsCopy.confirmation.businessLabel}
@@ -180,6 +191,7 @@ export default async function ConfirmacionPage({
                 {businessName}
               </dd>
             </div>
+            )}
 
             <div className="flex items-center justify-between gap-3">
               <dt className="text-sm text-muted-foreground shrink-0">

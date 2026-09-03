@@ -9,19 +9,29 @@ export const bookingsCopy = {
     submit: 'Confirmar reserva',
     submitting: 'Procesando...',
     cancel: 'Cancelar',
+    packageTitle: 'Solicitar este paquete',
+    notesLabel: 'Notas (opcional)',
+    notesPlaceholder: 'Ej: hora de llegada preferida, alguna necesidad especial...',
+    packageSubmit: 'Solicitar disponibilidad',
+    packageSubmitting: 'Enviando solicitud...',
+    loginToRequest: 'Inicia sesión para solicitar este paquete',
   },
 
   confirmation: {
     titleConfirmed: '¡Reserva confirmada!',
     titlePending: 'Reserva en proceso',
+    titlePendingAvailability: 'Solicitud recibida',
     titleCancelled: 'Reserva cancelada',
     subtitleConfirmed: 'Tu reserva fue registrada exitosamente.',
     subtitlePending: 'Tu pago está siendo procesado.',
+    subtitlePendingAvailability:
+      'Estamos confirmando disponibilidad con los proveedores. Te contactaremos por WhatsApp o correo.',
     subtitleCancelled: 'Esta reserva fue cancelada.',
     bookingRef: 'Referencia',
     statusLabel: 'Estado',
     serviceLabel: 'Servicio',
     businessLabel: 'Negocio',
+    packageLabel: 'Paquete',
     date: 'Fecha',
     quantity: 'Cantidad',
     total: 'Total pagado',
@@ -42,12 +52,14 @@ export const bookingsCopy = {
     quantity: 'Cantidad',
     total: 'Total',
     status: {
+      pending_availability: 'Confirmando disponibilidad',
       pending_payment: 'Pago pendiente',
       confirmed: 'Confirmada',
       cancelled: 'Cancelada',
       completed: 'Completada',
     } as Record<string, string>,
     statusColors: {
+      pending_availability: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
       pending_payment: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
       confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
       cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -57,6 +69,7 @@ export const bookingsCopy = {
 
   errors: {
     notFound: 'No se encontró el servicio o tour seleccionado.',
+    packageNotFound: 'No se encontró el paquete seleccionado.',
     unavailable: 'Esto no está disponible en este momento.',
     invalidQuantity: 'La cantidad debe ser al menos 1.',
     capacityExceeded: 'Supera el cupo máximo disponible.',

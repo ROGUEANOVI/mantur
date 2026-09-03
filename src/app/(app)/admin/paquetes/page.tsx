@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { Package, Pencil } from 'lucide-react'
+import { Package, Pencil, CalendarClock, ChevronRight } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { cn } from '@/lib/utils'
 import { togglePackageActive } from './actions'
+import { getSidebarPendingCounts } from '@/app/(app)/admin/pendingCounts'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import DeletePackageForm from '@/components/admin/DeletePackageForm'
 
@@ -26,11 +27,12 @@ function formatCOP(amount: number) {
 export default async function AdminPaquetesPage() {
   const admin = createAdminClient()
   const copy = adminCopy.paquetes
+  const solicitudesCopy = adminCopy.paquetes.solicitudes
 
-  const { data } = await admin
-    .from('packages')
-    .select('id, name, base_price, pricing_unit, is_active')
-    .order('name')
+  const [{ data }, pendingCounts] = await Promise.all([
+    admin.from('packages').select('id, name, base_price, pricing_unit, is_active').order('name'),
+    getSidebarPendingCounts(),
+  ])
 
   const packages = (data ?? []) as PackageRow[]
 
@@ -49,6 +51,22 @@ export default async function AdminPaquetesPage() {
             {copy.new}
           </Link>
         </div>
+
+        <Link
+          href="/admin/paquetes/solicitudes"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card shadow-sm p-4 hover:shadow-md transition-shadow"
+        >
+          <span className="flex items-center gap-2.5">
+            <CalendarClock className="size-5 text-primary shrink-0" aria-hidden="true" strokeWidth={1.5} />
+            <span className="text-sm font-medium text-foreground">{solicitudesCopy.title}</span>
+            {pendingCounts.paquetesSolicitudes > 0 && (
+              <span className="rounded-full bg-primary/15 text-primary px-2 py-0.5 text-xs font-semibold">
+                {pendingCounts.paquetesSolicitudes}
+              </span>
+            )}
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground shrink-0" aria-hidden="true" />
+        </Link>
 
         {packages.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card shadow-sm p-8 text-center">

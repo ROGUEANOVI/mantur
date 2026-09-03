@@ -1,4 +1,5 @@
 import { getResendClient, EMAIL_FROM } from '@/lib/email/resend'
+import { manturWhatsappUrl } from '@/lib/whatsapp'
 
 const APP_URL = 'https://mantur.co'
 
@@ -98,5 +99,119 @@ export async function sendBusinessBookingConfirmedEmail(
     // Email is a side effect of an already-committed DB change — a delivery
     // failure must never surface as a failure of the booking/payment itself.
     console.error('Failed to send business booking confirmed email', error)
+  }
+}
+
+// ── Package pre-reserva emails (Fase 4) ──────────────────────────────────────
+// Tourist-facing — the first tourist-facing emails in the app (every other
+// booking flow is WhatsApp-only since the manual-ops pivot, PR #110).
+// Packages keep a real in-app pre-reserva flow, so the tourist gets notified
+// at each state transition an admin drives from /admin/paquetes/solicitudes.
+
+export type PackagePrereservaConfirmedParams = {
+  packageName: string
+  touristName: string
+  bookingDate: string
+  bookingId: string
+}
+
+export function packagePrereservaConfirmedEmail(
+  params: PackagePrereservaConfirmedParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola ${escapeHtml(params.touristName)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      ¡Buenas noticias! Confirmamos disponibilidad para tu paquete
+      <strong>${escapeHtml(params.packageName)}</strong> el ${formatBookingDate(params.bookingDate)}.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      El siguiente paso es coordinar el pago — te escribimos por WhatsApp, o puedes escribirnos tú directamente.
+    </p>
+    ${button('Escribir por WhatsApp', manturWhatsappUrl(`Hola, quiero coordinar el pago de mi paquete "${params.packageName}".`))}
+  `)
+
+  return { subject: `Disponibilidad confirmada: ${params.packageName}`, html }
+}
+
+export async function sendPackagePrereservaConfirmedEmail(
+  to: string,
+  params: PackagePrereservaConfirmedParams,
+): Promise<void> {
+  const { subject, html } = packagePrereservaConfirmedEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send package pre-reserva confirmed email', error)
+  }
+}
+
+export type PackagePrereservaCancelledParams = {
+  packageName: string
+  touristName: string
+  bookingDate: string
+}
+
+export function packagePrereservaCancelledEmail(
+  params: PackagePrereservaCancelledParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola ${escapeHtml(params.touristName)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      No logramos confirmar disponibilidad para tu paquete
+      <strong>${escapeHtml(params.packageName)}</strong> el ${formatBookingDate(params.bookingDate)},
+      así que tu solicitud fue cancelada. No se realizó ningún cobro.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      Escríbenos por WhatsApp si quieres buscar una fecha alternativa.
+    </p>
+    ${button('Escribir por WhatsApp', manturWhatsappUrl(`Hola, mi solicitud del paquete "${params.packageName}" fue cancelada. ¿Podemos buscar otra fecha?`))}
+  `)
+
+  return { subject: `Tu solicitud de "${params.packageName}" fue cancelada`, html }
+}
+
+export async function sendPackagePrereservaCancelledEmail(
+  to: string,
+  params: PackagePrereservaCancelledParams,
+): Promise<void> {
+  const { subject, html } = packagePrereservaCancelledEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send package pre-reserva cancelled email', error)
+  }
+}
+
+export type PackageBookingPaidParams = {
+  packageName: string
+  touristName: string
+  bookingDate: string
+  bookingId: string
+}
+
+export function packageBookingPaidEmail(
+  params: PackageBookingPaidParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola ${escapeHtml(params.touristName)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      ¡Tu pago fue confirmado! Tu paquete <strong>${escapeHtml(params.packageName)}</strong>
+      para el ${formatBookingDate(params.bookingDate)} está reservado.
+    </p>
+    ${button('Ver mi reserva', `${APP_URL}/reservas/${params.bookingId}/confirmacion`)}
+  `)
+
+  return { subject: `¡Reserva confirmada! ${params.packageName}`, html }
+}
+
+export async function sendPackageBookingPaidEmail(
+  to: string,
+  params: PackageBookingPaidParams,
+): Promise<void> {
+  const { subject, html } = packageBookingPaidEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send package booking paid email', error)
   }
 }

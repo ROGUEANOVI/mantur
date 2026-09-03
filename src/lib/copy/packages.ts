@@ -11,7 +11,6 @@ export const packagesCopy = {
     people: 'personas',
     includedTitle: 'Qué incluye',
     includedEmpty: 'La información de este paquete se está actualizando.',
-    contactWhatsapp: 'Consultar por WhatsApp',
     back: 'Volver a paquetes',
   },
 } as const

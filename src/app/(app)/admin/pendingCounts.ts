@@ -22,6 +22,7 @@ export type SidebarPendingCounts = {
   // 'processing' request).
   reembolsosPending: number
   reembolsosProcessing: number
+  paquetesSolicitudes: number
 }
 
 // cache() memoizes per request, so the admin layout and the dashboard page
@@ -29,13 +30,23 @@ export type SidebarPendingCounts = {
 export const getSidebarPendingCounts = cache(async (): Promise<SidebarPendingCounts> => {
   const admin = createAdminClient()
 
-  const [{ count: negocios }, { count: solicitudes }, { count: reembolsosPending }, { count: reembolsosProcessing }] =
-    await Promise.all([
-      admin.from('businesses').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      admin.from('role_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      admin.from('refund_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      admin.from('refund_requests').select('id', { count: 'exact', head: true }).eq('status', 'processing'),
-    ])
+  const [
+    { count: negocios },
+    { count: solicitudes },
+    { count: reembolsosPending },
+    { count: reembolsosProcessing },
+    { count: paquetesSolicitudes },
+  ] = await Promise.all([
+    admin.from('businesses').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    admin.from('role_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    admin.from('refund_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    admin.from('refund_requests').select('id', { count: 'exact', head: true }).eq('status', 'processing'),
+    admin
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .not('package_id', 'is', null)
+      .eq('status', 'pending_availability'),
+  ])
 
   return {
     negocios: negocios ?? 0,
@@ -43,5 +54,6 @@ export const getSidebarPendingCounts = cache(async (): Promise<SidebarPendingCou
     reembolsos: (reembolsosPending ?? 0) + (reembolsosProcessing ?? 0),
     reembolsosPending: reembolsosPending ?? 0,
     reembolsosProcessing: reembolsosProcessing ?? 0,
+    paquetesSolicitudes: paquetesSolicitudes ?? 0,
   }
 })

@@ -27,6 +27,7 @@ const authGetUser = vi.fn()
 const profileSingle = vi.fn()
 const serviceSingle = vi.fn()
 const guideTourSingle = vi.fn()
+const packageSingle = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -41,6 +42,9 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'guide_tours') {
         return { select: () => ({ eq: () => ({ eq: () => ({ single: guideTourSingle }) }) }) }
       }
+      if (table === 'packages') {
+        return { select: () => ({ eq: () => ({ single: packageSingle }) }) }
+      }
       throw new Error(`unexpected table on user client: ${table}`)
     },
   })),
@@ -52,9 +56,11 @@ vi.mock('@/lib/supabase/server', () => ({
 // them independently, exactly like two real Postgres functions would.
 const commissionRpcMock = vi.fn()
 const createBookingRpcMock = vi.fn()
+const createPackagePrereservaRpcMock = vi.fn()
 const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
   if (fn === 'get_commission_rate') return commissionRpcMock(args)
   if (fn === 'create_booking_with_transaction') return createBookingRpcMock(args)
+  if (fn === 'create_package_prereserva') return createPackagePrereservaRpcMock(args)
   throw new Error(`unexpected rpc: ${fn}`)
 })
 
@@ -81,7 +87,7 @@ vi.mock('@/lib/wompi/checkout', () => ({
     buildWompiCheckoutUrlMock(...args),
 }))
 
-const { createBooking, createGuideTourBooking } = await import('./actions')
+const { createBooking, createGuideTourBooking, createPackagePrereserva } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -469,5 +475,148 @@ describe('createGuideTourBooking', () => {
     const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: '2000-01-01' })
     const result = await createGuideTourBooking(fd)
     expect(result).toEqual({ error: 'La fecha debe ser hoy o en el futuro.' })
+  })
+})
+
+const PACKAGE_ID = '33333333-3333-3333-3333-333333333333'
+
+function packageRow(overrides: Partial<{
+  base_price: number
+  capacity: number | null
+  pricing_unit: 'per_person' | 'per_night' | 'fixed'
+}> = {}) {
+  return {
+    id: PACKAGE_ID,
+    base_price: overrides.base_price ?? 100000,
+    capacity: 'capacity' in overrides ? overrides.capacity : 10,
+    pricing_unit: overrides.pricing_unit ?? 'per_person',
+  }
+}
+
+describe('createPackagePrereserva', () => {
+  it('rejects a rate-limited request without querying the package', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createPackagePrereserva(fd)
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(packageSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-UUID package id without querying the DB', async () => {
+    const fd = formData({ package_id: 'not-a-uuid', quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createPackagePrereserva(fd)
+    expect(result).toEqual({ error: 'No se encontró el paquete seleccionado.' })
+    expect(packageSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the package is missing or inactive (RLS-filtered)', async () => {
+    packageSingle.mockResolvedValue({ data: null })
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createPackagePrereserva(fd)
+    expect(result).toEqual({ error: 'No se encontró el paquete seleccionado.' })
+  })
+
+  it('rejects zero/non-numeric quantity', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '0', booking_date: FUTURE_DATE })
+    const result = await createPackagePrereserva(fd)
+    expect(result).toEqual({ error: 'La cantidad debe ser al menos 1.' })
+  })
+
+  it('rejects quantity above capacity', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow({ capacity: 4 }) })
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '5', booking_date: FUTURE_DATE })
+    const result = await createPackagePrereserva(fd)
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
+  })
+
+  it('allows any quantity when capacity is null (no cap)', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow({ capacity: null }) })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '500', booking_date: FUTURE_DATE })
+    await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
+  })
+
+  it('rejects a booking date in the past', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: '2000-01-01' })
+    const result = await createPackagePrereserva(fd)
+    expect(result).toEqual({ error: 'La fecha debe ser hoy o en el futuro.' })
+  })
+
+  it('computes total for a per_person package and redirects straight to the confirmation page — no Wompi checkout', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow({ base_price: 50000, pricing_unit: 'per_person' }) })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-9', error: null })
+
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '3', booking_date: FUTURE_DATE, notes: 'Llegamos tarde' })
+    await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-9/confirmacion')
+
+    expect(buildWompiCheckoutUrlMock).not.toHaveBeenCalled()
+    const payload = createPackagePrereservaRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(150_000) // 50000 * 3
+    expect(payload.p_quantity).toBe(3)
+    expect(payload.p_notes).toBe('Llegamos tarde')
+    expect(payload.p_package_id).toBe(PACKAGE_ID)
+  })
+
+  it('for a fixed-price package, total equals base_price and stored quantity is forced to 1', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow({ base_price: 300000, capacity: 20, pricing_unit: 'fixed' }) })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-10', error: null })
+
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '5', booking_date: FUTURE_DATE })
+    await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-10/confirmacion')
+
+    const payload = createPackagePrereservaRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(300_000)
+    expect(payload.p_quantity).toBe(1)
+  })
+
+  it('never calls get_commission_rate or create_booking_with_transaction — packages use their own RPC with no commission', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-11', error: null })
+
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-11/confirmacion')
+
+    expect(commissionRpcMock).not.toHaveBeenCalled()
+    expect(createBookingRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('defaults notes to null when omitted', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-12', error: null })
+
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-12/confirmacion')
+
+    const payload = createPackagePrereservaRpcMock.mock.calls[0][0]
+    expect(payload.p_notes).toBeNull()
+  })
+
+  it('returns a generic error and never redirects when the RPC fails', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'insert failed' } })
+
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createPackagePrereserva(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores a client-supplied price/total override and always uses the server-fetched package price', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow({ base_price: 45000 }) })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-13', error: null })
+
+    const fd = formData({
+      package_id: PACKAGE_ID,
+      quantity: '1',
+      booking_date: FUTURE_DATE,
+      total_amount: '1',
+    })
+    await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-13/confirmacion')
+
+    const payload = createPackagePrereservaRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(45_000)
   })
 })
