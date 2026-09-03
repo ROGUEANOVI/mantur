@@ -10,6 +10,7 @@ async function importFreshWithCounts(counts: {
   solicitudes: number | null
   reembolsosPending: number | null
   reembolsosProcessing: number | null
+  paquetesSolicitudes: number | null
 }) {
   vi.resetModules()
 
@@ -31,6 +32,9 @@ async function importFreshWithCounts(counts: {
           }),
         }),
       }
+    }
+    if (table === 'bookings') {
+      return { select: () => ({ not: () => ({ eq: () => ({ count: counts.paquetesSolicitudes, error: null }) }) }) }
     }
     throw new Error(`unexpected table: ${table}`)
   })
@@ -54,6 +58,7 @@ describe('getSidebarPendingCounts', () => {
       solicitudes: 3,
       reembolsosPending: 1,
       reembolsosProcessing: 4,
+      paquetesSolicitudes: 6,
     })
 
     expect(result).toEqual({
@@ -62,6 +67,7 @@ describe('getSidebarPendingCounts', () => {
       reembolsos: 5,
       reembolsosPending: 1,
       reembolsosProcessing: 4,
+      paquetesSolicitudes: 6,
     })
   })
 
@@ -71,6 +77,7 @@ describe('getSidebarPendingCounts', () => {
       solicitudes: null,
       reembolsosPending: null,
       reembolsosProcessing: null,
+      paquetesSolicitudes: null,
     })
 
     expect(result).toEqual({
@@ -79,6 +86,7 @@ describe('getSidebarPendingCounts', () => {
       reembolsos: 0,
       reembolsosPending: 0,
       reembolsosProcessing: 0,
+      paquetesSolicitudes: 0,
     })
   })
 
@@ -88,6 +96,7 @@ describe('getSidebarPendingCounts', () => {
       solicitudes: 0,
       reembolsosPending: 0,
       reembolsosProcessing: 1,
+      paquetesSolicitudes: 0,
     })
 
     expect(result.reembolsos).toBe(1)

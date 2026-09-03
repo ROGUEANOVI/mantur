@@ -7,7 +7,16 @@ vi.mock('@/lib/email/resend', () => ({
   EMAIL_FROM: 'ManTur <notificaciones@mantur.co>',
 }))
 
-const { businessBookingConfirmedEmail, sendBusinessBookingConfirmedEmail } = await import('./bookingEmails')
+const {
+  businessBookingConfirmedEmail,
+  sendBusinessBookingConfirmedEmail,
+  packagePrereservaConfirmedEmail,
+  sendPackagePrereservaConfirmedEmail,
+  packagePrereservaCancelledEmail,
+  sendPackagePrereservaCancelledEmail,
+  packageBookingPaidEmail,
+  sendPackageBookingPaidEmail,
+} = await import('./bookingEmails')
 
 const PARAMS = {
   serviceName: 'Cabalgata al atardecer',
@@ -65,5 +74,104 @@ describe('sendBusinessBookingConfirmedEmail', () => {
   it('does not throw when Resend rejects the send', async () => {
     sendMock.mockRejectedValue(new Error('network error'))
     await expect(sendBusinessBookingConfirmedEmail('negocio@example.com', PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const PACKAGE_CONFIRMED_PARAMS = {
+  packageName: 'Ruta Serranía del Perijá',
+  touristName: 'Ana Pérez',
+  bookingDate: '2026-09-05',
+  bookingId: 'booking-1',
+}
+
+describe('packagePrereservaConfirmedEmail', () => {
+  it('includes the package name, tourist name, formatted date, and a WhatsApp CTA', () => {
+    const { subject, html } = packagePrereservaConfirmedEmail(PACKAGE_CONFIRMED_PARAMS)
+    expect(subject).toBe('Disponibilidad confirmada: Ruta Serranía del Perijá')
+    expect(html).toContain('Ruta Serranía del Perijá')
+    expect(html).toContain('Ana Pérez')
+    expect(html).toContain('sábado, 5 de septiembre de 2026')
+    expect(html).toContain('https://wa.me/573217203264')
+  })
+
+  it('escapes the tourist name', () => {
+    const { html } = packagePrereservaConfirmedEmail({ ...PACKAGE_CONFIRMED_PARAMS, touristName: '<b>Ana</b>' })
+    expect(html).toContain('&lt;b&gt;Ana&lt;/b&gt;')
+    expect(html).not.toContain('<b>Ana</b>')
+  })
+})
+
+describe('sendPackagePrereservaConfirmedEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendPackagePrereservaConfirmedEmail('turista@example.com', PACKAGE_CONFIRMED_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'turista@example.com', subject: 'Disponibilidad confirmada: Ruta Serranía del Perijá' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendPackagePrereservaConfirmedEmail('turista@example.com', PACKAGE_CONFIRMED_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const PACKAGE_CANCELLED_PARAMS = {
+  packageName: 'Ruta Serranía del Perijá',
+  touristName: 'Ana Pérez',
+  bookingDate: '2026-09-05',
+}
+
+describe('packagePrereservaCancelledEmail', () => {
+  it('includes the package name, states no charge was made, and a WhatsApp CTA', () => {
+    const { subject, html } = packagePrereservaCancelledEmail(PACKAGE_CANCELLED_PARAMS)
+    expect(subject).toBe('Tu solicitud de "Ruta Serranía del Perijá" fue cancelada')
+    expect(html).toContain('No se realizó ningún cobro')
+    expect(html).toContain('https://wa.me/573217203264')
+  })
+})
+
+describe('sendPackagePrereservaCancelledEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendPackagePrereservaCancelledEmail('turista@example.com', PACKAGE_CANCELLED_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'turista@example.com', subject: 'Tu solicitud de "Ruta Serranía del Perijá" fue cancelada' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendPackagePrereservaCancelledEmail('turista@example.com', PACKAGE_CANCELLED_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const PACKAGE_PAID_PARAMS = {
+  packageName: 'Ruta Serranía del Perijá',
+  touristName: 'Ana Pérez',
+  bookingDate: '2026-09-05',
+  bookingId: 'booking-1',
+}
+
+describe('packageBookingPaidEmail', () => {
+  it('includes the package name and a link to the confirmation page', () => {
+    const { subject, html } = packageBookingPaidEmail(PACKAGE_PAID_PARAMS)
+    expect(subject).toBe('¡Reserva confirmada! Ruta Serranía del Perijá')
+    expect(html).toContain('https://mantur.co/reservas/booking-1/confirmacion')
+  })
+})
+
+describe('sendPackageBookingPaidEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendPackageBookingPaidEmail('turista@example.com', PACKAGE_PAID_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'turista@example.com', subject: '¡Reserva confirmada! Ruta Serranía del Perijá' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendPackageBookingPaidEmail('turista@example.com', PACKAGE_PAID_PARAMS)).resolves.toBeUndefined()
   })
 })

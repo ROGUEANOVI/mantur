@@ -23,6 +23,7 @@ type BookingItem = {
     name: string
     tourist_guides: { profiles: { full_name: string | null } | null } | null
   } | null
+  packages: { name: string } | null
   // refund_requests.booking_id is UNIQUE, so PostgREST embeds this as a
   // to-one relation (an object, not an array) — same pattern already used
   // for guide_tours.tourist_guides (also unique) elsewhere in this file's
@@ -46,7 +47,7 @@ export default async function MisReservasPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), refund_requests(status)',
+      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(name), refund_requests(status)',
     )
     .order('created_at', { ascending: false })
 
@@ -140,12 +141,14 @@ export default async function MisReservasPage() {
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0">
                         <p className="font-semibold text-foreground text-sm leading-snug line-clamp-1">
-                          {booking.guide_tours?.name ?? booking.services?.name ?? '—'}
+                          {booking.packages?.name ?? booking.guide_tours?.name ?? booking.services?.name ?? '—'}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                          {booking.guide_tours
-                            ? (booking.guide_tours.tourist_guides?.profiles?.full_name ?? '—')
-                            : (booking.services?.businesses?.name ?? '—')}
+                          {booking.packages
+                            ? 'ManTur'
+                            : booking.guide_tours
+                              ? (booking.guide_tours.tourist_guides?.profiles?.full_name ?? '—')
+                              : (booking.services?.businesses?.name ?? '—')}
                         </p>
                       </div>
                       <span

@@ -1,6 +1,6 @@
 import { LayoutDashboard, Building2, TreePine, Percent, Tag, Layers, Users, Car, Compass, IdCard, Undo2, Package, type LucideIcon } from 'lucide-react'
 
-export type AdminNavCountKey = 'negocios' | 'solicitudes' | 'reembolsos'
+export type AdminNavCountKey = 'negocios' | 'solicitudes' | 'reembolsos' | 'paquetesSolicitudes'
 
 export type AdminNavItem = {
   href: string
@@ -27,7 +27,7 @@ export const ADMIN_NAV_GROUPS: AdminNavItem[][] = [
   ],
   [
     { href: '/admin/lugares',     label: 'Lugares',     exact: false, Icon: TreePine },
-    { href: '/admin/paquetes',    label: 'Paquetes',    exact: false, Icon: Package },
+    { href: '/admin/paquetes',    label: 'Paquetes',    exact: false, Icon: Package, countKey: 'paquetesSolicitudes' },
     { href: '/admin/transportes', label: 'Transportes', exact: false, Icon: Car },
   ],
   [

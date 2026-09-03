@@ -10,7 +10,7 @@ import MediaGallery from '@/components/shared/MediaGallery'
 import DetailSplitLayout from '@/components/shared/DetailSplitLayout'
 import ExpandableText from '@/components/shared/ExpandableText'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
-import WhatsappButton from '@/components/shared/WhatsappButton'
+import PackagePrereservaForm from '@/components/paquetes/PackagePrereservaForm'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
 
@@ -101,6 +101,24 @@ export default async function PaqueteDetailPage({
 
   const pkg = pkgRow as PackageDetail
   const copy = packagesCopy.detail
+
+  // Packages keep a real in-app pre-reserva flow (unlike services/guide
+  // tours, WhatsApp-only since the manual-ops pivot) — same tourist/guest/
+  // other_role access gate already used for guide tour bookings
+  // (guias/[slug]/page.tsx).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  let bookingAccess: 'tourist' | 'guest' | 'other_role' = 'guest'
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    bookingAccess = profile?.role === 'tourist' ? 'tourist' : 'other_role'
+  }
 
   const { data: itemsData } = await createAdminClient()
     .from('package_items')
@@ -211,11 +229,15 @@ export default async function PaqueteDetailPage({
               )}
             </section>
 
-            <WhatsappButton
-              className="mt-2"
-              message={`Hola, quiero más información sobre el paquete "${pkg.name}".`}
-              label={copy.contactWhatsapp}
-            />
+            <div className="pt-2">
+              <PackagePrereservaForm
+                packageId={pkg.id}
+                price={Number(pkg.base_price)}
+                capacity={pkg.capacity}
+                pricingUnit={pkg.pricing_unit}
+                access={bookingAccess}
+              />
+            </div>
           </Reveal>
         </DetailSplitLayout>
       </div>
