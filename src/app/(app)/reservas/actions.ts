@@ -125,6 +125,76 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   redirect(buildWompiCheckoutUrl({ bookingId, amountInCents, currency: 'COP' }))
 }
 
+// Packages are ManTur's own operator inventory with vetted providers, so
+// unlike services/guide tours (WhatsApp-only since the manual-ops pivot,
+// PR #110) they keep a real in-app pre-reserva flow (§7.0 of
+// docs/wompi-alegra-integration-plan.md): this only creates the booking
+// row in 'pending_availability' — no charge, no transactions row, no
+// Wompi redirect. An admin confirms availability with each package_item's
+// provider from /admin/paquetes/solicitudes before any money is involved.
+export async function createPackagePrereserva(formData: FormData): Promise<BookingResult> {
+  const { supabase, userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(bookingRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
+
+  const packageId = formData.get('package_id') as string
+  if (!UUID_RE.test(packageId)) return { error: bookingsCopy.errors.packageNotFound }
+
+  // Price and capacity are NEVER taken from FormData — read from DB.
+  // packages_select RLS already filters to is_active = true.
+  const { data: pkg } = await supabase
+    .from('packages')
+    .select('id, base_price, pricing_unit, capacity')
+    .eq('id', packageId)
+    .single<{
+      id: string
+      base_price: number
+      pricing_unit: 'per_person' | 'per_night' | 'fixed'
+      capacity: number | null
+    }>()
+
+  if (!pkg) return { error: bookingsCopy.errors.packageNotFound }
+
+  const rawQuantity = formData.get('quantity') as string
+  const quantity = parseInt(rawQuantity, 10)
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    return { error: bookingsCopy.errors.invalidQuantity }
+  }
+  if (pkg.capacity !== null && quantity > pkg.capacity) {
+    return { error: bookingsCopy.errors.capacityExceeded }
+  }
+
+  const bookingDate = formData.get('booking_date') as string
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate) || bookingDate < today) {
+    return { error: bookingsCopy.errors.invalidDate }
+  }
+
+  // Same per_person/per_night/fixed convention as createBooking() above.
+  const totalAmount =
+    pkg.pricing_unit === 'fixed' ? Number(pkg.base_price) : Number(pkg.base_price) * quantity
+  const storedQuantity = pkg.pricing_unit === 'fixed' ? 1 : quantity
+
+  const rawNotes = (formData.get('notes') as string | null)?.trim() || null
+
+  const admin = createAdminClient()
+
+  const { data: bookingId, error: rpcError } = await admin.rpc('create_package_prereserva', {
+    p_tourist_id: userId,
+    p_package_id: packageId,
+    p_quantity: storedQuantity,
+    p_booking_date: bookingDate,
+    p_total_amount: totalAmount,
+    p_notes: rawNotes,
+  })
+
+  if (rpcError || !bookingId) return { error: bookingsCopy.errors.generic }
+
+  revalidatePath('/mis-reservas')
+  redirect(`/reservas/${bookingId}/confirmacion`)
+}
+
 export async function createGuideTourBooking(formData: FormData): Promise<BookingResult> {
   const { supabase, userId } = await getAuthenticatedTourist()
 
