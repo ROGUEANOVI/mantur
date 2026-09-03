@@ -3,6 +3,7 @@ export const breadcrumbsCopy = {
   businesses: 'Negocios',
   places: 'Lugares',
   guides: 'Guías',
+  packages: 'Paquetes',
   discover: 'Descubre',
   terms: 'Términos y condiciones',
   privacy: 'Política de privacidad',

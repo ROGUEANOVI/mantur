@@ -5,6 +5,7 @@ export const landingCopy = {
     lugares: 'Lugares Imperdibles',
     transportistas: 'Transportadores',
     guias: 'Guías',
+    paquetes: 'Paquetes',
     login: 'Iniciar sesión',
     signup: 'Registrarse',
     signout: 'Cerrar sesión',

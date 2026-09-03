@@ -43,6 +43,7 @@ export default async function PublicNav() {
   const navLinks = [
     { label: copy.negocios, href: '/negocios' },
     { label: copy.lugares, href: '/lugares' },
+    { label: copy.paquetes, href: '/paquetes' },
     { label: copy.transportistas, href: '/transportistas' },
     { label: copy.guias, href: '/guias' },
   ]
