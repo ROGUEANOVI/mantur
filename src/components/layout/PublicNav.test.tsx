@@ -64,6 +64,7 @@ describe('PublicNav — guest (no session)', () => {
 
     expect(screen.getByRole('link', { name: 'Explorar' })).toHaveAttribute('href', '/negocios')
     expect(screen.getByRole('link', { name: 'Lugares Imperdibles' })).toHaveAttribute('href', '/lugares')
+    expect(screen.getByRole('link', { name: 'Paquetes' })).toHaveAttribute('href', '/paquetes')
     expect(screen.getByRole('link', { name: 'Transportadores' })).toHaveAttribute('href', '/transportistas')
     expect(screen.getByRole('link', { name: 'Guías' })).toHaveAttribute('href', '/guias')
   })

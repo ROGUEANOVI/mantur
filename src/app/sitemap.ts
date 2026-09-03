@@ -7,6 +7,7 @@ const STATIC_ROUTES: Array<{ path: string; priority: number; changeFrequency: Me
   { path: '', priority: 1, changeFrequency: 'daily' },
   { path: '/negocios', priority: 0.9, changeFrequency: 'daily' },
   { path: '/lugares', priority: 0.9, changeFrequency: 'weekly' },
+  { path: '/paquetes', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/guias', priority: 0.8, changeFrequency: 'daily' },
   { path: '/transportistas', priority: 0.6, changeFrequency: 'daily' },
   { path: '/descubre', priority: 0.7, changeFrequency: 'monthly' },
@@ -23,10 +24,11 @@ const STATIC_ROUTES: Array<{ path: string; priority: number; changeFrequency: Me
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createAdminClient()
 
-  const [businesses, places, guides] = await Promise.all([
+  const [businesses, places, guides, packages] = await Promise.all([
     supabase.from('businesses').select('slug, updated_at').eq('verified', true).eq('status', 'active'),
     supabase.from('places').select('slug, updated_at'),
     supabase.from('tourist_guides').select('slug, updated_at'),
+    supabase.from('packages').select('slug, updated_at').eq('is_active', true),
   ])
 
   const staticEntries: MetadataRoute.Sitemap = STATIC_ROUTES.map(({ path, priority, changeFrequency }) => ({
@@ -57,5 +59,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  return [...staticEntries, ...businessEntries, ...placeEntries, ...guideEntries]
+  const packageEntries: MetadataRoute.Sitemap = (packages.data ?? []).map((p) => ({
+    url: `${APP_URL}/paquetes/${p.slug}`,
+    lastModified: new Date(p.updated_at),
+    changeFrequency: 'weekly',
+    priority: 0.7,
+  }))
+
+  return [...staticEntries, ...businessEntries, ...placeEntries, ...guideEntries, ...packageEntries]
 }
