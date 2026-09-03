@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { computeNetPayoutAmountCents, sendProviderPayout, resolvePayoutAccount, listPayoutBanks } from './payouts'
+import {
+  computeNetPayoutAmountCents,
+  sendProviderPayout,
+  resolvePayoutAccount,
+  listPayoutBanks,
+  enqueueAndSendProviderPayout,
+} from './payouts'
 
 const ORIGINAL_ENV = { ...process.env }
 
@@ -262,5 +268,185 @@ describe('resolvePayoutAccount', () => {
     const admin = fakeAdminClient({ ...ACCOUNT_ROW, wompi_bank_id: null })
     const result = await resolvePayoutAccount(admin, 'business', 'biz-1')
     expect(result?.wompiBankId).toBe('')
+  })
+})
+
+// enqueueAndSendProviderPayout calls resolvePayoutAccount/sendProviderPayout
+// internally — both defined in this same module, so a real `admin` (fake,
+// injected as a parameter) plus a mocked global `fetch` is what actually
+// exercises those internal calls, rather than vi.mock'ing this module from
+// the outside (an ESM self-call from enqueueAndSendProviderPayout to
+// sendProviderPayout can't be intercepted that way — the shared webhook
+// route test learned this the hard way when this function was extracted
+// from route.ts; its own test now only checks that this function gets
+// called with the right arguments, not the internals re-tested here).
+function fakePayoutAdmin(overrides: {
+  enqueueResult?: { data: { id: string; status: string; is_new: boolean } | null; error: unknown }
+  claimResult?: { data: unknown; error: unknown }
+  markResultCalls?: { p_payout_id: string; p_status: string; p_wompi_payout_id?: string; p_error_message?: string }[]
+  accountRow?: typeof ACCOUNT_ROW | null
+} = {}) {
+  const enqueueMock = vi.fn().mockResolvedValue(
+    overrides.enqueueResult ?? { data: { id: 'payout-1', status: 'pending', is_new: true }, error: null },
+  )
+  const claimMock = vi.fn().mockResolvedValue(
+    overrides.claimResult ?? {
+      data: { transaction_id: 'tx-1', recipient_type: 'business', recipient_id: 'biz-1', amount_cents: 1 },
+      error: null,
+    },
+  )
+  const markMock = vi.fn().mockResolvedValue({ data: null, error: null })
+  const accountRow = 'accountRow' in overrides ? overrides.accountRow : ACCOUNT_ROW
+
+  const rpc = vi.fn((fn: string, args: Record<string, unknown>) => {
+    if (fn === 'enqueue_provider_payout') return { single: () => enqueueMock(args) }
+    if (fn === 'claim_provider_payout_for_send') return { single: () => claimMock(args) }
+    if (fn === 'mark_provider_payout_result') return markMock(args)
+    throw new Error(`unexpected rpc: ${fn}`)
+  })
+
+  const from = vi.fn((_table: string) => ({
+    select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: accountRow, error: null }) }) }),
+  }))
+
+  return { admin: { rpc, from } as unknown as Parameters<typeof enqueueAndSendProviderPayout>[0], enqueueMock, claimMock, markMock, from }
+}
+
+describe('enqueueAndSendProviderPayout', () => {
+  it('skips enqueueing entirely (not an error) when amountCents is zero or negative', async () => {
+    const { admin, enqueueMock } = fakePayoutAdmin()
+    await enqueueAndSendProviderPayout(admin, {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-1',
+      amountCents: 0,
+    })
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('logs and stops when enqueue_provider_payout itself errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { admin, claimMock } = fakePayoutAdmin({ enqueueResult: { data: null, error: { message: 'db error' } } })
+
+    await enqueueAndSendProviderPayout(admin, {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-1',
+      amountCents: 90000,
+    })
+
+    expect(claimMock).not.toHaveBeenCalled()
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to enqueue provider payout', { message: 'db error' })
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('does nothing further when the claim finds no matching row (already sent, or lost a concurrent race)', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    const { admin, from } = fakePayoutAdmin({ claimResult: { data: null, error: null } })
+
+    await enqueueAndSendProviderPayout(admin, {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-1',
+      amountCents: 90000,
+    })
+
+    expect(from).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('logs and stops when the claim RPC itself errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { admin, from } = fakePayoutAdmin({ claimResult: { data: null, error: { message: 'connection reset' } } })
+
+    await enqueueAndSendProviderPayout(admin, {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-1',
+      amountCents: 90000,
+    })
+
+    expect(from).not.toHaveBeenCalled()
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to claim provider payout for automatic send', {
+      message: 'connection reset',
+    })
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('marks the payout failed and never calls fetch when no payout account is configured', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    const { admin, markMock } = fakePayoutAdmin({ accountRow: null })
+
+    await enqueueAndSendProviderPayout(admin, {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-2',
+      amountCents: 90000,
+    })
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(markMock).toHaveBeenCalledWith({
+      p_payout_id: 'payout-1',
+      p_status: 'failed',
+      p_error_message: 'no payout account configured for business biz-2',
+    })
+  })
+
+  it('sends via sendProviderPayout using the enqueued payout id as the idempotency key, then marks it sent', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ id: 'wompi-payout-1' }), { status: 200 }))
+    const { admin, markMock } = fakePayoutAdmin()
+
+    await enqueueAndSendProviderPayout(admin, {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-1',
+      amountCents: 90000,
+    })
+
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)
+    expect(body.amount).toBe(90000)
+    expect(body.reference).toBe('payout-payout-1')
+    expect(markMock).toHaveBeenCalledWith({
+      p_payout_id: 'payout-1',
+      p_status: 'sent',
+      p_wompi_payout_id: 'wompi-payout-1',
+    })
+  })
+
+  it('marks the payout failed when the Wompi Payouts API call fails', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ message: 'invalid bank id' }), { status: 422 }))
+    const { admin, markMock } = fakePayoutAdmin()
+
+    await enqueueAndSendProviderPayout(admin, {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-1',
+      amountCents: 90000,
+    })
+
+    expect(markMock).toHaveBeenCalledWith(
+      expect.objectContaining({ p_payout_id: 'payout-1', p_status: 'failed' }),
+    )
+  })
+
+  it('never throws — an unexpected error is caught and logged', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const admin = {
+      rpc: () => {
+        throw new Error('unexpected')
+      },
+    } as unknown as Parameters<typeof enqueueAndSendProviderPayout>[0]
+
+    await expect(
+      enqueueAndSendProviderPayout(admin, {
+        transactionId: 'tx-1',
+        recipientType: 'business',
+        recipientId: 'biz-1',
+        amountCents: 90000,
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Unexpected error while processing a provider payout', expect.any(Error))
+    consoleErrorSpy.mockRestore()
   })
 })
