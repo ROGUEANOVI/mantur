@@ -354,6 +354,23 @@ export const adminCopy = {
       active: 'Activo',
       inactive: 'Inactivo',
     } as Record<string, string>,
+    media: {
+      title: 'Fotos y videos',
+      hint: 'La primera foto es la imagen principal del paquete.',
+      errors: {
+        maxExceeded: 'Máximo 10 fotos y videos por paquete.',
+        imageRequired: 'Selecciona una imagen.',
+        invalidImageType: 'Formato no válido. Usa JPEG, PNG o WebP.',
+        imageTooLarge: 'La imagen no puede superar 5 MB.',
+        uploadFailed: 'No se pudo subir la imagen. Intenta de nuevo.',
+        saveFailed: 'No se pudo guardar la imagen.',
+        invalidVideoType: 'Formato no válido. Usa MP4, WebM o QuickTime.',
+        videoTooLarge: 'El video no puede superar 50 MB.',
+        videoUploadFailed: 'No se pudo iniciar la subida del video. Intenta de nuevo.',
+        invalidVideo: 'Video no válido.',
+        videoSaveFailed: 'No se pudo guardar el video.',
+      },
+    },
     form: {
       name: 'Nombre',
       namePlaceholder: 'Ej: Ruta Serranía del Perijá',
