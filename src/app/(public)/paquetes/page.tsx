@@ -41,7 +41,15 @@ export default async function PaquetesPage({
     .from('packages')
     .select('id, slug, name, description, base_price, images', { count: 'exact' })
 
-  if (search) query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
+  // Strip PostgREST filter-DSL delimiters (comma separates or() conditions,
+  // parens nest logical groups) so a search term can't inject an extra
+  // filter clause — e.g. a trailing `,id.not.is.null` widening the match
+  // beyond what the search box implies. RLS still gates row visibility
+  // either way; this only keeps the search filter itself well-formed.
+  const filterSafeSearch = search.replace(/[,()]/g, '')
+  if (filterSafeSearch) {
+    query = query.or(`name.ilike.%${filterSafeSearch}%,description.ilike.%${filterSafeSearch}%`)
+  }
 
   const { data: packages, count, error } = await query
     .order('name')
