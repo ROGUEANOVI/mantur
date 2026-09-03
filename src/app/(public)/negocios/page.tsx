@@ -86,7 +86,16 @@ export default async function NegociosPage({
     .eq('status', 'active')
 
   if (activeCategory) query = query.eq('business_category_links.category_id', activeCategory.id)
-  if (search) query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
+
+  // Strip PostgREST filter-DSL delimiters (comma separates or() conditions,
+  // parens nest logical groups) so a search term can't inject an extra
+  // filter clause — e.g. a trailing `,id.not.is.null` widening the match
+  // beyond what the search box implies. RLS still gates row visibility
+  // either way; this only keeps the search filter itself well-formed.
+  const filterSafeSearch = search.replace(/[,()]/g, '')
+  if (filterSafeSearch) {
+    query = query.or(`name.ilike.%${filterSafeSearch}%,description.ilike.%${filterSafeSearch}%`)
+  }
 
   const { data: businesses, count, error } = await query
     .order('name')
@@ -120,7 +129,9 @@ export default async function NegociosPage({
     .not('lng', 'is', null)
 
   if (activeCategory) mapQuery = mapQuery.eq('business_category_links.category_id', activeCategory.id)
-  if (search) mapQuery = mapQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
+  if (filterSafeSearch) {
+    mapQuery = mapQuery.or(`name.ilike.%${filterSafeSearch}%,description.ilike.%${filterSafeSearch}%`)
+  }
 
   const { data: mapBusinesses, error: mapError } = await mapQuery.order('name')
 
