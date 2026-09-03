@@ -223,3 +223,221 @@ export async function removePackageItem(formData: FormData): Promise<void> {
     revalidatePath(`/admin/paquetes/${packageId}/editar`)
   }
 }
+
+// ── Package media (Fase 2b) ──────────────────────────────────────────────────
+// Same shape as the place-images/place-videos actions in
+// src/app/(app)/admin/actions.ts (packages, like places, are admin-owned
+// content with no owner_id — public read, admin-only write, same 10-item
+// combined photo+video cap everywhere else in the app already uses).
+
+const PACKAGE_BUCKET = 'package-images'
+const PACKAGE_VIDEO_BUCKET = 'package-videos'
+const MAX_PACKAGE_MEDIA = 10
+
+const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024
+
+function extractStoragePath(url: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const idx = url.indexOf(marker)
+  return idx === -1 ? null : url.slice(idx + marker.length)
+}
+
+function validateImageFile(file: File | null): string | null {
+  const copy = adminCopy.paquetes.media.errors
+  if (!file || !file.size) return copy.imageRequired
+  const valid = ['image/jpeg', 'image/png', 'image/webp']
+  if (!valid.includes(file.type)) return copy.invalidImageType
+  if (file.size > 5 * 1024 * 1024) return copy.imageTooLarge
+  return null
+}
+
+function validateVideoMeta(fileType: string, fileSize: number): string | null {
+  const copy = adminCopy.paquetes.media.errors
+  if (!VIDEO_MIME_TYPES.includes(fileType)) return copy.invalidVideoType
+  if (!fileSize || fileSize > MAX_VIDEO_BYTES) return copy.videoTooLarge
+  return null
+}
+
+function videoExtension(fileType: string): string {
+  switch (fileType) {
+    case 'video/webm':
+      return 'webm'
+    case 'video/quicktime':
+      return 'mov'
+    default:
+      return 'mp4'
+  }
+}
+
+export async function uploadPackageImage(
+  packageId: string,
+  formData: FormData,
+): Promise<{ error: string } | void> {
+  const copy = adminCopy.paquetes.media.errors
+  if (!UUID_RE.test(packageId)) return { error: adminCopy.paquetes.errors.notFound }
+  const admin = await getAuthenticatedAdmin()
+
+  const { data: pkg } = await admin
+    .from('packages')
+    .select('id, images, videos')
+    .eq('id', packageId)
+    .maybeSingle()
+
+  if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  const currentImages: string[] = pkg.images ?? []
+  if (currentImages.length + (pkg.videos ?? []).length >= MAX_PACKAGE_MEDIA) {
+    return { error: copy.maxExceeded }
+  }
+
+  const file = formData.get('image') as File | null
+  const fileError = validateImageFile(file)
+  if (fileError) return { error: fileError }
+
+  const path = `packages/${packageId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`
+
+  const { error: uploadError } = await admin.storage
+    .from(PACKAGE_BUCKET)
+    .upload(path, file!, { contentType: file!.type, upsert: false })
+
+  if (uploadError) return { error: copy.uploadFailed }
+
+  const { data: { publicUrl } } = admin.storage.from(PACKAGE_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('packages')
+    .update({ images: [...currentImages, publicUrl] })
+    .eq('id', packageId)
+
+  if (updateError) {
+    await admin.storage.from(PACKAGE_BUCKET).remove([path])
+    return { error: copy.saveFailed }
+  }
+
+  revalidatePath(`/admin/paquetes/${packageId}/editar`)
+}
+
+export async function deletePackageImage(
+  packageId: string,
+  imageUrl: string,
+): Promise<{ error: string } | void> {
+  if (!UUID_RE.test(packageId)) return { error: adminCopy.paquetes.errors.notFound }
+  const admin = await getAuthenticatedAdmin()
+
+  const { data: pkg } = await admin
+    .from('packages')
+    .select('id, images')
+    .eq('id', packageId)
+    .maybeSingle()
+
+  if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  const storagePath = extractStoragePath(imageUrl, PACKAGE_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(PACKAGE_BUCKET).remove([storagePath])
+  }
+
+  const newImages = (pkg.images ?? []).filter((u: string) => u !== imageUrl)
+  await admin.from('packages').update({ images: newImages }).eq('id', packageId)
+
+  revalidatePath(`/admin/paquetes/${packageId}/editar`)
+}
+
+export async function requestPackageVideoUpload(
+  packageId: string,
+  fileName: string,
+  fileType: string,
+  fileSize: number,
+): Promise<{ token: string; path: string; publicUrl: string } | { error: string }> {
+  const copy = adminCopy.paquetes.media.errors
+  if (!UUID_RE.test(packageId)) return { error: adminCopy.paquetes.errors.notFound }
+  const admin = await getAuthenticatedAdmin()
+
+  const { data: pkg } = await admin
+    .from('packages')
+    .select('id, images, videos')
+    .eq('id', packageId)
+    .maybeSingle()
+
+  if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  const currentCount = (pkg.images ?? []).length + (pkg.videos ?? []).length
+  if (currentCount >= MAX_PACKAGE_MEDIA) return { error: copy.maxExceeded }
+
+  const fileError = validateVideoMeta(fileType, fileSize)
+  if (fileError) return { error: fileError }
+
+  const path = `packages/${packageId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${videoExtension(fileType)}`
+
+  const { data, error } = await admin.storage.from(PACKAGE_VIDEO_BUCKET).createSignedUploadUrl(path)
+  if (error || !data) return { error: copy.videoUploadFailed }
+
+  const { data: { publicUrl } } = admin.storage.from(PACKAGE_VIDEO_BUCKET).getPublicUrl(path)
+
+  return { token: data.token, path: data.path, publicUrl }
+}
+
+export async function confirmPackageVideoUpload(
+  packageId: string,
+  path: string,
+): Promise<{ error: string } | void> {
+  const copy = adminCopy.paquetes.media.errors
+  if (!UUID_RE.test(packageId)) return { error: adminCopy.paquetes.errors.notFound }
+  // Never trust a client-supplied URL directly, only a path scoped to this
+  // package's own folder — the public URL is derived server-side below.
+  // Same check as confirmPlaceVideoUpload/confirmBusinessVideoUpload.
+  if (!path.startsWith(`packages/${packageId}/`)) return { error: copy.invalidVideo }
+
+  const admin = await getAuthenticatedAdmin()
+
+  const { data: pkg } = await admin
+    .from('packages')
+    .select('id, images, videos')
+    .eq('id', packageId)
+    .maybeSingle()
+
+  if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  const currentVideos: string[] = pkg.videos ?? []
+  if ((pkg.images ?? []).length + currentVideos.length >= MAX_PACKAGE_MEDIA) {
+    return { error: copy.maxExceeded }
+  }
+
+  const { data: { publicUrl } } = admin.storage.from(PACKAGE_VIDEO_BUCKET).getPublicUrl(path)
+
+  const { error: updateError } = await admin
+    .from('packages')
+    .update({ videos: [...currentVideos, publicUrl] })
+    .eq('id', packageId)
+
+  if (updateError) return { error: copy.videoSaveFailed }
+
+  revalidatePath(`/admin/paquetes/${packageId}/editar`)
+}
+
+export async function deletePackageVideo(
+  packageId: string,
+  videoUrl: string,
+): Promise<{ error: string } | void> {
+  if (!UUID_RE.test(packageId)) return { error: adminCopy.paquetes.errors.notFound }
+  const admin = await getAuthenticatedAdmin()
+
+  const { data: pkg } = await admin
+    .from('packages')
+    .select('id, videos')
+    .eq('id', packageId)
+    .maybeSingle()
+
+  if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  const storagePath = extractStoragePath(videoUrl, PACKAGE_VIDEO_BUCKET)
+  if (storagePath) {
+    await admin.storage.from(PACKAGE_VIDEO_BUCKET).remove([storagePath])
+  }
+
+  const newVideos = (pkg.videos ?? []).filter((u: string) => u !== videoUrl)
+  await admin.from('packages').update({ videos: newVideos }).eq('id', packageId)
+
+  revalidatePath(`/admin/paquetes/${packageId}/editar`)
+}

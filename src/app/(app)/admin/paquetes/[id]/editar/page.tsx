@@ -3,9 +3,17 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
-import { updatePackage } from '@/app/(app)/admin/paquetes/actions'
+import {
+  updatePackage,
+  uploadPackageImage,
+  deletePackageImage,
+  requestPackageVideoUpload,
+  confirmPackageVideoUpload,
+  deletePackageVideo,
+} from '@/app/(app)/admin/paquetes/actions'
 import PackageForm from '@/components/admin/PackageForm'
 import PackageItemsManager from '@/components/admin/PackageItemsManager'
+import MediaManager from '@/components/shared/MediaManager'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -27,7 +35,11 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
   const copy = adminCopy.paquetes
 
   const [{ data: pkg }, { data: itemsData }, { data: servicesData }, { data: guideToursData }] = await Promise.all([
-    admin.from('packages').select('id, name, description, base_price, pricing_unit, capacity').eq('id', id).single(),
+    admin
+      .from('packages')
+      .select('id, name, description, base_price, pricing_unit, capacity, images, videos')
+      .eq('id', id)
+      .single(),
     admin
       .from('package_items')
       .select(
@@ -56,7 +68,13 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
 
   if (!pkg) notFound()
 
-  const items = ((itemsData ?? []) as unknown as ItemRow[]).map((row) => {
+  const boundUploadImage = uploadPackageImage.bind(null, pkg.id)
+  const boundDeleteImage = deletePackageImage.bind(null, pkg.id)
+  const boundRequestVideo = requestPackageVideoUpload.bind(null, pkg.id)
+  const boundConfirmVideo = confirmPackageVideoUpload.bind(null, pkg.id)
+  const boundDeleteVideo = deletePackageVideo.bind(null, pkg.id)
+
+  const items =((itemsData ?? []) as unknown as ItemRow[]).map((row) => {
     const label = row.services
       ? `${row.services.name} (${row.services.businesses?.name ?? ''})`
       : `${row.guide_tours?.name ?? ''} (${row.guide_tours?.tourist_guides?.profiles?.full_name ?? ''})`
@@ -97,6 +115,23 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
 
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
           <PackageForm action={updatePackage} package={pkg} />
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card shadow-sm p-5 space-y-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">{copy.media.title}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">{copy.media.hint}</p>
+          </div>
+          <MediaManager
+            images={pkg.images ?? []}
+            videos={pkg.videos ?? []}
+            videoBucket="package-videos"
+            uploadImageAction={boundUploadImage}
+            deleteImageAction={boundDeleteImage}
+            requestVideoUploadAction={boundRequestVideo}
+            confirmVideoUploadAction={boundConfirmVideo}
+            deleteVideoAction={boundDeleteVideo}
+          />
         </div>
 
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
