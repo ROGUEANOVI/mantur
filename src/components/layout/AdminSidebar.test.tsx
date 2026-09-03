@@ -17,6 +17,7 @@ describe('AdminSidebar', () => {
       ['Categorías', '/admin/categorias'],
       ['Tipos de servicio', '/admin/tipos-servicio'],
       ['Lugares', '/admin/lugares'],
+      ['Paquetes', '/admin/paquetes'],
       ['Transportes', '/admin/transportes'],
       ['Guías', '/admin/guias'],
       ['Transportistas', '/admin/transportistas'],
