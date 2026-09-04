@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { updateGuideTour } from '@/app/(app)/mi-perfil-guia/actions'
 import { guidesCopy } from '@/lib/copy/guides'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,11 @@ export default function EditTourForm({ tourId, defaultValues }: Props) {
     error: null,
     saved: false,
   })
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+    else if (state.saved) toast.success(copy.saved)
+  }, [state.error, state.saved])
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
@@ -108,14 +114,6 @@ export default function EditTourForm({ tourId, defaultValues }: Props) {
           />
         </div>
       </div>
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">{state.error}</p>
-      )}
-
-      {state.saved && !state.error && (
-        <p role="status" className="text-sm text-primary font-medium">{copy.saved}</p>
-      )}
 
       <Button type="submit" className="w-full rounded-xl min-h-11" disabled={pending}>
         {pending ? copy.saving : copy.save}

@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState, type FormEvent } from 'react'
+import { useActionState, useEffect, useState, type FormEvent } from 'react'
+import { toast } from 'sonner'
 import { saveGuidePayoutAccount } from '@/app/(app)/mi-perfil-guia/actions'
 import { guidesCopy } from '@/lib/copy/guides'
 
@@ -51,6 +52,11 @@ export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) 
     },
     { error: null, saved: false },
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+    else if (state.saved) toast.success(copy.saved)
+  }, [state.error, state.saved])
 
   // Submitting via onSubmit + a manual action() call (both supported ways to
   // invoke a useActionState action, per the React docs) rather than the
@@ -174,13 +180,6 @@ export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) 
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         />
       </div>
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">{state.error}</p>
-      )}
-      {state.saved && (
-        <p role="status" className="text-sm text-primary font-medium">{copy.saved}</p>
-      )}
 
       <button
         type="submit"

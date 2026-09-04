@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import EditTransporterProfileForm from './EditTransporterProfileForm'
 
 const updateTransporterProfileMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil-transporte/actions', () => ({
   updateTransporterProfile: (formData: FormData) => updateTransporterProfileMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 function pdfFile(name = 'doc.pdf') {
@@ -72,24 +77,26 @@ describe('EditTransporterProfileForm', () => {
     expect(fd.get('driver_license_number')).toBe('12345678')
   })
 
-  it('shows the saved message after a successful save', async () => {
+  it('shows the saved message as a toast after a successful save', async () => {
     updateTransporterProfileMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<EditTransporterProfileForm {...INDEPENDENT_PROPS} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByText('¡Documentos actualizados!')).toBeInTheDocument()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('¡Documentos actualizados!'))
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     updateTransporterProfileMock.mockResolvedValue({ error: 'Adjunta el documento correspondiente para cambiar de modalidad.' })
     const user = userEvent.setup()
     render(<EditTransporterProfileForm {...INDEPENDENT_PROPS} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Adjunta el documento correspondiente para cambiar de modalidad.')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Adjunta el documento correspondiente para cambiar de modalidad.'),
+    )
   })
 
   it('renders cooperative fields pre-filled when currentTier is cooperative', () => {

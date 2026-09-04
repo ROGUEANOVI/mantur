@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import TransportRequestForm from './TransportRequestForm'
 
 const createTransportRequestMock = vi.fn()
 
 vi.mock('@/app/(app)/transporte/actions', () => ({
   createTransportRequest: (...args: unknown[]) => createTransportRequestMock(...args),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 beforeEach(() => {
@@ -48,7 +53,7 @@ describe('TransportRequestForm', () => {
     expect(fd.get('notes')).toBe('Somos 2 adultos')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     createTransportRequestMock.mockResolvedValue({ error: 'Ocurrió un error. Intenta de nuevo.' })
     const user = userEvent.setup()
     const { container } = render(<TransportRequestForm />)
@@ -56,12 +61,12 @@ describe('TransportRequestForm', () => {
     await fillRequiredFields(container, user)
     await user.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
 
-    expect(await screen.findByText('Ocurrió un error. Intenta de nuevo.')).toBeInTheDocument()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Ocurrió un error. Intenta de nuevo.'))
   })
 
-  it('renders no error before submission', () => {
+  it('shows no error toast before submission', () => {
     render(<TransportRequestForm />)
-    expect(screen.queryByText('Ocurrió un error. Intenta de nuevo.')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import EditGuideProfileForm from './EditGuideProfileForm'
 
 const updateGuideProfileMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil-guia/actions', () => ({
   updateGuideProfile: (formData: FormData) => updateGuideProfileMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const DEFAULT_PROPS = {
@@ -65,26 +70,26 @@ describe('EditGuideProfileForm', () => {
     expect(fd.getAll('languages').sort()).toEqual(['english', 'spanish'].sort())
   })
 
-  it('shows a saved message and no error after a successful save', async () => {
+  it('shows a saved toast and no error toast after a successful save', async () => {
     updateGuideProfileMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
     render(<EditGuideProfileForm {...DEFAULT_PROPS} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByText('¡Perfil actualizado!')).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('¡Perfil actualizado!'))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('shows the error message when the save fails', async () => {
+  it('shows an error toast when the save fails', async () => {
     updateGuideProfileMock.mockResolvedValue({ error: 'Ocurrió un error. Intenta de nuevo.' })
     const user = userEvent.setup()
     render(<EditGuideProfileForm {...DEFAULT_PROPS} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ocurrió un error. Intenta de nuevo.')
-    expect(screen.queryByText('¡Perfil actualizado!')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Ocurrió un error. Intenta de nuevo.'))
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('shows the current verification status and pre-fills RNT/Tarjeta numbers', () => {

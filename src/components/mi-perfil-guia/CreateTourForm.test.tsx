@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import CreateTourForm from './CreateTourForm'
 
 const createGuideTourMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil-guia/actions', () => ({
   createGuideTour: (formData: FormData) => createGuideTourMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 beforeEach(() => {
@@ -41,19 +46,19 @@ describe('CreateTourForm', () => {
     expect(fd.get('duration_minutes')).toBe('120')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     createGuideTourMock.mockResolvedValue({ error: 'El nombre del tour es obligatorio.' })
     const user = userEvent.setup()
     render(<CreateTourForm />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar tour' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('El nombre del tour es obligatorio.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('El nombre del tour es obligatorio.'))
   })
 
-  it('renders no error before submission', () => {
+  it('shows no error toast before submission', () => {
     render(<CreateTourForm />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import EditTourForm from './EditTourForm'
 
 const updateGuideTourMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil-guia/actions', () => ({
   updateGuideTour: (...args: unknown[]) => updateGuideTourMock(...args),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const TOUR_ID = '22222222-2222-2222-2222-222222222222'
@@ -61,32 +66,32 @@ describe('EditTourForm', () => {
     expect(fd.get('price')).toBe('60000')
   })
 
-  it('shows a success status and no error after a successful save', async () => {
+  it('shows a success toast and no error toast after a successful save', async () => {
     updateGuideTourMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
     render(<EditTourForm tourId={TOUR_ID} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar tour' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Cambios guardados.')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Cambios guardados.'))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('shows the error message and no success status when the save fails', async () => {
+  it('shows an error toast and no success toast when the save fails', async () => {
     updateGuideTourMock.mockResolvedValue({ error: 'Ocurrió un error. Intenta de nuevo.' })
     const user = userEvent.setup()
     render(<EditTourForm tourId={TOUR_ID} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar tour' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ocurrió un error. Intenta de nuevo.')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Ocurrió un error. Intenta de nuevo.'))
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('renders neither status nor alert before submission', () => {
+  it('shows neither toast before submission', () => {
     render(<EditTourForm tourId={TOUR_ID} defaultValues={DEFAULT_VALUES} />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {
