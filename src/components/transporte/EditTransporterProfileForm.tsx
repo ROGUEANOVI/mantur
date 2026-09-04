@@ -1,8 +1,9 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { toast } from 'sonner'
 import { updateTransporterProfile } from '@/app/(app)/mi-perfil-transporte/actions'
 import { transportCopy } from '@/lib/copy/transport'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
@@ -45,6 +46,11 @@ export default function EditTransporterProfileForm({
     },
     { error: null, saved: false },
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+    else if (state.saved) toast.success(copy.saved)
+  }, [state])
 
   return (
     <form action={action} className="space-y-5">
@@ -106,13 +112,6 @@ export default function EditTransporterProfileForm({
           <Field label={formCopy.soatExpiryDate} name="soat_expiry_date" type="date" defaultValue={soatExpiryDate ?? ''} />
           <RawFileField label={formCopy.soatDocument} name="soat_document" required={false} />
         </>
-      )}
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">{state.error}</p>
-      )}
-      {state.saved && (
-        <p className="text-sm text-primary font-medium">{copy.saved}</p>
       )}
 
       <div className="flex gap-3 pt-1">

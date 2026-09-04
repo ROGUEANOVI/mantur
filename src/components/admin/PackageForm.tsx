@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { adminCopy } from '@/lib/copy/admin'
 import type { createPackage, updatePackage } from '@/app/(app)/admin/paquetes/actions'
 import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
@@ -36,6 +37,10 @@ export default function PackageForm({ action, package: pkg }: Props) {
 
   const copy = adminCopy.paquetes.form
   const errorMsg = state && 'error' in state ? state.error : null
+
+  useEffect(() => {
+    if (errorMsg) toast.error(errorMsg)
+  }, [state])
 
   return (
     <form action={formAction} className="space-y-5">
@@ -127,12 +132,6 @@ export default function PackageForm({ action, package: pkg }: Props) {
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
         />
       </div>
-
-      {errorMsg && (
-        <p className="text-sm font-medium text-destructive" role="alert">
-          {errorMsg}
-        </p>
-      )}
 
       <div className="flex gap-3 pt-1">
         <button

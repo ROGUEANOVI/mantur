@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import ResetPasswordForm from './ResetPasswordForm'
 
 const updatePasswordMock = vi.fn()
 
 vi.mock('@/app/(auth)/actions', () => ({
   updatePassword: (formData: FormData) => updatePasswordMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const STRONG_PASSWORD = 'Correcta1!'
@@ -65,7 +70,9 @@ describe('ResetPasswordForm', () => {
     await user.type(screen.getByLabelText('Confirmar contraseña'), 'weak')
     await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('La contraseña no cumple los requisitos de seguridad')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('La contraseña no cumple los requisitos de seguridad'),
+    )
     expect(updatePasswordMock).not.toHaveBeenCalled()
   })
 
@@ -77,7 +84,7 @@ describe('ResetPasswordForm', () => {
     await user.type(screen.getByLabelText('Confirmar contraseña'), 'Different1!')
     await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Las contraseñas no coinciden')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Las contraseñas no coinciden'))
     expect(updatePasswordMock).not.toHaveBeenCalled()
   })
 
@@ -96,7 +103,7 @@ describe('ResetPasswordForm', () => {
     expect(fd.get('confirm_password')).toBe(STRONG_PASSWORD)
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     updatePasswordMock.mockResolvedValue({ error: 'El enlace no es válido o ya expiró. Solicita uno nuevo.' })
     const user = userEvent.setup()
     render(<ResetPasswordForm />)
@@ -105,8 +112,8 @@ describe('ResetPasswordForm', () => {
     await user.type(screen.getByLabelText('Confirmar contraseña'), STRONG_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Guardar contraseña' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('El enlace no es válido o ya expiró. Solicita uno nuevo.'),
     )
   })
 

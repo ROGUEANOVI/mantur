@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { requestPasswordReset } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
@@ -31,6 +32,14 @@ export default function ForgotPasswordForm({ authError }: { authError?: 'expired
   // the email the user just typed.
   const [email, setEmail] = useState('')
 
+  useEffect(() => {
+    if (authError === 'expired') toast.error(copy.errors.expiredLink)
+  }, [authError])
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state])
+
   if (state.emailSent) {
     return (
       <div className="space-y-2 text-center">
@@ -42,12 +51,6 @@ export default function ForgotPasswordForm({ authError }: { authError?: 'expired
 
   return (
     <div className="space-y-5">
-      {authError === 'expired' && (
-        <p role="alert" className="text-sm text-destructive">
-          {copy.errors.expiredLink}
-        </p>
-      )}
-
       <form action={formAction} className="space-y-5" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="forgot-email">{copy.email}</Label>
@@ -62,12 +65,6 @@ export default function ForgotPasswordForm({ authError }: { authError?: 'expired
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
-
-        {state.error && (
-          <p role="alert" className="text-sm text-destructive">
-            {state.error}
-          </p>
-        )}
 
         <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
           {pending ? 'Enviando...' : copy.submit}

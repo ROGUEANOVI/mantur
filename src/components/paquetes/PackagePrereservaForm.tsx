@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 import { createPackagePrereserva } from '@/app/(app)/reservas/actions'
 import { bookingsCopy } from '@/lib/copy/bookings'
@@ -70,6 +71,10 @@ function PrereservaFormFields({
 
   const total = pricingUnit === 'fixed' ? price : price * quantity
 
+  useEffect(() => {
+    if (state?.error) toast.error(state.error)
+  }, [state])
+
   function handleQuantityChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseInt(e.target.value, 10)
     if (!Number.isNaN(val) && val >= 1) {
@@ -128,12 +133,6 @@ function PrereservaFormFields({
             : `$${price.toLocaleString('es-CO')} × ${quantity} ${UNIT_SUFFIX[pricingUnit]}`}
         </p>
       </div>
-
-      {state?.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
 
       <Button type="submit" className="w-full rounded-xl min-h-11" disabled={isPending}>
         {isPending ? bookingsCopy.form.packageSubmitting : bookingsCopy.form.packageSubmit}

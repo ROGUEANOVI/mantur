@@ -16,3 +16,25 @@ paths:
   Spanish strings inside business logic.
 - Mobile-first: most real users are on a phone with intermittent
   connectivity.
+- Clickable elements must show `cursor: pointer`. Tailwind's preflight resets
+  native `<button>`/`[role="button"]` cursor to `default`; `globals.css`
+  restores it globally in `@layer base`, so raw buttons don't need a
+  per-instance `cursor-pointer` class. Custom non-button clickables (a `div`
+  or `Card` wrapper with `onClick`) still need `cursor-pointer` added
+  explicitly, conditioned on whatever makes them actually clickable (see
+  `TransporterCardWithModal`).
+- Form/action result messaging uses `sonner` toasts, never inline
+  success/error banners, `window.alert`/`window.confirm`, or console-only
+  feedback. Pattern: call `toast.success(...)` directly where the result is
+  known (inside the `useActionState` action callback, or after an `await`);
+  surface a returned `{ error }` with
+  `useEffect(() => { if (state.error) toast.error(state.error) }, [state])`
+  — depend on the whole `state` object returned by `useActionState`, not a
+  derived primitive (`state.error`, `errorMsg`...): `useActionState` always
+  returns a new object on each submit, but an identical error/success message
+  on back-to-back submits won't change a primitive dependency, so the effect
+  silently fails to re-fire and the toast doesn't show the second time
+  (see `DeletePackageForm`, `AdminDocumentLink`). Field-level validation shown
+  next to its own input (e.g. `onBlur` phone/name checks) stays inline — this
+  rule is about the result of submitting/running an action, not per-field
+  validation.

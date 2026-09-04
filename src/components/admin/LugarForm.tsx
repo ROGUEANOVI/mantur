@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import type { createPlace, updatePlace } from '@/app/(app)/admin/actions'
@@ -45,6 +46,10 @@ export default function LugarForm({ action, place }: Props) {
 
   const copy = adminCopy.lugares.form
   const errorMsg = state && 'error' in state ? state.error : null
+
+  useEffect(() => {
+    if (errorMsg) toast.error(errorMsg)
+  }, [state])
 
   return (
     <form action={formAction} className="space-y-5">
@@ -114,13 +119,6 @@ export default function LugarForm({ action, place }: Props) {
         label={copy.location}
         hint={copy.locationHint}
       />
-
-      {/* Error */}
-      {errorMsg && (
-        <p className="text-sm font-medium text-destructive" role="alert">
-          {errorMsg}
-        </p>
-      )}
 
       {/* Actions */}
       <div className="flex gap-3 pt-1">

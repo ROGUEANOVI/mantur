@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { createBusiness } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
@@ -46,6 +47,10 @@ export default function CreateBusinessForm({ categories }: { categories: Categor
     createBusinessAction,
     { error: null },
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state])
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
@@ -170,13 +175,6 @@ export default function CreateBusinessForm({ categories }: { categories: Categor
         name="rnt_document"
         hint={copy.form.rntDocumentHint}
       />
-
-      {/* Inline error */}
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
 
       {/* Submit */}
       <Button

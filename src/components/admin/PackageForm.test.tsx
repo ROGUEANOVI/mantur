@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import PackageForm from './PackageForm'
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}))
 
 const PACKAGE = {
   id: '77777777-7777-7777-7777-777777777777',
@@ -69,14 +74,14 @@ describe('PackageForm', () => {
     expect(fd.get('packageId')).toBe(PACKAGE.id)
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     const action = vi.fn().mockResolvedValue({ error: 'El precio de venta debe ser un número válido.' })
     const user = userEvent.setup()
     render(<PackageForm action={action} package={PACKAGE} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar paquete' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('El precio de venta debe ser un número válido.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('El precio de venta debe ser un número válido.'))
   })
 
   it('renders a cancel link back to the packages list', () => {

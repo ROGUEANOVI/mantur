@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Cropper, { type Area } from 'react-easy-crop'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,6 @@ export default function AvatarCropDialog({ imageSrc, open, onCancel, onConfirm }
   const [zoom, setZoom] = useState(1)
   const [croppedArea, setCroppedArea] = useState<Area | null>(null)
   const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   function handleOpenChange(next: boolean) {
     if (!next) handleCancel()
@@ -41,19 +41,17 @@ export default function AvatarCropDialog({ imageSrc, open, onCancel, onConfirm }
     setZoom(1)
     setCroppedArea(null)
     setProcessing(false)
-    setError(null)
     onCancel()
   }
 
   async function handleConfirm() {
     if (!imageSrc || !croppedArea) return
-    setError(null)
     setProcessing(true)
     try {
       const blob = await getCroppedBlob(imageSrc, croppedArea)
       onConfirm(blob)
     } catch {
-      setError(errors.cropFailed)
+      toast.error(errors.cropFailed)
     } finally {
       setProcessing(false)
     }
@@ -98,12 +96,6 @@ export default function AvatarCropDialog({ imageSrc, open, onCancel, onConfirm }
             className="flex-1 accent-primary"
           />
         </div>
-
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={processing}>

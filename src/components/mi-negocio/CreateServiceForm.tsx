@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { createService } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { getAttributeFields, PRICING_UNIT_LABELS } from '@/lib/services/attributeConfig'
@@ -42,6 +43,10 @@ export default function CreateServiceForm({ businessId, serviceTypes }: Props) {
     { error: null },
   )
   const [selectedTypeId, setSelectedTypeId] = useState<string>('')
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state])
 
   const selectedType = serviceTypes.find((t) => t.id === selectedTypeId) ?? null
   const attributeFields = selectedType ? getAttributeFields(selectedType.slug) : []
@@ -194,13 +199,6 @@ export default function CreateServiceForm({ businessId, serviceTypes }: Props) {
             </div>
           )}
         </>
-      )}
-
-      {/* Inline error */}
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
       )}
 
       {/* Submit */}

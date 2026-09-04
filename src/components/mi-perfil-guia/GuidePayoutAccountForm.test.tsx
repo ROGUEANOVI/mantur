@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import GuidePayoutAccountForm from './GuidePayoutAccountForm'
 
 const saveGuidePayoutAccountMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil-guia/actions', () => ({
   saveGuidePayoutAccount: (formData: FormData) => saveGuidePayoutAccountMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const BANKS = [
@@ -76,14 +81,14 @@ describe('GuidePayoutAccountForm', () => {
     expect(fd.get('holder_id_type')).toBe('NIT')
   })
 
-  it('shows a success message after a successful save', async () => {
+  it('shows a success toast after a successful save', async () => {
     saveGuidePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
     render(<GuidePayoutAccountForm banks={BANKS} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Cuenta de pagos guardada.')
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Cuenta de pagos guardada.'))
   })
 
   // Regression: React 19 resets a <form>'s uncontrolled fields after a
@@ -107,20 +112,20 @@ describe('GuidePayoutAccountForm', () => {
     await user.type(screen.getByLabelText('Correo del titular'), 'carlos@example.com')
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
-    await screen.findByRole('status')
+    await waitFor(() => expect(toast.success).toHaveBeenCalled())
 
     expect(screen.getByLabelText('Banco')).toHaveValue('bank-nequi')
     expect(screen.getByLabelText('Tipo de cuenta')).toHaveValue('corriente')
     expect(screen.getByLabelText('Tipo de documento del titular')).toHaveValue('CC')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     saveGuidePayoutAccountMock.mockResolvedValue({ error: 'Selecciona un tipo de cuenta válido.' })
     const user = userEvent.setup()
     render(<GuidePayoutAccountForm banks={BANKS} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Selecciona un tipo de cuenta válido.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Selecciona un tipo de cuenta válido.'))
   })
 })

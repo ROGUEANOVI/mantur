@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import PackageItemsManager from './PackageItemsManager'
 
 const addPackageItemMock = vi.fn()
@@ -9,6 +10,10 @@ const removePackageItemMock = vi.fn()
 vi.mock('@/app/(app)/admin/paquetes/actions', () => ({
   addPackageItem: (formData: FormData) => addPackageItemMock(formData),
   removePackageItem: (formData: FormData) => removePackageItemMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const PACKAGE_ID = '11111111-1111-1111-1111-111111111111'
@@ -59,7 +64,7 @@ describe('PackageItemsManager', () => {
     expect(fd.get('quantity_included')).toBe('1')
   })
 
-  it('shows the server-returned error message from addPackageItem', async () => {
+  it('shows the server-returned error message from addPackageItem as a toast', async () => {
     addPackageItemMock.mockResolvedValue({ error: 'El costo interno debe ser un número válido.' })
     const user = userEvent.setup()
     render(<PackageItemsManager packageId={PACKAGE_ID} items={[]} services={SERVICES} guideTours={GUIDE_TOURS} />)
@@ -68,7 +73,7 @@ describe('PackageItemsManager', () => {
     await user.type(screen.getByLabelText('Costo interno (COP)'), '90000')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('El costo interno debe ser un número válido.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('El costo interno debe ser un número válido.'))
   })
 
   it('submits itemId and packageId to removePackageItem when removing an item', async () => {

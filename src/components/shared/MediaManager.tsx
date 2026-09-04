@@ -3,6 +3,7 @@
 import { useTransition, useRef, useState } from 'react'
 import { Trash2, Upload, Loader2, Play } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import { cn } from '@/lib/utils'
@@ -42,7 +43,6 @@ export default function MediaManager({
   confirmVideoUploadAction,
   deleteVideoAction,
 }: Props) {
-  const [error, setError] = useState<string | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [isPending, startTransition] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -69,10 +69,10 @@ export default function MediaManager({
         const formData = new FormData()
         formData.append('image', webpFile)
         const result = await uploadImageAction(formData)
-        if (result && 'error' in result) setError(result.error)
+        if (result && 'error' in result) toast.error(result.error)
       })
     } catch {
-      setError('Error al procesar la imagen. Intenta de nuevo.')
+      toast.error('Error al procesar la imagen. Intenta de nuevo.')
     } finally {
       setCompressing(false)
     }
@@ -80,18 +80,18 @@ export default function MediaManager({
 
   function handleVideoSelect(file: File) {
     if (!VIDEO_MIME_TYPES.includes(file.type)) {
-      setError('Formato no válido. Usa MP4, WebM o QuickTime.')
+      toast.error('Formato no válido. Usa MP4, WebM o QuickTime.')
       return
     }
     if (file.size > MAX_VIDEO_BYTES) {
-      setError('El video no puede superar 50 MB.')
+      toast.error('El video no puede superar 50 MB.')
       return
     }
 
     startTransition(async () => {
       const requested = await requestVideoUploadAction(file.name, file.type, file.size)
       if ('error' in requested) {
-        setError(requested.error)
+        toast.error(requested.error)
         return
       }
 
@@ -101,19 +101,18 @@ export default function MediaManager({
         .uploadToSignedUrl(requested.path, requested.token, file)
 
       if (uploadError) {
-        setError('No se pudo subir el video. Intenta de nuevo.')
+        toast.error('No se pudo subir el video. Intenta de nuevo.')
         return
       }
 
       const confirmed = await confirmVideoUploadAction(requested.path)
-      if (confirmed && 'error' in confirmed) setError(confirmed.error)
+      if (confirmed && 'error' in confirmed) toast.error(confirmed.error)
     })
   }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setError(null)
 
     if (file.type.startsWith('video/')) {
       handleVideoSelect(file)
@@ -125,11 +124,10 @@ export default function MediaManager({
   }
 
   function handleDelete(item: MediaItem) {
-    setError(null)
     startTransition(async () => {
       const result =
         item.type === 'image' ? await deleteImageAction(item.url) : await deleteVideoAction(item.url)
-      if (result && 'error' in result) setError(result.error)
+      if (result && 'error' in result) toast.error(result.error)
     })
   }
 
@@ -214,12 +212,6 @@ export default function MediaManager({
       {!canUpload && (
         <p className="text-xs text-muted-foreground">
           Límite alcanzado ({maxMedia} fotos y videos). Elimina uno para agregar otro.
-        </p>
-      )}
-
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
         </p>
       )}
     </div>

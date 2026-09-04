@@ -30,7 +30,7 @@ function useToastAction(action: (formData: FormData) => Promise<ActionResult>) {
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   return dispatch
 }

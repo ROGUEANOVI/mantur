@@ -1,8 +1,9 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { toast } from 'sonner'
 import { updateGuideProfile } from '@/app/(app)/mi-perfil-guia/actions'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
@@ -36,6 +37,11 @@ export default function EditGuideProfileForm({
     },
     { error: null, saved: false },
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+    else if (state.saved) toast.success(copy.saved)
+  }, [state])
 
   return (
     <form action={action} className="space-y-5">
@@ -149,13 +155,6 @@ export default function EditGuideProfileForm({
         </div>
         <RawFileField label={guideFormCopy.tarjetaProfesionalDocument} name="tarjeta_profesional_document" required={false} />
       </div>
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">{state.error}</p>
-      )}
-      {state.saved && (
-        <p className="text-sm text-primary font-medium">{copy.saved}</p>
-      )}
 
       <div className="flex gap-3 pt-1">
         <Link

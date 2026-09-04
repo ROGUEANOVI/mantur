@@ -168,7 +168,7 @@ function DayCell({
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   if (isPast) {
     return (

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import LugarForm from './LugarForm'
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}))
 
 vi.mock('@/components/shared/LocationPicker', () => ({
   default: ({ defaultLat, defaultLng }: { defaultLat: number | null; defaultLng: number | null }) => (
@@ -83,14 +88,14 @@ describe('LugarForm', () => {
     expect(fd.get('placeId')).toBe(PLACE.id)
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     const action = vi.fn().mockResolvedValue({ error: 'Las coordenadas deben ser números válidos.' })
     const user = userEvent.setup()
     render(<LugarForm action={action} place={PLACE} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar lugar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Las coordenadas deben ser números válidos.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Las coordenadas deben ser números válidos.'))
   })
 
   it('renders a cancel link back to the places list', () => {

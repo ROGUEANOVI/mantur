@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import PayoutAccountForm from './PayoutAccountForm'
 
 const savePayoutAccountMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-negocio/actions', () => ({
   savePayoutAccount: (...args: unknown[]) => savePayoutAccountMock(...args),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const BUSINESS_ID = '11111111-1111-1111-1111-111111111111'
@@ -83,14 +88,14 @@ describe('PayoutAccountForm', () => {
     expect(fd.get('holder_email')).toBe('juan@example.com')
   })
 
-  it('shows a success message after a successful save', async () => {
+  it('shows a success toast after a successful save', async () => {
     savePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
     render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Cuenta de pagos guardada.')
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Cuenta de pagos guardada.'))
   })
 
   // Regression: React 19 resets a <form>'s uncontrolled fields after a
@@ -110,20 +115,20 @@ describe('PayoutAccountForm', () => {
     await user.selectOptions(screen.getByLabelText('Tipo de documento del titular'), 'CC')
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
-    await screen.findByRole('status')
+    await waitFor(() => expect(toast.success).toHaveBeenCalled())
 
     expect(screen.getByLabelText('Banco')).toHaveValue('bank-davivienda')
     expect(screen.getByLabelText('Tipo de cuenta')).toHaveValue('corriente')
     expect(screen.getByLabelText('Tipo de documento del titular')).toHaveValue('CC')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     savePayoutAccountMock.mockResolvedValue({ error: 'Escribe un correo electrónico válido.' })
     const user = userEvent.setup()
     render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Escribe un correo electrónico válido.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Escribe un correo electrónico válido.'))
   })
 })

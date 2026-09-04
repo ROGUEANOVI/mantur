@@ -21,7 +21,7 @@ export default function DeletePackageForm({ formId, packageId }: { formId: strin
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   return (
     <form id={formId} action={action}>

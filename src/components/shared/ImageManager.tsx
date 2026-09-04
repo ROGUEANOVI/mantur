@@ -3,6 +3,7 @@
 import { useTransition, useRef, useState } from 'react'
 import { Trash2, Upload, Loader2 } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
+import { toast } from 'sonner'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import { cn } from '@/lib/utils'
 
@@ -21,7 +22,6 @@ export default function ImageManager({
   uploadAction,
   deleteAction,
 }: Props) {
-  const [error, setError] = useState<string | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [isPending, startTransition] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -30,7 +30,6 @@ export default function ImageManager({
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setError(null)
     setCompressing(true)
     try {
       const compressed = await imageCompression(file, {
@@ -46,10 +45,10 @@ export default function ImageManager({
         const formData = new FormData()
         formData.append('image', webpFile)
         const result = await uploadAction(formData)
-        if (result && 'error' in result) setError(result.error)
+        if (result && 'error' in result) toast.error(result.error)
       })
     } catch {
-      setError('Error al procesar la imagen. Intenta de nuevo.')
+      toast.error('Error al procesar la imagen. Intenta de nuevo.')
     } finally {
       setCompressing(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -57,10 +56,9 @@ export default function ImageManager({
   }
 
   function handleDelete(url: string) {
-    setError(null)
     startTransition(async () => {
       const result = await deleteAction(url)
-      if (result && 'error' in result) setError(result.error)
+      if (result && 'error' in result) toast.error(result.error)
     })
   }
 
@@ -130,12 +128,6 @@ export default function ImageManager({
       {!canUpload && (
         <p className="text-xs text-muted-foreground">
           Límite alcanzado ({maxImages} fotos). Elimina una para agregar otra.
-        </p>
-      )}
-
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
         </p>
       )}
     </div>

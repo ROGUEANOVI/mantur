@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { createTransportRequest } from '@/app/(app)/transporte/actions'
 import { transportCopy } from '@/lib/copy/transport'
 
@@ -19,14 +20,12 @@ export default function TransportRequestForm() {
     .toISOString()
     .slice(0, 16)
 
+  useEffect(() => {
+    if (state?.error) toast.error(state.error)
+  }, [state])
+
   return (
     <form action={formAction} className="space-y-5">
-      {state?.error && (
-        <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-          {state.error}
-        </div>
-      )}
-
       <div>
         <label
           htmlFor="origin"

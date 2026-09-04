@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import MediaManager from './MediaManager'
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}))
 
 const compressMock = vi.fn()
 vi.mock('browser-image-compression', () => ({
@@ -105,7 +110,7 @@ describe('MediaManager — existing media', () => {
     expect(deleteImageAction).not.toHaveBeenCalled()
   })
 
-  it('shows the server-returned error when deletion fails', async () => {
+  it('shows the server-returned error as a toast when deletion fails', async () => {
     const deleteImageAction = vi.fn().mockResolvedValue({ error: 'No se pudo eliminar.' })
     const user = userEvent.setup()
     render(<MediaManager {...baseProps({ images: ['https://x/a.webp'], deleteImageAction })} />)
@@ -113,7 +118,7 @@ describe('MediaManager — existing media', () => {
     await user.click(screen.getByRole('button', { name: 'Eliminar imagen' }))
     await user.click(screen.getByRole('button', { name: 'Sí, eliminar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo eliminar.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('No se pudo eliminar.'))
   })
 })
 
@@ -151,7 +156,7 @@ describe('MediaManager — image upload flow', () => {
     expect(uploaded.type).toBe('image/webp')
   })
 
-  it('shows the server-returned error when the image upload fails', async () => {
+  it('shows the server-returned error as a toast when the image upload fails', async () => {
     compressMock.mockResolvedValue(new Blob(['x'], { type: 'image/webp' }))
     const uploadImageAction = vi.fn().mockResolvedValue({ error: 'No se pudo subir la imagen.' })
     const { container } = render(<MediaManager {...baseProps({ uploadImageAction })} />)
@@ -160,7 +165,7 @@ describe('MediaManager — image upload flow', () => {
     const user = userEvent.setup()
     await user.upload(fileInput, fakeImageFile())
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo subir la imagen.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('No se pudo subir la imagen.'))
   })
 })
 
@@ -177,7 +182,9 @@ describe('MediaManager — video upload flow', () => {
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(fileInput, { target: { files: [fakeVideoFile({ type: 'video/avi' })] } })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Formato no válido. Usa MP4, WebM o QuickTime.')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Formato no válido. Usa MP4, WebM o QuickTime.'),
+    )
     expect(requestVideoUploadAction).not.toHaveBeenCalled()
   })
 
@@ -189,7 +196,7 @@ describe('MediaManager — video upload flow', () => {
     const user = userEvent.setup()
     await user.upload(fileInput, fakeVideoFile({ size: 51 * 1024 * 1024 }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('El video no puede superar 50 MB.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('El video no puede superar 50 MB.'))
     expect(requestVideoUploadAction).not.toHaveBeenCalled()
   })
 
@@ -222,7 +229,7 @@ describe('MediaManager — video upload flow', () => {
     const user = userEvent.setup()
     await user.upload(fileInput, fakeVideoFile())
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Máximo 10 fotos y videos por negocio.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Máximo 10 fotos y videos por negocio.'))
     expect(uploadToSignedUrlMock).not.toHaveBeenCalled()
   })
 
@@ -241,11 +248,13 @@ describe('MediaManager — video upload flow', () => {
     const user = userEvent.setup()
     await user.upload(fileInput, fakeVideoFile())
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo subir el video. Intenta de nuevo.')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('No se pudo subir el video. Intenta de nuevo.'),
+    )
     expect(confirmVideoUploadAction).not.toHaveBeenCalled()
   })
 
-  it('shows the server-returned error when confirming the video upload fails', async () => {
+  it('shows the server-returned error as a toast when confirming the video upload fails', async () => {
     const requestVideoUploadAction = vi
       .fn()
       .mockResolvedValue({ token: 'tok-1', path: 'businesses/b1/clip.mp4', publicUrl: 'https://cdn.example.com/clip.mp4' })
@@ -260,6 +269,6 @@ describe('MediaManager — video upload flow', () => {
     const user = userEvent.setup()
     await user.upload(fileInput, fakeVideoFile())
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo guardar el video.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('No se pudo guardar el video.'))
   })
 })

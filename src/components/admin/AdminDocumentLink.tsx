@@ -1,21 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { FileText } from 'lucide-react'
 import { getComplianceDocumentUrl } from '@/app/(app)/admin/actions'
 import { adminCopy } from '@/lib/copy/admin'
 
 export default function AdminDocumentLink({ label, path }: { label: string; path: string }) {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   async function handleClick() {
     setLoading(true)
-    setError(null)
     const result = await getComplianceDocumentUrl(path)
     setLoading(false)
     if ('error' in result) {
-      setError(result.error)
+      toast.error(result.error)
       return
     }
     window.open(result.url, '_blank', 'noopener,noreferrer')
@@ -33,7 +32,6 @@ export default function AdminDocumentLink({ label, path }: { label: string; path
         <FileText className="size-3" aria-hidden="true" />
         {loading ? '...' : adminCopy.solicitudes.viewDocument}
       </button>
-      {error && <span className="text-destructive">{error}</span>}
     </p>
   )
 }
