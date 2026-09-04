@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import AvatarCropDialog from './AvatarCropDialog'
 
 const getCroppedBlobMock = vi.fn()
 vi.mock('@/lib/cropImage', () => ({
   getCroppedBlob: (...args: unknown[]) => getCroppedBlobMock(...args),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('react-easy-crop', () => ({
@@ -77,7 +82,7 @@ describe('AvatarCropDialog', () => {
     expect(screen.getByRole('button', { name: 'Usar foto' })).toBeDisabled()
   })
 
-  it('shows an error and does not call onConfirm when cropping fails', async () => {
+  it('shows an error toast and does not call onConfirm when cropping fails', async () => {
     getCroppedBlobMock.mockRejectedValue(new Error('boom'))
     const onConfirm = vi.fn()
     const user = userEvent.setup()
@@ -88,8 +93,8 @@ describe('AvatarCropDialog', () => {
     await user.click(screen.getByTestId('cropper-mock'))
     await user.click(screen.getByRole('button', { name: 'Usar foto' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'No se pudo recortar la imagen. Intenta de nuevo.',
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('No se pudo recortar la imagen. Intenta de nuevo.'),
     )
     expect(onConfirm).not.toHaveBeenCalled()
   })

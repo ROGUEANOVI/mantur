@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import PackagePrereservaForm from './PackagePrereservaForm'
 
 const createPackagePrereservaMock = vi.fn()
 
 vi.mock('@/app/(app)/reservas/actions', () => ({
   createPackagePrereserva: (formData: FormData) => createPackagePrereservaMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const PACKAGE_ID = '11111111-1111-1111-1111-111111111111'
@@ -105,7 +110,7 @@ describe('PackagePrereservaForm — form fields', () => {
     expect(fd.get('notes')).toBe('Llegamos en la tarde')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     createPackagePrereservaMock.mockResolvedValue({ error: 'Supera el cupo máximo disponible.' })
     const user = userEvent.setup()
     render(
@@ -114,7 +119,7 @@ describe('PackagePrereservaForm — form fields', () => {
 
     await user.click(screen.getByRole('button', { name: 'Solicitar disponibilidad' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Supera el cupo máximo disponible.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Supera el cupo máximo disponible.'))
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {
