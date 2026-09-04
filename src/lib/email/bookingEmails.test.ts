@@ -10,6 +10,8 @@ vi.mock('@/lib/email/resend', () => ({
 const {
   businessBookingConfirmedEmail,
   sendBusinessBookingConfirmedEmail,
+  guideBookingConfirmedEmail,
+  sendGuideBookingConfirmedEmail,
   packagePrereservaConfirmedEmail,
   sendPackagePrereservaConfirmedEmail,
   packagePrereservaCancelledEmail,
@@ -74,6 +76,59 @@ describe('sendBusinessBookingConfirmedEmail', () => {
   it('does not throw when Resend rejects the send', async () => {
     sendMock.mockRejectedValue(new Error('network error'))
     await expect(sendBusinessBookingConfirmedEmail('negocio@example.com', PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const GUIDE_PARAMS = {
+  tourName: 'Caminata a Los Pinos',
+  touristName: 'Prueba Wompi Sandbox',
+  bookingDate: '2026-09-05',
+  quantity: 2,
+  notes: null as string | null,
+}
+
+describe('guideBookingConfirmedEmail', () => {
+  it('includes the tour name, tourist name, formatted date, and quantity', () => {
+    const { subject, html } = guideBookingConfirmedEmail(GUIDE_PARAMS)
+    expect(subject).toBe('Nueva reserva confirmada en ManTur')
+    expect(html).toContain('Caminata a Los Pinos')
+    expect(html).toContain('Prueba Wompi Sandbox')
+    expect(html).toContain('sábado, 5 de septiembre de 2026')
+    expect(html).toContain('Personas:</strong> 2')
+    expect(html).toContain('https://mantur.co/mi-perfil-guia')
+  })
+
+  it('does not parse booking_date as UTC (no off-by-one day)', () => {
+    const { html } = guideBookingConfirmedEmail({ ...GUIDE_PARAMS, bookingDate: '2026-09-01' })
+    expect(html).toContain('1 de septiembre de 2026')
+  })
+
+  it('omits the notes block when notes is null', () => {
+    const { html } = guideBookingConfirmedEmail(GUIDE_PARAMS)
+    expect(html).not.toContain('Notas del turista')
+  })
+
+  it('includes the notes block, escaped, when notes is present', () => {
+    const { html } = guideBookingConfirmedEmail({ ...GUIDE_PARAMS, notes: 'Llegamos con <b>niños</b>' })
+    expect(html).toContain('Notas del turista')
+    expect(html).toContain('Llegamos con &lt;b&gt;niños&lt;/b&gt;')
+    expect(html).not.toContain('Llegamos con <b>niños</b>')
+  })
+})
+
+describe('sendGuideBookingConfirmedEmail', () => {
+  it('sends the email with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendGuideBookingConfirmedEmail('guia@example.com', GUIDE_PARAMS)
+
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'guia@example.com', subject: 'Nueva reserva confirmada en ManTur' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendGuideBookingConfirmedEmail('guia@example.com', GUIDE_PARAMS)).resolves.toBeUndefined()
   })
 })
 

@@ -6,12 +6,15 @@ const confirmVoidMock = vi.fn()
 const getUserByIdMock = vi.fn()
 const bookingSingleMock = vi.fn()
 const bookingDetailsSingleMock = vi.fn()
+const guideBookingDetailsSingleMock = vi.fn()
 const profileSingleMock = vi.fn()
 const contactDetailsMaybeSingleMock = vi.fn()
 const contactDetailsUpsertMock = vi.fn()
 const transactionsUpdateEqMock = vi.fn()
 const businessOwnerSingleMock = vi.fn()
+const guideOwnerSingleMock = vi.fn()
 const sendBusinessBookingConfirmedEmailMock = vi.fn()
+const sendGuideBookingConfirmedEmailMock = vi.fn()
 
 function makeRpcResult(result: { data: unknown; error: unknown }) {
   const promise = Promise.resolve(result)
@@ -26,14 +29,20 @@ const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
 
 const fromMock = vi.fn((table: string) => {
   if (table === 'bookings') {
-    // Two different queries hit `bookings` in the same webhook delivery:
-    // syncAlegraInvoice's `.select('tourist_id')` and
-    // notifyBusinessOfBooking's fuller `.select('service_id, ...')` —
-    // routed by columns since both share the same eq().single() shape.
+    // Three different queries hit `bookings` in the same webhook delivery:
+    // syncAlegraInvoice's `.select('tourist_id')`,
+    // notifyBusinessOfBooking's fuller `.select('service_id, ...')`, and
+    // notifyGuideOfBooking's `.select('guide_id, guide_tour_id, ...')` —
+    // routed by columns since all three share the same eq().single() shape.
     return {
       select: (columns: string) => ({
         eq: () => ({
-          single: () => (columns.includes('service_id') ? bookingDetailsSingleMock() : bookingSingleMock()),
+          single: () =>
+            columns.includes('service_id')
+              ? bookingDetailsSingleMock()
+              : columns.includes('guide_tour_id')
+                ? guideBookingDetailsSingleMock()
+                : bookingSingleMock(),
         }),
       }),
     }
@@ -43,6 +52,9 @@ const fromMock = vi.fn((table: string) => {
   }
   if (table === 'businesses') {
     return { select: () => ({ eq: () => ({ single: businessOwnerSingleMock }) }) }
+  }
+  if (table === 'tourist_guides') {
+    return { select: () => ({ eq: () => ({ single: guideOwnerSingleMock }) }) }
   }
   if (table === 'profile_contact_details') {
     return {
@@ -86,6 +98,7 @@ vi.mock('@/lib/email/refundEmails', () => ({
 
 vi.mock('@/lib/email/bookingEmails', () => ({
   sendBusinessBookingConfirmedEmail: (...args: unknown[]) => sendBusinessBookingConfirmedEmailMock(...args),
+  sendGuideBookingConfirmedEmail: (...args: unknown[]) => sendGuideBookingConfirmedEmailMock(...args),
 }))
 
 const findOrCreateContactMock = vi.fn()
@@ -139,6 +152,21 @@ beforeEach(() => {
     },
   })
   businessOwnerSingleMock.mockResolvedValue({ data: { owner_id: 'owner-1' } })
+  // Defaults for the guide booking-confirmation email path — mirrors the
+  // business defaults above; only exercised when a test sets guideId on
+  // approvedUpdateResult, since the default there is null.
+  guideBookingDetailsSingleMock.mockResolvedValue({
+    data: {
+      guide_id: 'guide-1',
+      guide_tour_id: 'tour-1',
+      booking_date: '2026-09-05',
+      quantity: 2,
+      notes: null,
+      tourist_id: 'tourist-1',
+      guide_tours: { name: 'Caminata a Los Pinos' },
+    },
+  })
+  guideOwnerSingleMock.mockResolvedValue({ data: { profile_id: 'guide-profile-1' } })
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'negocio@example.com' } } })
 })
 
@@ -731,6 +759,107 @@ describe('POST /api/webhooks/wompi — business booking-confirmation email on a 
   it('still returns 200 and does not throw when an unexpected error is thrown mid-notify', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1' }))
     bookingDetailsSingleMock.mockRejectedValue(new Error('db down'))
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('POST /api/webhooks/wompi — guide booking-confirmation email on a freshly-confirmed APPROVED payment', () => {
+  it('emails the guide with the tour, tourist name, date, and quantity', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
+    getUserByIdMock.mockResolvedValue({ data: { user: { email: 'guia@example.com' } } })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(guideOwnerSingleMock).toHaveBeenCalled()
+    expect(getUserByIdMock).toHaveBeenCalledWith('guide-profile-1')
+    expect(sendGuideBookingConfirmedEmailMock).toHaveBeenCalledWith('guia@example.com', {
+      tourName: 'Caminata a Los Pinos',
+      touristName: 'Prueba Wompi Sandbox',
+      bookingDate: '2026-09-05',
+      quantity: 2,
+      notes: null,
+    })
+  })
+
+  it('never emails when the confirmed booking is a business-service booking (no guide_tour_id)', async () => {
+    // guide_id is present here (unlike the real business-service case) so the
+    // call site actually enters notifyGuideOfBooking — this test targets its
+    // internal guide_tour_id guard specifically.
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
+    guideBookingDetailsSingleMock.mockResolvedValue({
+      data: { guide_id: 'guide-1', guide_tour_id: null, booking_date: '2026-09-05', quantity: 2, notes: null, tourist_id: 'tourist-1', guide_tours: null },
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendGuideBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('never emails when the booking row itself belongs to a different guide_id (defense-in-depth mismatch guard)', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
+    guideBookingDetailsSingleMock.mockResolvedValue({
+      data: {
+        guide_id: 'some-other-guide',
+        guide_tour_id: 'tour-1',
+        booking_date: '2026-09-05',
+        quantity: 2,
+        notes: null,
+        tourist_id: 'tourist-1',
+        guide_tours: { name: 'Caminata a Los Pinos' },
+      },
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendGuideBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('never attempts to email when guide_id is absent from the update result', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1', guideId: null }))
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(guideOwnerSingleMock).not.toHaveBeenCalled()
+    expect(sendGuideBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('never attempts to email when applied is false (duplicate/no-op webhook delivery)', async () => {
+    applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(sendGuideBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 without emailing when the guide has no resolvable profile', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
+    guideOwnerSingleMock.mockResolvedValue({ data: null })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendGuideBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 without emailing when the guide has no resolvable email', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
+    getUserByIdMock.mockResolvedValue({ data: { user: null } })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendGuideBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 and does not throw when an unexpected error is thrown mid-notify', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
+    guideBookingDetailsSingleMock.mockRejectedValue(new Error('db down'))
 
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
