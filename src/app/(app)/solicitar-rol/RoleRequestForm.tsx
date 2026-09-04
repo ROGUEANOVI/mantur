@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Store, Car, Compass, ChevronRight, ArrowLeft } from 'lucide-react'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { submitRoleRequest } from './actions'
@@ -54,6 +55,10 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
     },
     {},
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state.error])
 
   if (state.success) {
     return (
@@ -271,10 +276,6 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
         />
       </div>
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">{state.error}</p>
-      )}
 
       <button
         type="submit"

@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import AdminDocumentLink from './AdminDocumentLink'
 
 const getComplianceDocumentUrlMock = vi.fn()
 
 vi.mock('@/app/(app)/admin/actions', () => ({
   getComplianceDocumentUrl: (path: string) => getComplianceDocumentUrlMock(path),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const openMock = vi.fn()
@@ -28,14 +33,16 @@ describe('AdminDocumentLink', () => {
     expect(openMock).toHaveBeenCalledWith('https://signed.example/doc.pdf', '_blank', 'noopener,noreferrer')
   })
 
-  it('shows an inline error instead of opening a tab when the action fails', async () => {
+  it('shows a toast instead of opening a tab when the action fails', async () => {
     getComplianceDocumentUrlMock.mockResolvedValue({ error: 'No se pudo abrir el documento.' })
     const user = userEvent.setup()
     render(<AdminDocumentLink label="RNT" path="user-1/rnt-1.pdf" />)
 
     await user.click(screen.getByRole('button', { name: /ver documento/i }))
 
-    expect(await screen.findByText('No se pudo abrir el documento.')).toBeInTheDocument()
+    await vi.waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('No se pudo abrir el documento.')
+    })
     expect(openMock).not.toHaveBeenCalled()
   })
 })

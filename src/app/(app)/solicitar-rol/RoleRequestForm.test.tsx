@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import RoleRequestForm from './RoleRequestForm'
 
 const submitRoleRequestMock = vi.fn()
 
 vi.mock('./actions', () => ({
   submitRoleRequest: (formData: FormData) => submitRoleRequestMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('@/components/shared/LocationPicker', () => ({
@@ -108,7 +113,7 @@ describe('RoleRequestForm — step 2 shared behavior', () => {
     expect(container.querySelector('input[name="requested_role"]')).toHaveValue('tourist_guide')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error as a toast', async () => {
     submitRoleRequestMock.mockResolvedValue({ error: 'Completa todos los campos requeridos.' })
     const user = userEvent.setup()
     const { container } = render(<RoleRequestForm categories={CATEGORIES} />)
@@ -119,7 +124,9 @@ describe('RoleRequestForm — step 2 shared behavior', () => {
     await fillBusinessOwnerRnt(user)
     submitForm(container)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Completa todos los campos requeridos.')
+    await vi.waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Completa todos los campos requeridos.')
+    })
   })
 
   it('shows the pending status screen instead of the form after a successful submission', async () => {
