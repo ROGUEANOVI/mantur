@@ -46,7 +46,7 @@ export default function CreateServiceForm({ businessId, serviceTypes }: Props) {
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   const selectedType = serviceTypes.find((t) => t.id === selectedTypeId) ?? null
   const attributeFields = selectedType ? getAttributeFields(selectedType.slug) : []

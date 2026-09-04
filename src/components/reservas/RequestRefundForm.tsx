@@ -30,7 +30,7 @@ export default function RequestRefundForm({
 
   useEffect(() => {
     if (state?.error) toast.error(state.error)
-  }, [state?.error])
+  }, [state])
 
   if (!open) {
     return (

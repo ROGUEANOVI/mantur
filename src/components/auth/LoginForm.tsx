@@ -63,7 +63,7 @@ export default function LoginForm({
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   return (
     <div className="space-y-5">

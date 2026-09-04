@@ -42,7 +42,7 @@ export default function PackageItemsManager({ packageId, items, services, guideT
 
   useEffect(() => {
     if (state?.error) toast.error(state.error)
-  }, [state?.error])
+  }, [state])
 
   return (
     <div className="space-y-4">

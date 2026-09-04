@@ -39,7 +39,7 @@ export default function EditTourForm({ tourId, defaultValues }: Props) {
   useEffect(() => {
     if (state.error) toast.error(state.error)
     else if (state.saved) toast.success(copy.saved)
-  }, [state.error, state.saved])
+  }, [state])
 
   return (
     <form action={formAction} className="space-y-5" noValidate>

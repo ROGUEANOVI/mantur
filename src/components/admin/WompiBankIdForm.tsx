@@ -32,7 +32,7 @@ export default function WompiBankIdForm({ recipientType, recipientId, currentWom
   useEffect(() => {
     if (errorMsg) toast.error(errorMsg)
     else if (isSuccess) toast.success(adminCopy.payoutAccounts.success)
-  }, [errorMsg, isSuccess])
+  }, [state])
 
   return (
     <div className="space-y-2">

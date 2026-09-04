@@ -35,7 +35,7 @@ export default function RefundPolicyForm({ configId, minHoursBeforeBooking, curr
   useEffect(() => {
     if (errorMsg) toast.error(errorMsg)
     else if (isSuccess) toast.success(adminCopy.reembolsos.success)
-  }, [errorMsg, isSuccess])
+  }, [state])
 
   return (
     <div className="space-y-2">

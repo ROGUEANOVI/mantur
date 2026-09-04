@@ -41,7 +41,7 @@ export default function EditGuideProfileForm({
   useEffect(() => {
     if (state.error) toast.error(state.error)
     else if (state.saved) toast.success(copy.saved)
-  }, [state.error, state.saved])
+  }, [state])
 
   return (
     <form action={action} className="space-y-5">

@@ -24,7 +24,7 @@ export default function CreateTourForm() {
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   return (
     <form action={formAction} className="space-y-5" noValidate>

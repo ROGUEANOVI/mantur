@@ -58,7 +58,7 @@ export default function RoleRequestForm({ categories }: { categories: Category[]
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   if (state.success) {
     return (

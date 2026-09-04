@@ -67,7 +67,7 @@ export default function EditBusinessForm({
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   const copy = miNegocioCopy
 

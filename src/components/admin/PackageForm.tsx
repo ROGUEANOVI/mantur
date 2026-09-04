@@ -40,7 +40,7 @@ export default function PackageForm({ action, package: pkg }: Props) {
 
   useEffect(() => {
     if (errorMsg) toast.error(errorMsg)
-  }, [errorMsg])
+  }, [state])
 
   return (
     <form action={formAction} className="space-y-5">

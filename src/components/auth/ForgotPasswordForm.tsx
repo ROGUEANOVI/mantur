@@ -38,7 +38,7 @@ export default function ForgotPasswordForm({ authError }: { authError?: 'expired
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   if (state.emailSent) {
     return (

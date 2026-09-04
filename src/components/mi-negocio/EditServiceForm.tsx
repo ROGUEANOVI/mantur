@@ -51,7 +51,7 @@ export default function EditServiceForm({
   useEffect(() => {
     if (state.error) toast.error(state.error)
     else if (state.saved) toast.success(copy.services.saved)
-  }, [state.error, state.saved])
+  }, [state])
 
   const attributeFields = getAttributeFields(serviceTypeSlug)
 

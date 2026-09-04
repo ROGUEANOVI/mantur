@@ -44,7 +44,7 @@ export default function SignupForm() {
 
   useEffect(() => {
     if (state.error) toast.error(state.error)
-  }, [state.error])
+  }, [state])
 
   if (state.pendingConfirmation) {
     return (

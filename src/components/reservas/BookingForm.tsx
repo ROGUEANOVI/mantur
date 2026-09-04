@@ -52,7 +52,7 @@ export default function BookingForm({
 
   useEffect(() => {
     if (state?.error) toast.error(state.error)
-  }, [state?.error])
+  }, [state])
 
   function handleQuantityChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseInt(e.target.value, 10)

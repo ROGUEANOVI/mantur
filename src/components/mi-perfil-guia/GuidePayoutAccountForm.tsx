@@ -56,7 +56,7 @@ export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) 
   useEffect(() => {
     if (state.error) toast.error(state.error)
     else if (state.saved) toast.success(copy.saved)
-  }, [state.error, state.saved])
+  }, [state])
 
   // Submitting via onSubmit + a manual action() call (both supported ways to
   // invoke a useActionState action, per the React docs) rather than the
