@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { computeNetPayoutAmountCents, enqueueAndSendProviderPayout } from '@/lib/wompi/payouts'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
-import { sendBusinessBookingConfirmedEmail } from '@/lib/email/bookingEmails'
+import { sendBusinessBookingConfirmedEmail, sendGuideBookingConfirmedEmail } from '@/lib/email/bookingEmails'
 import { findOrCreateContact } from '@/lib/alegra/contacts'
 import { createCommissionInvoice } from '@/lib/alegra/invoices'
 import { estimateWompiFeeCents } from '@/lib/wompi/fees'
@@ -264,6 +264,66 @@ async function notifyBusinessOfBooking(
   }
 }
 
+// Notifies a tourist guide that their tour just got booked and paid.
+// Mirrors notifyBusinessOfBooking exactly, but resolves the recipient
+// through tourist_guides.profile_id instead of businesses.owner_id, since
+// a guide-tour booking has guide_id/guide_tour_id set (business_id/service_id
+// stay NULL — the two booking shapes are XOR at the DB level, so this and
+// notifyBusinessOfBooking never both fire for the same booking). The tour
+// booking form on /guias/[slug] is still directly bookable+payable today —
+// unlike business services, it was not disabled by the manual-ops pivot —
+// so this closes a real, live gap, not just a future one.
+async function notifyGuideOfBooking(
+  admin: AdminClient,
+  params: { bookingId: string; guideId: string },
+): Promise<void> {
+  try {
+    const { data: booking } = await admin
+      .from('bookings')
+      .select('guide_id, guide_tour_id, booking_date, quantity, notes, tourist_id, guide_tours(name)')
+      .eq('id', params.bookingId)
+      .single<{
+        guide_id: string | null
+        guide_tour_id: string | null
+        booking_date: string
+        quantity: number
+        notes: string | null
+        tourist_id: string
+        guide_tours: { name: string } | null
+      }>()
+
+    if (!booking || !booking.guide_tour_id || booking.guide_id !== params.guideId) return
+
+    const { data: guide } = await admin
+      .from('tourist_guides')
+      .select('profile_id')
+      .eq('id', params.guideId)
+      .single<{ profile_id: string }>()
+
+    if (!guide) return
+
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', booking.tourist_id)
+      .single<{ full_name: string | null }>()
+
+    const { data: guideUserData } = await admin.auth.admin.getUserById(guide.profile_id)
+    const guideEmail = guideUserData?.user?.email
+    if (!guideEmail) return
+
+    await sendGuideBookingConfirmedEmail(guideEmail, {
+      tourName: booking.guide_tours?.name ?? 'Tour',
+      touristName: touristProfile?.full_name ?? 'Un turista',
+      bookingDate: booking.booking_date,
+      quantity: booking.quantity,
+      notes: booking.notes,
+    })
+  } catch (error) {
+    console.error('Unexpected error while notifying guide of a new booking', error)
+  }
+}
+
 // The missing async confirmation for a same-day refund void: Wompi's own
 // void-request response doesn't reliably confirm VOIDED synchronously (see
 // the comment on voidWompiTransaction), so this is where that confirmation
@@ -460,6 +520,10 @@ export async function POST(request: Request) {
 
     if (updateResult.business_id) {
       await notifyBusinessOfBooking(admin, { bookingId, businessId: updateResult.business_id })
+    }
+
+    if (updateResult.guide_id) {
+      await notifyGuideOfBooking(admin, { bookingId, guideId: updateResult.guide_id })
     }
   }
 

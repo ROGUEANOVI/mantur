@@ -102,6 +102,54 @@ export async function sendBusinessBookingConfirmedEmail(
   }
 }
 
+export type GuideBookingConfirmedParams = {
+  tourName: string
+  touristName: string
+  bookingDate: string
+  quantity: number
+  notes: string | null
+}
+
+export function guideBookingConfirmedEmail(params: GuideBookingConfirmedParams): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      Tienes una nueva reserva confirmada para tu tour <strong>${escapeHtml(params.tourName)}</strong>.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Turista:</strong> ${escapeHtml(params.touristName)}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Fecha:</strong> ${formatBookingDate(params.bookingDate)}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      <strong>Personas:</strong> ${params.quantity}
+    </p>
+    ${
+      params.notes
+        ? `<p style="font-size: 14px; line-height: 1.6; margin: 12px 0 0; padding: 12px 16px; background: #f5faf7; border-radius: 12px;">
+             <strong>Notas del turista:</strong> ${escapeHtml(params.notes)}
+           </p>`
+        : ''
+    }
+    ${button('Ver mi panel', `${APP_URL}/mi-perfil-guia`)}
+  `)
+
+  return { subject: 'Nueva reserva confirmada en ManTur', html }
+}
+
+export async function sendGuideBookingConfirmedEmail(
+  to: string,
+  params: GuideBookingConfirmedParams,
+): Promise<void> {
+  const { subject, html } = guideBookingConfirmedEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send guide booking confirmed email', error)
+  }
+}
+
 // ── Package pre-reserva emails (Fase 4) ──────────────────────────────────────
 // Tourist-facing — the first tourist-facing emails in the app (every other
 // booking flow is WhatsApp-only since the manual-ops pivot, PR #110).
