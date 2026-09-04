@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import CommissionForm from './CommissionForm'
 
 const updateCommissionRateMock = vi.fn()
 
 vi.mock('@/app/(app)/admin/actions', () => ({
   updateCommissionRate: (formData: FormData) => updateCommissionRateMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const CONFIG_ID = '22222222-2222-2222-2222-222222222222'
@@ -42,29 +47,29 @@ describe('CommissionForm', () => {
     expect(fd.get('rate')).toBe('12.5')
   })
 
-  it('shows a success status message after a successful save', async () => {
+  it('shows a success toast after a successful save', async () => {
     updateCommissionRateMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
     render(<CommissionForm configId={CONFIG_ID} serviceType="business" currentRate={8} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Tasa actualizada correctamente.')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Tasa actualizada correctamente.'))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     updateCommissionRateMock.mockResolvedValue({ error: 'La tasa debe ser un número entre 0 y 100.' })
     const user = userEvent.setup()
     render(<CommissionForm configId={CONFIG_ID} serviceType="business" currentRate={8} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('La tasa debe ser un número entre 0 y 100.')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('La tasa debe ser un número entre 0 y 100.'))
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('does not render error or success when the action resolves with no value', async () => {
+  it('does not show a toast when the action resolves with no value', async () => {
     updateCommissionRateMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<CommissionForm configId={CONFIG_ID} serviceType="business" currentRate={8} />)
@@ -72,14 +77,14 @@ describe('CommissionForm', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
 
     await waitFor(() => expect(updateCommissionRateMock).toHaveBeenCalled())
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('renders neither status nor alert before submission', () => {
+  it('shows neither toast before submission', () => {
     render(<CommissionForm configId={CONFIG_ID} serviceType="business" currentRate={8} />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

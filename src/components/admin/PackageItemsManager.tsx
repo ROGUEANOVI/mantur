@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { X } from 'lucide-react'
+import { toast } from 'sonner'
 import { adminCopy } from '@/lib/copy/admin'
 import { addPackageItem, removePackageItem } from '@/app/(app)/admin/paquetes/actions'
 
@@ -38,6 +39,10 @@ export default function PackageItemsManager({ packageId, items, services, guideT
     const result = await addPackageItem(formData)
     return result ?? undefined
   }, undefined)
+
+  useEffect(() => {
+    if (state?.error) toast.error(state.error)
+  }, [state?.error])
 
   return (
     <div className="space-y-4">
@@ -148,12 +153,6 @@ export default function PackageItemsManager({ packageId, items, services, guideT
             />
           </div>
         </div>
-
-        {state?.error && (
-          <p className="text-sm font-medium text-destructive" role="alert">
-            {state.error}
-          </p>
-        )}
 
         <button
           type="submit"

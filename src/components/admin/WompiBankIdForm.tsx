@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { updateWompiBankId } from '@/app/(app)/admin/actions'
 import { adminCopy } from '@/lib/copy/admin'
 
@@ -27,6 +28,11 @@ export default function WompiBankIdForm({ recipientType, recipientId, currentWom
 
   const isSuccess = state && 'success' in state
   const errorMsg = state && 'error' in state ? state.error : null
+
+  useEffect(() => {
+    if (errorMsg) toast.error(errorMsg)
+    else if (isSuccess) toast.success(adminCopy.payoutAccounts.success)
+  }, [errorMsg, isSuccess])
 
   return (
     <div className="space-y-2">
@@ -57,17 +63,6 @@ export default function WompiBankIdForm({ recipientType, recipientId, currentWom
       </form>
 
       <p className="text-xs text-muted-foreground">{adminCopy.payoutAccounts.hint}</p>
-
-      {isSuccess && (
-        <p className="text-xs font-medium text-green-600 dark:text-green-400" role="status">
-          {adminCopy.payoutAccounts.success}
-        </p>
-      )}
-      {errorMsg && (
-        <p className="text-xs font-medium text-destructive" role="alert">
-          {errorMsg}
-        </p>
-      )}
     </div>
   )
 }

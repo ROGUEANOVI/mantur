@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { updateCommissionRate } from '@/app/(app)/admin/actions'
 import { adminCopy } from '@/lib/copy/admin'
 
@@ -30,6 +31,11 @@ export default function CommissionForm({ configId, serviceType, currentRate }: P
 
   const isSuccess = state && 'success' in state
   const errorMsg = state && 'error' in state ? state.error : null
+
+  useEffect(() => {
+    if (errorMsg) toast.error(errorMsg)
+    else if (isSuccess) toast.success(adminCopy.comisiones.success)
+  }, [errorMsg, isSuccess])
 
   return (
     <div className="space-y-2">
@@ -71,17 +77,6 @@ export default function CommissionForm({ configId, serviceType, currentRate }: P
           : adminCopy.comisiones.save}
       </button>
     </form>
-
-    {isSuccess && (
-      <p className="text-xs font-medium text-green-600 dark:text-green-400" role="status">
-        {adminCopy.comisiones.success}
-      </p>
-    )}
-    {errorMsg && (
-      <p className="text-xs font-medium text-destructive" role="alert">
-        {errorMsg}
-      </p>
-    )}
     </div>
   )
 }

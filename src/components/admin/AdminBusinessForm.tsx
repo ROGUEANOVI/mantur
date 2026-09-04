@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { adminCopy } from '@/lib/copy/admin'
 import { businessesCopy } from '@/lib/copy/businesses'
 import { normalizeColombianPhone } from '@/lib/phone'
@@ -45,19 +46,13 @@ export default function AdminBusinessForm({ action, owners }: Props) {
   const isError = state && 'error' in state
   const isSuccess = state && 'success' in state
 
+  useEffect(() => {
+    if (isError) toast.error(state.error)
+    else if (isSuccess) toast.success('Negocio creado correctamente.')
+  }, [isError, isSuccess, state])
+
   return (
     <form action={formAction} className="space-y-4">
-      {isError && (
-        <p className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
-      {isSuccess && (
-        <p className="rounded-xl bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400">
-          Negocio creado correctamente.
-        </p>
-      )}
-
       <div className="space-y-1.5">
         <label className="block text-sm font-medium text-foreground" htmlFor="name">
           {copy.name}

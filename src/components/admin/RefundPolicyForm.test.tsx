@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import RefundPolicyForm from './RefundPolicyForm'
 
 const updateRefundPolicyRateMock = vi.fn()
 
 vi.mock('@/app/(app)/admin/reembolsos/actions', () => ({
   updateRefundPolicyRate: (formData: FormData) => updateRefundPolicyRateMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const CONFIG_ID = '22222222-2222-2222-2222-222222222222'
@@ -42,29 +47,31 @@ describe('RefundPolicyForm', () => {
     expect(fd.get('rate')).toBe('60')
   })
 
-  it('shows a success status message after a successful save', async () => {
+  it('shows a success toast after a successful save', async () => {
     updateRefundPolicyRateMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
     render(<RefundPolicyForm configId={CONFIG_ID} minHoursBeforeBooking={0} currentRate={0} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Ventana actualizada correctamente.')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Ventana actualizada correctamente.'))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     updateRefundPolicyRateMock.mockResolvedValue({ error: 'El porcentaje debe ser un número entre 0 y 100.' })
     const user = userEvent.setup()
     render(<RefundPolicyForm configId={CONFIG_ID} minHoursBeforeBooking={0} currentRate={0} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('El porcentaje debe ser un número entre 0 y 100.')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('El porcentaje debe ser un número entre 0 y 100.'),
+    )
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('does not render error or success when the action resolves with no value', async () => {
+  it('does not show a toast when the action resolves with no value', async () => {
     updateRefundPolicyRateMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<RefundPolicyForm configId={CONFIG_ID} minHoursBeforeBooking={0} currentRate={0} />)
@@ -72,8 +79,8 @@ describe('RefundPolicyForm', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
 
     await waitFor(() => expect(updateRefundPolicyRateMock).toHaveBeenCalled())
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

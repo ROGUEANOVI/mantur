@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import AdminBusinessForm from './AdminBusinessForm'
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}))
 
 vi.mock('@/components/shared/LocationPicker', () => ({
   default: ({ defaultLat, defaultLng }: { defaultLat: number | null; defaultLng: number | null }) => (
@@ -63,7 +68,7 @@ describe('AdminBusinessForm', () => {
     expect(fd.get('phone')).toBe('3001234567')
   })
 
-  it('shows a success message when the action succeeds', async () => {
+  it('shows a success toast when the action succeeds', async () => {
     const action = vi.fn().mockResolvedValue({ success: true })
     const user = userEvent.setup()
     render(<AdminBusinessForm action={action} owners={OWNERS} />)
@@ -73,10 +78,10 @@ describe('AdminBusinessForm', () => {
     await user.selectOptions(screen.getByLabelText('Propietario'), 'owner-1')
     await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
 
-    expect(await screen.findByText('Negocio creado correctamente.')).toBeInTheDocument()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Negocio creado correctamente.'))
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     // Simulates a server-side rejection (e.g. duplicate/invalid data) on an
     // otherwise client-valid submission — the client `required` attributes
     // don't guarantee server acceptance.
@@ -89,10 +94,10 @@ describe('AdminBusinessForm', () => {
     await user.selectOptions(screen.getByLabelText('Propietario'), 'owner-1')
     await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
 
-    expect(await screen.findByText('Error al crear el negocio. Intenta de nuevo.')).toBeInTheDocument()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Error al crear el negocio. Intenta de nuevo.'))
   })
 
-  it('does not render error or success when the action resolves with no value', async () => {
+  it('does not show a toast when the action resolves with no value', async () => {
     const action = vi.fn().mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<AdminBusinessForm action={action} owners={OWNERS} />)
@@ -103,7 +108,8 @@ describe('AdminBusinessForm', () => {
     await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
 
     await waitFor(() => expect(action).toHaveBeenCalled())
-    expect(screen.queryByText('Negocio creado correctamente.')).not.toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('renders a cancel link back to the business list', () => {
