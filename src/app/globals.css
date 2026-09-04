@@ -148,6 +148,14 @@
   html {
     @apply font-sans;
     }
+  /* Tailwind's preflight resets native <button>/[role=button] cursor to
+     `default`, dropping the browser's own pointer affordance. Restore it
+     globally instead of adding `cursor-pointer` to every button one by
+     one — shadcn's Button already sets it explicitly too, which is
+     harmless overlap. */
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }
 
 /* Respect the OS-level motion preference everywhere, regardless of which
