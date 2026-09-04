@@ -10,6 +10,7 @@ import {
   sendPackagePrereservaCancelledEmail,
   sendPackageBookingPaidEmail,
 } from '@/lib/email/bookingEmails'
+import { enqueueAndSendProviderPayout } from '@/lib/wompi/payouts'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // Only 'business'/'guide' are actually producible by a package_item today
@@ -202,6 +203,54 @@ export async function cancelPackagePrereserva(formData: FormData): Promise<{ err
   revalidatePath('/admin/paquetes/solicitudes')
 }
 
+// Fase 5: una fila de provider_payouts por cada proveedor ÚNICO de
+// package_items del paquete, pagando la suma de sus internal_cost_cents —
+// no un split de comisión (packages no usan commission_config; el margen de
+// ManTur ya vive en base_price - Σinternal_cost_cents). package_items no
+// tiene ninguna restricción que impida dos filas del mismo proveedor en un
+// mismo paquete (ej. "desayuno" + "almuerzo" del mismo negocio) — la
+// constraint UNIQUE(transaction_id, recipient_type, recipient_id) de
+// provider_payouts encolaría la segunda como conflicto y la perdería en
+// silencio si se llamara una vez por item, así que se agrupa y suma ANTES
+// de encolar: como máximo una llamada por proveedor. Nunca falla la acción
+// de "marcar pagada" — errores solo se loguean, misma postura que el envío
+// de correo justo al lado (enqueueAndSendProviderPayout ya no lanza
+// excepciones).
+async function payoutPackageProviders(
+  admin: ReturnType<typeof createAdminClient>,
+  packageId: string,
+  transactionId: string,
+): Promise<void> {
+  const { data: items } = await admin
+    .from('package_items')
+    .select('internal_cost_cents, services(business_id), guide_tours(guide_id)')
+    .eq('package_id', packageId)
+
+  const amountByProvider = new Map<string, { recipientType: 'business' | 'guide'; recipientId: string; amountCents: number }>()
+
+  for (const item of (items ?? []) as unknown as {
+    internal_cost_cents: number
+    services: { business_id: string } | null
+    guide_tours: { guide_id: string } | null
+  }[]) {
+    const recipientType = item.services ? 'business' : 'guide'
+    const recipientId = item.services ? item.services.business_id : item.guide_tours?.guide_id
+    if (!recipientId) continue
+
+    const key = `${recipientType}:${recipientId}`
+    const existing = amountByProvider.get(key)
+    amountByProvider.set(key, {
+      recipientType,
+      recipientId,
+      amountCents: (existing?.amountCents ?? 0) + item.internal_cost_cents,
+    })
+  }
+
+  for (const provider of amountByProvider.values()) {
+    await enqueueAndSendProviderPayout(admin, { transactionId, ...provider })
+  }
+}
+
 export async function markPackageBookingPaid(formData: FormData): Promise<{ error: string } | void> {
   const { admin } = await getAuthenticatedAdmin()
   const copy = adminCopy.paquetes.solicitudes.errors
@@ -217,6 +266,18 @@ export async function markPackageBookingPaid(formData: FormData): Promise<{ erro
   if (rpcError) {
     if (rpcError.message === 'invalid_booking_state') return { error: copy.invalidBookingState }
     return { error: copy.generic }
+  }
+
+  const { data: transaction } = await admin
+    .from('transactions')
+    .select('id')
+    .eq('booking_id', bookingId)
+    .maybeSingle()
+
+  if (transaction?.id) {
+    await payoutPackageProviders(admin, booking.package_id, transaction.id)
+  } else {
+    console.error('markPackageBookingPaid: no transaction found to pay providers out from', { bookingId })
   }
 
   const email = await getTouristEmail(admin, booking.tourist_id)

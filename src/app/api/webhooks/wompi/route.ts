@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { computeNetPayoutAmountCents, sendProviderPayout, resolvePayoutAccount } from '@/lib/wompi/payouts'
+import { computeNetPayoutAmountCents, enqueueAndSendProviderPayout } from '@/lib/wompi/payouts'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
 import { sendBusinessBookingConfirmedEmail } from '@/lib/email/bookingEmails'
 import { findOrCreateContact } from '@/lib/alegra/contacts'
@@ -13,12 +13,12 @@ type AdminClient = ReturnType<typeof createAdminClient>
 const APPLICABLE_STATUSES = new Set(['APPROVED', 'DECLINED', 'ERROR', 'VOIDED', 'PENDING'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Resolves the recipient's stored bank details and attempts the actual
-// Wompi Payouts call. Deliberately never throws and never affects the
-// webhook's own HTTP response — the payment was already confirmed by the
-// caller before this runs, so a payout failure here is a ledger entry for
-// admin follow-up (provider_payouts.status = 'failed'), not a reason to make
-// Wompi retry a webhook whose payment-confirmation half already succeeded.
+// Resolves business_id/guide_id into recipientType/recipientId and the net
+// (amount minus commission) amount owed, then delegates to the shared
+// enqueue+send helper in @/lib/wompi/payouts — also used by the package
+// "marcar como pagada" admin action, which computes its own amountCents
+// (internal_cost_cents per provider, no commission split) and calls that
+// helper directly instead of going through this wrapper.
 async function enqueueAndSendPayout(
   admin: AdminClient,
   params: {
@@ -29,90 +29,21 @@ async function enqueueAndSendPayout(
     commissionAmountCents: number
   },
 ): Promise<void> {
-  try {
-    const recipientType = params.businessId ? 'business' : params.guideId ? 'guide' : null
-    const recipientId = params.businessId ?? params.guideId
-    if (!recipientType || !recipientId) {
-      console.error('Wompi webhook: paid transaction has no business_id or guide_id to pay out to', {
-        transactionId: params.transactionId,
-      })
-      return
-    }
-
-    const amountCents = computeNetPayoutAmountCents(params.amountInCents, params.commissionAmountCents)
-
-    // A 100%-commission service type would legitimately owe the recipient
-    // nothing — that is a valid outcome, not a failure, and must not be
-    // logged as one (provider_payouts.amount_cents has its own `> 0` CHECK,
-    // which would otherwise turn this into a generic-looking enqueue error).
-    if (amountCents <= 0) return
-
-    const { data: enqueued, error: enqueueError } = await admin
-      .rpc('enqueue_provider_payout', {
-        p_transaction_id: params.transactionId,
-        p_recipient_type: recipientType,
-        p_recipient_id: recipientId,
-        p_amount_cents: amountCents,
-      })
-      .single<{ id: string; status: string; is_new: boolean }>()
-
-    if (enqueueError || !enqueued) {
-      console.error('Failed to enqueue provider payout', enqueueError)
-      return
-    }
-
-    // Atomically claim the row before calling Wompi — a plain status read
-    // here (the original implementation) left no DB-level exclusion between
-    // this webhook delivery and a concurrent admin retry both reaching
-    // sendProviderPayout() for the same row while it sat at 'pending' for
-    // the full duration of the outbound call. claim_provider_payout_for_send
-    // is shared with the admin retry action (src/app/(app)/admin/pagos-
-    // proveedores/actions.ts) for exactly this reason — p_admin_id is
-    // omitted here (defaults to NULL) since no admin is involved in the
-    // automatic path. 0 rows (no error) means a previous attempt already
-    // sent/failed it, or a concurrent claimant won the race — either way,
-    // nothing left to do. A genuine RPC error is logged separately so it's
-    // distinguishable from that ordinary no-op case.
-    const { data: claimed, error: claimError } = await admin
-      .rpc('claim_provider_payout_for_send', { p_payout_id: enqueued.id })
-      .single<{ transaction_id: string; recipient_type: string; recipient_id: string; amount_cents: number }>()
-
-    if (claimError) {
-      console.error('Failed to claim provider payout for automatic send', claimError)
-      return
-    }
-    if (!claimed) return
-
-    const recipient = await resolvePayoutAccount(admin, recipientType, recipientId)
-
-    if (!recipient) {
-      await admin.rpc('mark_provider_payout_result', {
-        p_payout_id: enqueued.id,
-        p_status: 'failed',
-        p_error_message: `no payout account configured for ${recipientType} ${recipientId}`,
-      })
-      return
-    }
-
-    const result = await sendProviderPayout({ idempotencyKey: enqueued.id, amountCents, recipient })
-
-    if (result.ok) {
-      await admin.rpc('mark_provider_payout_result', {
-        p_payout_id: enqueued.id,
-        p_status: 'sent',
-        p_wompi_payout_id: result.wompiPayoutId,
-      })
-    } else {
-      console.error('Wompi Payouts API call failed', result.error)
-      await admin.rpc('mark_provider_payout_result', {
-        p_payout_id: enqueued.id,
-        p_status: 'failed',
-        p_error_message: result.error,
-      })
-    }
-  } catch (error) {
-    console.error('Unexpected error while processing a provider payout', error)
+  const recipientType = params.businessId ? 'business' : params.guideId ? 'guide' : null
+  const recipientId = params.businessId ?? params.guideId
+  if (!recipientType || !recipientId) {
+    console.error('Wompi webhook: paid transaction has no business_id or guide_id to pay out to', {
+      transactionId: params.transactionId,
+    })
+    return
   }
+
+  await enqueueAndSendProviderPayout(admin, {
+    transactionId: params.transactionId,
+    recipientType,
+    recipientId,
+    amountCents: computeNetPayoutAmountCents(params.amountInCents, params.commissionAmountCents),
+  })
 }
 
 // Wompi puts the payer's identity document in a different place depending

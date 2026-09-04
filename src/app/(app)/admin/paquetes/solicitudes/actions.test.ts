@@ -38,6 +38,7 @@ const getUserByIdMock = vi.fn()
 const confirmRpcMock = vi.fn()
 const markPaidRpcMock = vi.fn()
 const packageItemsSelectMock = vi.fn()
+const transactionMaybeSingleMock = vi.fn()
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
@@ -60,6 +61,9 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'package_items') {
         return { select: () => ({ eq: () => packageItemsSelectMock() }) }
       }
+      if (table === 'transactions') {
+        return { select: () => ({ eq: () => ({ maybeSingle: transactionMaybeSingleMock }) }) }
+      }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
     rpc: (fn: string, args: Record<string, unknown>) => {
@@ -69,6 +73,11 @@ vi.mock('@/lib/supabase/admin', () => ({
     },
     auth: { admin: { getUserById: (id: string) => getUserByIdMock(id) } },
   })),
+}))
+
+const enqueueAndSendProviderPayoutMock = vi.fn()
+vi.mock('@/lib/wompi/payouts', () => ({
+  enqueueAndSendProviderPayout: (...args: unknown[]) => enqueueAndSendProviderPayoutMock(...args),
 }))
 
 const sendConfirmedMock = vi.fn()
@@ -117,6 +126,7 @@ beforeEach(() => {
   packageItemsSelectMock.mockResolvedValue({
     data: [{ services: { business_id: PROVIDER_ID }, guide_tours: null }],
   })
+  transactionMaybeSingleMock.mockResolvedValue({ data: { id: 'tx-1' } })
 })
 
 describe('getAuthenticatedAdmin guard (shared by every action in this file)', () => {
@@ -352,5 +362,107 @@ describe('markPackageBookingPaid', () => {
       bookingId: BOOKING_ID,
     })
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/paquetes/solicitudes')
+  })
+
+  describe('provider payouts (Fase 5)', () => {
+    it('pays out a business provider using the package_item\'s own internal_cost_cents', async () => {
+      markPaidRpcMock.mockResolvedValue({ error: null })
+      packageItemsSelectMock.mockResolvedValue({
+        data: [{ internal_cost_cents: 6000000, services: { business_id: PROVIDER_ID }, guide_tours: null }],
+      })
+
+      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+
+      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(expect.anything(), {
+        transactionId: 'tx-1',
+        recipientType: 'business',
+        recipientId: PROVIDER_ID,
+        amountCents: 6000000,
+      })
+    })
+
+    it('pays out a guide provider resolved via guide_tours.guide_id', async () => {
+      markPaidRpcMock.mockResolvedValue({ error: null })
+      packageItemsSelectMock.mockResolvedValue({
+        data: [{ internal_cost_cents: 4000000, services: null, guide_tours: { guide_id: 'guide-1' } }],
+      })
+
+      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+
+      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ recipientType: 'guide', recipientId: 'guide-1' }),
+      )
+    })
+
+    it('pays out every package_item independently — one call per provider, same transaction', async () => {
+      markPaidRpcMock.mockResolvedValue({ error: null })
+      packageItemsSelectMock.mockResolvedValue({
+        data: [
+          { internal_cost_cents: 6000000, services: { business_id: 'biz-a' }, guide_tours: null },
+          { internal_cost_cents: 3000000, services: null, guide_tours: { guide_id: 'guide-b' } },
+        ],
+      })
+
+      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+
+      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledTimes(2)
+      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ recipientType: 'business', recipientId: 'biz-a', amountCents: 6000000 }),
+      )
+      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ recipientType: 'guide', recipientId: 'guide-b', amountCents: 3000000 }),
+      )
+    })
+
+    it('sums internal_cost_cents into a single payout when two items of the same package point at the same provider', async () => {
+      markPaidRpcMock.mockResolvedValue({ error: null })
+      packageItemsSelectMock.mockResolvedValue({
+        data: [
+          { internal_cost_cents: 6000000, services: { business_id: PROVIDER_ID }, guide_tours: null },
+          { internal_cost_cents: 2000000, services: { business_id: PROVIDER_ID }, guide_tours: null },
+        ],
+      })
+
+      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+
+      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledTimes(1)
+      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(expect.anything(), {
+        transactionId: 'tx-1',
+        recipientType: 'business',
+        recipientId: PROVIDER_ID,
+        amountCents: 8000000,
+      })
+    })
+
+    it('logs and still succeeds (email still sent) when no transaction can be found to pay providers out from', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      markPaidRpcMock.mockResolvedValue({ error: null })
+      transactionMaybeSingleMock.mockResolvedValue({ data: null })
+
+      const result = await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+
+      expect(result).toBeUndefined()
+      expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
+      expect(sendPaidMock).toHaveBeenCalled()
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'markPackageBookingPaid: no transaction found to pay providers out from',
+        { bookingId: BOOKING_ID },
+      )
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('skips a package_item with no resolvable provider instead of calling the payout helper with an undefined recipient', async () => {
+      markPaidRpcMock.mockResolvedValue({ error: null })
+      packageItemsSelectMock.mockResolvedValue({
+        data: [{ internal_cost_cents: 1000000, services: null, guide_tours: null }],
+      })
+
+      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+
+      expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
+    })
   })
 })

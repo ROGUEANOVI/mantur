@@ -2,10 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHash } from 'crypto'
 
 const applyUpdateMock = vi.fn()
-const enqueuePayoutMock = vi.fn()
-const claimPayoutForSendMock = vi.fn()
-const markPayoutResultMock = vi.fn()
-const payoutAccountMaybeSingle = vi.fn()
 const confirmVoidMock = vi.fn()
 const getUserByIdMock = vi.fn()
 const bookingSingleMock = vi.fn()
@@ -24,17 +20,11 @@ function makeRpcResult(result: { data: unknown; error: unknown }) {
 
 const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
   if (fn === 'apply_wompi_webhook_transaction_update') return makeRpcResult(applyUpdateMock(args))
-  if (fn === 'enqueue_provider_payout') return makeRpcResult(enqueuePayoutMock(args))
-  if (fn === 'claim_provider_payout_for_send') return makeRpcResult(claimPayoutForSendMock(args))
-  if (fn === 'mark_provider_payout_result') return makeRpcResult(markPayoutResultMock(args))
   if (fn === 'confirm_refund_request_void_by_wompi_reference') return makeRpcResult(confirmVoidMock(args))
   throw new Error(`unexpected rpc: ${fn}`)
 })
 
 const fromMock = vi.fn((table: string) => {
-  if (table === 'business_payout_accounts' || table === 'tourist_guide_payout_accounts') {
-    return { select: () => ({ eq: () => ({ maybeSingle: payoutAccountMaybeSingle }) }) }
-  }
   if (table === 'bookings') {
     // Two different queries hit `bookings` in the same webhook delivery:
     // syncAlegraInvoice's `.select('tourist_id')` and
@@ -74,12 +64,18 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
-const sendProviderPayoutMock = vi.fn()
+// enqueueAndSendProviderPayout's own internals (enqueue/claim/resolve
+// account/send/mark) are tested exhaustively in src/lib/wompi/payouts.test.ts
+// now that the logic lives there — this file only needs to verify the
+// wrapper resolves business_id/guide_id and the net amount correctly
+// before delegating, so the shared function is mocked as a black box.
+const enqueueAndSendProviderPayoutMock = vi.fn()
 vi.mock('@/lib/wompi/payouts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/wompi/payouts')>()
   return {
     ...actual,
-    sendProviderPayout: (...args: Parameters<typeof actual.sendProviderPayout>) => sendProviderPayoutMock(...args),
+    enqueueAndSendProviderPayout: (...args: Parameters<typeof actual.enqueueAndSendProviderPayout>) =>
+      enqueueAndSendProviderPayoutMock(...args),
   }
 })
 
@@ -114,14 +110,6 @@ beforeEach(() => {
   // Default: no update applied, so payout code paths don't fire unless a
   // test explicitly opts in via applyUpdateMock.mockReturnValue(...).
   applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
-  // Default: the atomic post-enqueue claim succeeds (its own returned row
-  // data is unused by the webhook route — only truthiness gates whether it
-  // proceeds — so a fixed dummy payload is fine for every test that isn't
-  // specifically exercising the claim step itself).
-  claimPayoutForSendMock.mockReturnValue({
-    data: { transaction_id: 'tx-1', recipient_type: 'business', recipient_id: 'biz-1', amount_cents: 1 },
-    error: null,
-  })
   // Default: no matching refund_requests row awaiting void confirmation.
   confirmVoidMock.mockReturnValue({
     data: { confirmed: false, refund_request_id: null, requested_by: null, refund_amount_cents: null, bookkeeping_mismatch: false },
@@ -246,17 +234,6 @@ function approvedUpdateResult(overrides: Partial<{
   }
 }
 
-const PAYOUT_ACCOUNT_ROW = {
-  bank_name: 'Bancolombia',
-  wompi_bank_id: 'bank-uuid-1',
-  account_type: 'ahorros',
-  account_number: '00011122233',
-  holder_id_type: 'NIT',
-  holder_id_number: '900123456',
-  holder_name: 'Finca El Paraíso',
-  holder_email: 'finca@example.com',
-}
-
 describe('POST /api/webhooks/wompi — signature/status handling', () => {
   it('returns 500 and never calls the RPC when WOMPI_EVENTS_SECRET is not configured', async () => {
     delete process.env.WOMPI_EVENTS_SECRET
@@ -373,150 +350,46 @@ describe('POST /api/webhooks/wompi — signature/status handling', () => {
     const res = await POST(postRequest(buildEvent({ status })))
     expect(res.status).toBe(200)
     expect(applyUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ p_wompi_status: status }))
-    expect(enqueuePayoutMock).not.toHaveBeenCalled()
+    expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
   })
 })
 
+// enqueueAndSendProviderPayout's own internals are tested exhaustively in
+// src/lib/wompi/payouts.test.ts (it's mocked as a black box here) — this
+// only covers the wrapper's own job: resolving business_id/guide_id into
+// recipientType/recipientId and computing the net payout amount before
+// delegating.
 describe('POST /api/webhooks/wompi — provider payout on a freshly-confirmed APPROVED payment', () => {
-  it('does not enqueue a payout when applied is false (duplicate/no-op delivery), even for an APPROVED status', async () => {
+  it('does not call enqueueAndSendProviderPayout when applied is false (duplicate/no-op delivery), even for an APPROVED status', async () => {
     applyUpdateMock.mockReturnValue({ data: { applied: false }, error: null })
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
     expect(res.status).toBe(200)
-    expect(enqueuePayoutMock).not.toHaveBeenCalled()
+    expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
   })
 
-  it('enqueues a business payout with the net amount (amount minus commission) when business_id is set', async () => {
+  it('resolves a business recipient with the net amount (amount minus commission) when business_id is set', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1', amountInCents: 100000, commissionAmountCents: 10000 }))
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-1', status: 'pending', is_new: true }, error: null })
-    payoutAccountMaybeSingle.mockResolvedValue({ data: PAYOUT_ACCOUNT_ROW, error: null })
-    sendProviderPayoutMock.mockResolvedValue({ ok: true, wompiPayoutId: 'wompi-payout-1' })
 
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
     expect(res.status).toBe(200)
-    expect(enqueuePayoutMock).toHaveBeenCalledWith({
-      p_transaction_id: 'tx-1',
-      p_recipient_type: 'business',
-      p_recipient_id: 'biz-1',
-      p_amount_cents: 90000,
+    expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(expect.anything(), {
+      transactionId: 'tx-1',
+      recipientType: 'business',
+      recipientId: 'biz-1',
+      amountCents: 90000,
     })
-    expect(fromMock).toHaveBeenCalledWith('business_payout_accounts')
   })
 
-  it('enqueues a guide payout when business_id is null and guide_id is set', async () => {
+  it('resolves a guide recipient when business_id is null and guide_id is set', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-2', status: 'pending', is_new: true }, error: null })
-    payoutAccountMaybeSingle.mockResolvedValue({ data: PAYOUT_ACCOUNT_ROW, error: null })
-    sendProviderPayoutMock.mockResolvedValue({ ok: true, wompiPayoutId: 'wompi-payout-2' })
 
     await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
-    expect(enqueuePayoutMock).toHaveBeenCalledWith(expect.objectContaining({ p_recipient_type: 'guide', p_recipient_id: 'guide-1' }))
-    expect(fromMock).toHaveBeenCalledWith('tourist_guide_payout_accounts')
-  })
-
-  it('sends the payout via sendProviderPayout using the enqueued payout id as the idempotency key, then marks it sent', async () => {
-    applyUpdateMock.mockReturnValue(approvedUpdateResult())
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-3', status: 'pending', is_new: true }, error: null })
-    payoutAccountMaybeSingle.mockResolvedValue({ data: PAYOUT_ACCOUNT_ROW, error: null })
-    sendProviderPayoutMock.mockResolvedValue({ ok: true, wompiPayoutId: 'wompi-payout-3' })
-
-    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
-
-    expect(sendProviderPayoutMock).toHaveBeenCalledWith({
-      idempotencyKey: 'payout-3',
-      amountCents: 45000,
-      recipient: {
-        legalIdType: 'NIT',
-        legalId: '900123456',
-        wompiBankId: 'bank-uuid-1',
-        accountType: 'ahorros',
-        accountNumber: '00011122233',
-        name: 'Finca El Paraíso',
-        email: 'finca@example.com',
-      },
-    })
-    expect(markPayoutResultMock).toHaveBeenCalledWith({
-      p_payout_id: 'payout-3',
-      p_status: 'sent',
-      p_wompi_payout_id: 'wompi-payout-3',
-    })
-  })
-
-  it('marks the payout failed (without affecting the webhook response) when sendProviderPayout fails', async () => {
-    applyUpdateMock.mockReturnValue(approvedUpdateResult())
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-4', status: 'pending', is_new: true }, error: null })
-    payoutAccountMaybeSingle.mockResolvedValue({ data: PAYOUT_ACCOUNT_ROW, error: null })
-    sendProviderPayoutMock.mockResolvedValue({ ok: false, error: 'Wompi Payouts API returned 422' })
-
-    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
-
-    expect(res.status).toBe(200)
-    expect(markPayoutResultMock).toHaveBeenCalledWith({
-      p_payout_id: 'payout-4',
-      p_status: 'failed',
-      p_error_message: 'Wompi Payouts API returned 422',
-    })
-  })
-
-  it('marks the payout failed and never calls sendProviderPayout when no payout account is configured for the recipient', async () => {
-    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-2' }))
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-5', status: 'pending', is_new: true }, error: null })
-    payoutAccountMaybeSingle.mockResolvedValue({ data: null, error: null })
-
-    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
-
-    expect(res.status).toBe(200)
-    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
-    expect(markPayoutResultMock).toHaveBeenCalledWith({
-      p_payout_id: 'payout-5',
-      p_status: 'failed',
-      p_error_message: 'no payout account configured for business biz-2',
-    })
-  })
-
-  it('does not attempt to send again when the payout row already exists with a non-pending status (a retried webhook for an already-processed payment)', async () => {
-    applyUpdateMock.mockReturnValue(approvedUpdateResult())
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-6', status: 'sent', is_new: false }, error: null })
-    // The atomic claim's WHERE (status IN ('pending','failed')) is what
-    // actually enforces this now — a 'sent' row finds 0 matching rows.
-    claimPayoutForSendMock.mockReturnValue({ data: null, error: null })
-
-    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
-
-    expect(res.status).toBe(200)
-    expect(claimPayoutForSendMock).toHaveBeenCalledWith({ p_payout_id: 'payout-6' })
-    expect(fromMock).not.toHaveBeenCalledWith('business_payout_accounts')
-    expect(fromMock).not.toHaveBeenCalledWith('tourist_guide_payout_accounts')
-    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
-  })
-
-  it('does not attempt to send when a concurrent claimant (e.g. an admin retry) already won the claim race', async () => {
-    applyUpdateMock.mockReturnValue(approvedUpdateResult())
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-7', status: 'pending', is_new: true }, error: null })
-    claimPayoutForSendMock.mockReturnValue({ data: null, error: null })
-
-    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
-
-    expect(res.status).toBe(200)
-    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
-    expect(markPayoutResultMock).not.toHaveBeenCalled()
-  })
-
-  it('logs and does not attempt to send when the claim RPC itself errors (distinct from an ordinary lost-race no-op)', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    applyUpdateMock.mockReturnValue(approvedUpdateResult())
-    enqueuePayoutMock.mockReturnValue({ data: { id: 'payout-8', status: 'pending', is_new: true }, error: null })
-    claimPayoutForSendMock.mockReturnValue({ data: null, error: { message: 'connection reset' } })
-
-    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
-
-    expect(res.status).toBe(200)
-    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to claim provider payout for automatic send', {
-      message: 'connection reset',
-    })
-    consoleErrorSpy.mockRestore()
+    expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ recipientType: 'guide', recipientId: 'guide-1' }),
+    )
   })
 
   it('logs and skips payout processing (still returns 200) when neither business_id nor guide_id is present', async () => {
@@ -525,26 +398,16 @@ describe('POST /api/webhooks/wompi — provider payout on a freshly-confirmed AP
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
     expect(res.status).toBe(200)
-    expect(enqueuePayoutMock).not.toHaveBeenCalled()
+    expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
   })
 
-  it('skips enqueueing entirely (not an error) when the net payout amount is zero, e.g. a 100%-commission service type', async () => {
+  it('still delegates with amountCents 0 for a 100%-commission service type — enqueueAndSendProviderPayout itself decides that is a no-op', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult({ amountInCents: 50000, commissionAmountCents: 50000 }))
 
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
     expect(res.status).toBe(200)
-    expect(enqueuePayoutMock).not.toHaveBeenCalled()
-  })
-
-  it('still returns 200 when enqueue_provider_payout itself errors', async () => {
-    applyUpdateMock.mockReturnValue(approvedUpdateResult())
-    enqueuePayoutMock.mockReturnValue({ data: null, error: { message: 'db error' } })
-
-    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
-
-    expect(res.status).toBe(200)
-    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
+    expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ amountCents: 0 }))
   })
 })
 
