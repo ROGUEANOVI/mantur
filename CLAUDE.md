@@ -6,8 +6,10 @@ before starting any task.
 ## Project
 
 **ManTur** — a tourism marketplace for Manaure Balcón del Cesar (Cesar,
-Colombia), connecting three actors transactionally: tourists, business
-owners, and local transporters (motocarro drivers).
+Colombia), connecting four actors transactionally: tourists, business
+owners, local transporters (motocarro drivers), and tourist guides. ManTur
+also sells its own curated packages (`paquetes`) directly, acting as a tour
+operator in its own right (see Phase 14).
 
 Domain: mantur.co  
 GitHub: https://github.com/ROGUEANOVI/mantur  
@@ -71,7 +73,11 @@ Source of truth for all copy: `src/lib/copy/` files.
 
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui Vega
 - Supabase: Postgres, Auth, Storage, Realtime, RLS
-- Wompi (Colombian payment gateway) — sandbox mode for the MVP
+- Wompi (Colombian payment gateway) — production checkout/payouts/refunds are
+  live (Phase 12), currently dormant for business-service bookings under the
+  manual-ops pivot (Phase 13) but still active for guide tours and packages
+- Alegra (Colombian accounting/invoicing) — commission invoicing on payment
+  confirmation
 - Vercel for hosting
 
 ## What has been built (phases complete)
@@ -271,49 +277,218 @@ itself is untouched and still serves guide tours. `BusinessImageCarousel`
 plays video slides after photo slides. Migration:
 `20260807100000_add_videos_and_video_buckets.sql`.
 
+### Phase 9 — SEO foundations, slugs, and content pages (PRs #50–#58 — merged)
+Brand asset refresh (`public/brand/*` SVG/PNG logo variants, favicon routes
+at `src/app/icons/{192,512,512-maskable}`, `src/app/manifest.ts`). SEO
+foundations: `src/app/robots.ts`, `src/app/sitemap.ts`, `Breadcrumbs`
+component, JSON-LD helpers (`src/lib/seo/jsonLd.ts`). Public listing/detail
+routes migrated from `[id]` to human-readable `[slug]` URLs — migration
+`20260807200000_add_public_entity_slugs.sql`. `/descubre/*` local-SEO
+content pages (cómo llegar, dónde comer, mejor época, naturaleza, qué hacer
+en Manaure) added, copy in `src/lib/copy/descubre.ts`. Separately, a real
+bookable activity detail page landed at
+`/negocios/[slug]/actividades/[expId]`. Motion/UX polish: `Reveal`
+scroll-reveal wrapper, `Avatar` component with initials fallback,
+`BusinessImageCarousel` gesture/interaction improvements. Legal pages
+(`/politica-de-privacidad`, `/terminos-y-condiciones`, `/acerca-de-nosotros`)
+with copy in `src/lib/copy/legal.ts`. Landing page redesign with
+`HeroSlideshow`.
+
+### Phase 10 — Auth hardening (PRs #59–#66 — merged)
+Google OAuth sign-in (`GoogleSignInButton`, `src/app/auth/callback/route.ts`).
+Email confirmation via SMTP (`src/app/auth/confirm/route.ts`). Rate limiting
+on auth/transport actions (`src/lib/rate-limit.ts`). Login form UX fix
+extracted a shared `PasswordInput` component. Contact phone normalization
+(`src/lib/phone.ts`) landed then was immediately superseded: phone moved off
+`profiles` into a new `profile_contact_details` table (migration
+`20260814000000_move_profiles_phone_to_contact_details.sql`) to stop
+over-exposing it through PostgREST joins. Footer `SocialLinks` component.
+
+### Phase 11 — Services rename, detail-page redesign, and RNT compliance (PRs #74–#91 — merged)
+Form-field validation consistency (`fix/#74`), avatar fallback/cropping
+(`#75`, `#76`), password reset flow (`#77`), login/signup redesign in an
+Alegra-inspired layout (`#78`), Google-auth button copy (`#79`), local dev
+environment fixes (`#80`).
+**`experiences` renamed to `services`** with flexible per-type attribute
+config (PR #81, migration `20260818100000_rename_experiences_to_services.sql`):
+`services.price` → `base_price`, `bookings.experience_id` → `service_id`,
+`bookings.people_count` → `quantity`; new `service_types` table (tour_activity,
+lodging, event_rental, pasadia) + `business_category_service_type_suggestions`;
+`commission_config.service_type` re-seeded per type (migration
+`20260818000000_create_service_types.sql`). Admin nav became a slide-in
+drawer (`#82`); service/category creation form hierarchy fixes (`#83`, `#84`).
+Public listing heroes redesigned around a shared `HeroControlCard` +
+`FilterPillsRail` + `AuroraHero`/`IllustratedHero` (`#85`). Detail pages
+redesigned with a photo mosaic, `MediaGallery`, `FavoriteButton`, and split
+layout — new `favorites` table (migration `20260819000000_create_favorites.sql`)
+(`#86`). `/admin/guias` and `/admin/transportistas` management pages (`#87`).
+RNT (Registro Nacional de Turismo) compliance verification for businesses,
+guides, and transporters — document upload + admin verify/lock flow
+(migration `20260821000000_add_compliance_verification.sql` and follow-ups)
+(`#88`), with a same-day fix for the profiles embeds it broke (`#89`). Role
+gating fixes: `/mi-perfil-guia`/`/mi-perfil-transporte` now redirect when the
+caller's current role no longer matches (`#90`); "Solicitar traslado" hidden
+on unavailable transporter cards (`#91`).
+
+### Phase 12 — Real Wompi payments, Alegra invoicing, and refund engine (PRs #92–#109 — merged)
+The big one (PR #92, ~6,200 lines): production Wompi checkout
+(`src/lib/wompi/checkout.ts`), the webhook handler
+(`src/app/api/webhooks/wompi/route.ts`, signature-verified — see
+`.claude/rules/money-and-payments.md`), provider payout accounts
+(`business_payout_accounts`, `tourist_guide_payout_accounts`,
+`PayoutAccountForm`/`GuidePayoutAccountForm`), a full refund engine
+(`refund_policy_config`, `refund_requests`, `RequestRefundForm`,
+`refundEmails.ts`), and the `provider_payouts` ledger — all across migrations
+`20260830000000` through `20260831100000`. Follow-ups: legal-entity naming +
+Ley 679 child-protection notice + RNT/matrícula mercantil display (`#93`–`#95`);
+Alegra commission-invoice creation on payment confirmation
+(`src/lib/alegra/invoices.ts`, `#96` — see
+`docs/wompi-alegra-integration-plan.md` §6.3.1) charging 19% IVA (`#98`);
+business owner gets an email when a booking is confirmed
+(`src/lib/email/bookingEmails.ts`'s `notifyBusinessOfBooking`, `#97`);
+estimated Wompi fee tracked per transaction (`#99`); admin dashboard
+redesigned with an attention queue + richer metrics (`#100`, fixed in `#104`);
+Alegra invoice no longer silently skipped when Wompi collects no legal ID
+(`#101`); business owners get a real per-booking detail list at
+`/mi-negocio/[id]/reservas` — not just the aggregate count (`#102`); a
+production incident fix deducts Wompi's non-refundable fee from manual
+refunds (`#103` — see project memory `migration_apply_method` for the
+deployment-process lesson learned here); in-app manual resolution for stuck
+provider payouts (`#105`); refund payout instructions captured + void gated
+by payment method (`#106`); payout-account dropdown/bank-id fixes (`#107`,
+`#108`); provider payouts get an async confirmation via Wompi's own Payouts
+webhook (`#109`).
+
+### Phase 13 — Manual-operations pivot (PR #110 — merged)
+Direct in-platform booking+payment disabled for business services (the
+"Reservar" CTA removed from `/negocios/[slug]/servicios/[serviceId]`) —
+ManTur had no real visibility into a business's actual availability, so a
+tourist could book and pay for something ManTur couldn't confirm. See
+project memory `manual_operation_pivot` for the full business rationale
+(WhatsApp + bank transfer as the real sales channel; mantur.co as a trust
+catalog). Guide-tour booking (`/guias/[slug]`'s `TourBookingForm`) was
+deliberately **not** disabled — it's still directly bookable+payable today.
+
+### Phase 14 — Paquetes: ManTur as its own tour operator (PRs #111–#120 — merged)
+ManTur's own curated, fixed-price bundles — not a business/guide listing.
+Fase 1 schema (`#111`, migration `20260903000000_create_packages.sql`):
+`packages` (public, active-only SELECT), `package_items` (admin-only —
+carries `internal_cost_cents`, the negotiated provider cost, which must never
+leak to a tourist), and `provider_availability` (the two-phase pre-reserva
+mechanism from `docs/wompi-alegra-integration-plan.md` §7.0 — confirm with
+the provider before charging the tourist). `/admin/paquetes` CRUD (`#112`)
+plus photo/video uploads (`#113`). Public `/paquetes` + `/paquetes/[slug]`
+(`#114`), alongside a PostgREST-filter-injection fix on business search
+(`#115`) and a hardening pass revoking anon/authenticated EXECUTE on
+service-role-only RPCs (`#116`). Fase 4 pre-reserva flow (`#117`):
+`/admin/paquetes/solicitudes` — admin confirms provider availability, then
+`confirmPackagePrereserva`/`cancelPackagePrereserva`/`markPackageBookingPaid`
+drive the tourist through `pending_availability` → confirmed → paid, each
+step emailing the tourist (`packagePrereservaConfirmedEmail` etc. in
+`bookingEmails.ts` — the first tourist-facing transactional emails in the
+app). Providers get paid out per package_item on `markPackageBookingPaid`,
+grouped and summed per unique provider (`#118`). Providers can now set their
+own general availability calendar (`AvailabilityCalendar` component,
+`/mi-negocio/[id]/disponibilidad`, `/mi-perfil-guia/disponibilidad`) instead
+of relying solely on admin (`#119`), tightened by an RLS fix pinning
+`source`/`resolved_by` server-side so a provider can't spoof an admin-sourced
+row (`#120`).
+
+### Phase 15 — UI consistency + guide booking notification (PRs #121–#122 — merged)
+Consistent `cursor-pointer` on custom clickables and toast-only (no inline
+banner) result messaging across forms (`#121` — see
+`.claude/rules/components.md`). `notifyGuideOfBooking()` added to the Wompi
+webhook, mirroring the existing `notifyBusinessOfBooking()`: a tourist guide
+now gets an email when their tour booking is confirmed, closing the one gap
+in that pair that was still live (guide-tour booking was never disabled by
+the Phase 13 manual-ops pivot) (`#122`).
+
 ## Pending / post-MVP
 
 - **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
   Auth redirect URLs already updated to include `https://mantur.co/**` ✅.
-- **Tourist guide enhancements**: tour image carousels, calendar availability
-  picker, review/rating system.
-- **Real Wompi integration**: done ✅ — production checkout, webhook,
-  payouts, and refund engine are live (see `docs/wompi-alegra-integration-plan.md`).
-  Wompi Payouts still needs real credentials configured (currently a safe
-  no-op) before businesses/guides get paid automatically.
-- **Business/guide booking notifications**: a business owner gets an email
-  when a booking is confirmed (`src/lib/email/bookingEmails.ts`), but there is
-  still no equivalent for tourist guides (guide-tour bookings have no
-  `service_id`, so `notifyBusinessOfBooking()` in the Wompi webhook
-  deliberately skips them), and neither role has an in-app bookings list —
-  `/mi-negocio/[id]` only shows an aggregate "Reservas activas" count, with no
-  detail view (tourist name, date, notes) and no notification/badge system at
-  all in the app itself.
-- **Alegra invoicing**: contact + invoice creation on payment confirmation is
-  live (see `docs/wompi-alegra-integration-plan.md` §6.3.1), but credit notes
-  on refund and DIAN-status reconciliation (polling
+- **Manual operation mode** (see project memory `manual_operation_pivot`):
+  ManTur is currently running sales manually over WhatsApp + bank transfer,
+  with mantur.co as a trust-building catalog rather than the transaction
+  channel — a deliberate, reversible business decision, not a rollback.
+  Direct in-platform booking+payment is disabled only for business services
+  (Phase 13); guide-tour booking and the whole Paquetes pre-reserva flow
+  (Phase 14) are still live today. Everything built under automated
+  payments (Wompi checkout/payouts/refunds, Alegra invoicing) stays in the
+  codebase and keeps improving — it's the "plus" to switch back on once
+  demand is validated and ManTur has real control over provider availability.
+- **Tourist guide enhancements**: tour image carousels and a review/rating
+  system are still not built. (A general availability calendar for guides
+  now exists — `/mi-perfil-guia/disponibilidad`, Phase 14 — so that part of
+  this item is done.)
+- **Wompi Payouts**: code-complete and deployed, including async
+  confirmation via Wompi's own Payouts webhook (Phase 12, PR #109), but
+  still unverified against a real production payout event — see project
+  memory `wompi_payouts_integration_status`.
+- **Alegra invoicing**: contact + commission-invoice creation on payment
+  confirmation is live (see `docs/wompi-alegra-integration-plan.md` §6.3.1),
+  but credit notes on refund and DIAN-status reconciliation (polling
   `GET /invoices/{id}?fields=events` — no webhook is available on this
-  account tier) are not built yet.
+  account tier) are not built yet. Package sales are invoiced manually in
+  Alegra's own UI under the manual-ops model, not through this webhook-driven
+  flow — see project memory `manual_operation_pivot`.
+- **Package (paquetes) provider notifications**: a business owner or guide
+  who is part of a package gets no notification at any pre-reserva stage
+  (availability request, confirmation, payout) — the whole flow in
+  `/admin/paquetes/solicitudes` is admin-driven today, by design under
+  manual ops. Worth revisiting once packages scale past what one admin can
+  track by eye.
+- **refund_requests INSERT RLS**: booking ownership/amounts are unvalidated
+  at INSERT time (same gap pattern as `bookings_insert` before it was
+  fixed) — deferred from PR #103, see project memory
+  `refund_requests_insert_rls_gap`.
 
 ## Data model (v1 — English names, relational)
 
 - `profiles` — extends `auth.users`; `role`: `tourist` | `business_owner` |
-  `transporter` | `admin`
+  `transporter` | `tourist_guide` | `admin`
+- `profile_contact_details` — phone, kept off `profiles` so PostgREST joins
+  can't over-expose it to other users
 - `businesses` — restaurants, balnearios, fincas; owned by a `profile`
+- `business_categories` / `business_category_links` — category types + the
+  many-to-many join to `businesses`; drives filter pills on `/negocios`
 - `places` — static touristic attractions (informational)
-- `experiences` — bookable activities tied to a `business`, has price & capacity
+- `services` — bookable activities tied to a `business` (renamed from
+  `experiences`, Phase 11); `base_price`, `capacity`, a `service_types`
+  reference (tour_activity/lodging/event_rental/pasadia) for flexible
+  per-type attributes
+- `service_types` / `business_category_service_type_suggestions` — the
+  per-type attribute config behind `services` and category → type defaults
 - `transporters` — motocarro drivers; vehicle info, availability status
 - `transport_requests` — a tourist requests a ride; a transporter accepts/rejects
-- `bookings` — a tourist books an `experience`; links to a `transaction`
+- `tourist_guides` — approved tourist guides; bio, specialties, languages,
+  availability toggle
+- `guide_tours` — bookable tours offered by a `tourist_guide`
+- `bookings` — a tourist books a `service` (`service_id`), a `guide_tours`
+  tour (`guide_tour_id`), or a `packages` bundle (`package_id`) — exactly one
+  of the three; links to a `transaction`
 - `transactions` — payment records (Wompi reference, status, amount)
 - `commission_config` — commission percentage per service type, editable by admin
-- `business_categories` — business category types (name, slug, sort_order, is_active); drives filter pills on `/negocios`
+- `role_requests` — a tourist applies for `business_owner`/`transporter`/
+  `tourist_guide`; reviewed by an admin in `/admin/solicitudes`
+- `favorites` — a tourist's saved businesses/places/guides
+- `business_payout_accounts` / `tourist_guide_payout_accounts` — a
+  provider's bank account for Wompi Payouts
+- `provider_payouts` — the payout ledger (queued/sent/confirmed) paid out to
+  a business or guide after a booking is marked paid
+- `refund_policy_config` / `refund_requests` — refund rules + the refund
+  request/approval trail for a cancelled booking
+- `packages` / `package_items` — ManTur's own curated, fixed-price bundles
+  (Phase 14) and their provider components (a `service` or a `guide_tours`
+  tour, each with an admin-only `internal_cost_cents`)
+- `provider_availability` — the two-phase pre-reserva calendar (per
+  provider, per date) used to confirm a package_item's provider before a
+  tourist is charged; also self-service-writable by the provider themselves
 
 ## Out of scope for the MVP
 
-Real production payments (sandbox only), native push notifications, offline
-mode, multi-business packaged itineraries, municipal institutional
-partnership integration.
+Native push notifications, offline mode, municipal institutional partnership
+integration.
 
 ## Workflow
 
