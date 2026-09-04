@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES } from '@/lib/validation'
 
 type ActionResult = { error: string } | void
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -219,6 +220,42 @@ export async function saveGuidePayoutAccount(formData: FormData): Promise<Payout
 
   revalidatePath('/mi-perfil-guia/editar')
   return { success: true }
+}
+
+// Fase 6 (Paquetes/Tours) self-service counterpart to the admin's
+// setProviderAvailability (src/app/(app)/admin/paquetes/solicitudes/actions.ts).
+// See setBusinessAvailability in mi-negocio/actions.ts for the full
+// rationale — same table, same upsert-only posture, RLS
+// (provider_availability_insert_own/_update_own, 20260908000000) does the
+// real enforcement. guideId is always the caller's own — never trusts any
+// id the form might carry, since a guide only ever has one profile.
+export async function setGuideAvailability(formData: FormData): Promise<ActionResult> {
+  const copy = guidesCopy.availability.errors
+  const { supabase, userId, guideId } = await getAuthenticatedGuide()
+
+  const date = formData.get('date') as string
+  const status = formData.get('status') as string
+  if (!AVAILABILITY_DATE_RE.test(date)) return { error: copy.generic }
+  if (!AVAILABILITY_STATUSES.has(status)) return { error: copy.generic }
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (date < today) return { error: copy.pastDate }
+
+  const { error } = await supabase.from('provider_availability').upsert(
+    {
+      provider_type: 'guide',
+      provider_id: guideId,
+      date,
+      status,
+      source: 'provider_self_service',
+      resolved_by: userId,
+    },
+    { onConflict: 'provider_type,provider_id,date' },
+  )
+
+  if (error) return { error: copy.generic }
+
+  revalidatePath('/mi-perfil-guia/disponibilidad')
 }
 
 export async function toggleGuideAvailability(): Promise<ActionResult> {

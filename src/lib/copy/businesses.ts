@@ -107,6 +107,27 @@ export const miNegocioCopy = {
       cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     } as Record<string, string>,
   },
+  availability: {
+    title: 'Disponibilidad para paquetes',
+    subtitle: 'Marca los días en que tu negocio no puede atender turistas de un paquete. Los días sin marcar se asumen disponibles.',
+    backToBusiness: 'Volver al negocio',
+    legendAvailable: 'Disponible',
+    legendUnavailable: 'No disponible',
+    weekdays: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+    months: [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    ],
+    markUnavailable: 'Marcar no disponible',
+    markAvailable: 'Marcar disponible',
+    prevMonth: 'Mes anterior',
+    nextMonth: 'Mes siguiente',
+    errors: {
+      notFound: 'Negocio no encontrado.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
+      pastDate: 'No puedes marcar una fecha pasada.',
+    },
+  },
   payout: {
     title: 'Cuenta para pagos',
     subtitle: 'A esta cuenta se transfiere tu parte de cada reserva pagada (el monto menos la comisión de ManTur).',

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone, Settings } from 'lucide-react'
+import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone, Settings, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
@@ -127,6 +127,14 @@ export default async function MiPerfilGuiaPage() {
                 <GuideAvailabilityToggle isAvailable={guide.is_available} />
               </div>
             </div>
+
+            <Link
+              href="/mi-perfil-guia/disponibilidad"
+              className="flex items-center justify-between text-sm font-medium text-primary hover:underline underline-offset-4 min-h-11"
+            >
+              {guidesCopy.availability.title}
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Link>
 
             {guide.phone && (
               <div className="flex items-center gap-2 text-sm">

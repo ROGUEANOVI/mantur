@@ -11,6 +11,7 @@ import {
   sendPackageBookingPaidEmail,
 } from '@/lib/email/bookingEmails'
 import { enqueueAndSendProviderPayout } from '@/lib/wompi/payouts'
+import { AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES } from '@/lib/validation'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // Only 'business'/'guide' are actually producible by a package_item today
@@ -113,8 +114,8 @@ export async function setProviderAvailability(formData: FormData): Promise<{ err
 
   if (!UUID_RE.test(bookingId) || !UUID_RE.test(providerId)) return { error: copy.notFound }
   if (!PROVIDER_TYPES.has(providerType)) return { error: copy.generic }
-  if (status !== 'available' && status !== 'unavailable') return { error: copy.generic }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: copy.generic }
+  if (!AVAILABILITY_STATUSES.has(status)) return { error: copy.generic }
+  if (!AVAILABILITY_DATE_RE.test(date)) return { error: copy.generic }
 
   if (!(await isProviderInBookingPackage(admin, bookingId, providerType, providerId))) {
     return { error: copy.notFound }

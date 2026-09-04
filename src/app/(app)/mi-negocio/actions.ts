@@ -7,7 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePrice, parsePositiveInt } from './parsers'
 import { normalizeColombianPhone } from '@/lib/phone'
 import { getAttributeFields, parseAttributes } from '@/lib/services/attributeConfig'
-import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
+import { DESCRIPTION_MAX_LENGTH, AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES } from '@/lib/validation'
+import { miNegocioCopy } from '@/lib/copy/businesses'
 
 type ActionResult = { error: string } | void
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -355,6 +356,57 @@ export async function toggleBusinessStatus(
   }
 
   return { error: 'No se pudo actualizar el estado del negocio.' }
+}
+
+// Fase 6 (Paquetes/Tours) self-service counterpart to the admin's
+// setProviderAvailability (src/app/(app)/admin/paquetes/solicitudes/actions.ts)
+// — same table, same onConflict key, same upsert-only posture (a mistake is
+// corrected by flipping status back, never by deleting the row). Written
+// with the RLS-scoped `supabase` client, not the admin client: the new
+// provider_availability_insert_own/_update_own policies
+// (20260908000000) are the real enforcement here, not just a courtesy —
+// this mirrors how savePayoutAccount above already relies on RLS for
+// business_payout_accounts. source is always 'provider_self_service' so it
+// stays distinguishable from an admin-confirmed row in the same table.
+export async function setBusinessAvailability(formData: FormData): Promise<ActionResult> {
+  const copy = miNegocioCopy.availability.errors
+  const businessId = formData.get('businessId') as string
+  if (!UUID_RE.test(businessId)) return { error: copy.notFound }
+
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const date = formData.get('date') as string
+  const status = formData.get('status') as string
+  if (!AVAILABILITY_DATE_RE.test(date)) return { error: copy.generic }
+  if (!AVAILABILITY_STATUSES.has(status)) return { error: copy.generic }
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (date < today) return { error: copy.pastDate }
+
+  const { data: business } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!business) return { error: copy.notFound }
+
+  const { error } = await supabase.from('provider_availability').upsert(
+    {
+      provider_type: 'business',
+      provider_id: businessId,
+      date,
+      status,
+      source: 'provider_self_service',
+      resolved_by: userId,
+    },
+    { onConflict: 'provider_type,provider_id,date' },
+  )
+
+  if (error) return { error: copy.generic }
+
+  revalidatePath(`/mi-negocio/${businessId}/disponibilidad`)
 }
 
 export async function createService(formData: FormData): Promise<ActionResult> {

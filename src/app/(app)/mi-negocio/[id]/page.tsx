@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Pencil,
+  CalendarDays,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy, businessesCopy } from '@/lib/copy/businesses'
@@ -170,6 +171,21 @@ export default async function MiNegocioDetailPage({
             <p className="text-sm text-muted-foreground mt-0.5">
               {miNegocioCopy.overview.experiencesSubtitle}
             </p>
+          </div>
+          <ChevronRight className="size-5 text-muted-foreground shrink-0" aria-hidden="true" />
+        </Link>
+
+        {/* Availability calendar link */}
+        <Link
+          href={`/mi-negocio/${b.id}/disponibilidad`}
+          className={cn(
+            'flex items-center justify-between rounded-2xl border border-border bg-card p-5 shadow-sm',
+            'hover:shadow-md transition-shadow min-h-[72px]',
+          )}
+        >
+          <div className="flex items-center gap-3 min-w-0 mr-3">
+            <CalendarDays className="size-5 text-primary shrink-0" aria-hidden="true" strokeWidth={1.5} />
+            <p className="font-semibold text-foreground">{miNegocioCopy.availability.title}</p>
           </div>
           <ChevronRight className="size-5 text-muted-foreground shrink-0" aria-hidden="true" />
         </Link>
