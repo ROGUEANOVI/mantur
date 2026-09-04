@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import CreateBusinessForm from './CreateBusinessForm'
 
 const createBusinessMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-negocio/actions', () => ({
   createBusiness: (formData: FormData) => createBusinessMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('@/components/shared/LocationPicker', () => ({
@@ -75,7 +80,7 @@ describe('CreateBusinessForm', () => {
     expect(fd.get('rnt_document')).toBeTruthy()
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     createBusinessMock.mockResolvedValue({ error: 'Selecciona al menos una categoría.' })
     const user = userEvent.setup()
     render(<CreateBusinessForm categories={CATEGORIES} />)
@@ -83,12 +88,12 @@ describe('CreateBusinessForm', () => {
     await user.type(screen.getByLabelText('Nombre'), 'Finca X')
     await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Selecciona al menos una categoría.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Selecciona al menos una categoría.'))
   })
 
-  it('does not render an error before submission', () => {
+  it('does not show an error toast before submission', () => {
     render(<CreateBusinessForm categories={CATEGORIES} />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

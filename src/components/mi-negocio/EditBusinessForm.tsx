@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { updateBusiness } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
@@ -63,6 +64,10 @@ export default function EditBusinessForm({
   const [state, formAction, pending] = useActionState<FormState, FormData>(editAction, {
     error: null,
   })
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state.error])
 
   const copy = miNegocioCopy
 
@@ -207,12 +212,6 @@ export default function EditBusinessForm({
           required={false}
         />
       </div>
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
 
       <Button
         type="submit"

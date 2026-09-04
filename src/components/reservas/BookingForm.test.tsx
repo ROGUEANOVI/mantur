@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import BookingForm from './BookingForm'
 
 const createBookingMock = vi.fn()
 
 vi.mock('@/app/(app)/reservas/actions', () => ({
   createBooking: (formData: FormData) => createBookingMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const SERVICE_ID = '11111111-1111-1111-1111-111111111111'
@@ -87,19 +92,19 @@ describe('BookingForm', () => {
     expect(fd.get('quantity')).toBe('1')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     createBookingMock.mockResolvedValue({ error: 'Supera el cupo máximo disponible.' })
     const user = userEvent.setup()
     render(<BookingForm serviceId={SERVICE_ID} price={50000} capacity={10} serviceName="Tour" pricingUnit="per_person" />)
 
     await user.click(screen.getByRole('button', { name: 'Confirmar reserva' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Supera el cupo máximo disponible.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Supera el cupo máximo disponible.'))
   })
 
-  it('renders no error before submission', () => {
+  it('shows no error toast before submission', () => {
     render(<BookingForm serviceId={SERVICE_ID} price={50000} capacity={10} serviceName="Tour" pricingUnit="per_person" />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

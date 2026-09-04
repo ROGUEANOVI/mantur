@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import EditBusinessForm from './EditBusinessForm'
 
 const updateBusinessMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-negocio/actions', () => ({
   updateBusiness: (...args: unknown[]) => updateBusinessMock(...args),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('@/components/shared/LocationPicker', () => ({
@@ -167,7 +172,7 @@ describe('EditBusinessForm', () => {
     expect(fd.get('rnt_document')).toBeTruthy()
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     updateBusinessMock.mockResolvedValue({ error: 'No se pudo actualizar el negocio. Intenta de nuevo.' })
     const user = userEvent.setup()
     render(
@@ -181,7 +186,9 @@ describe('EditBusinessForm', () => {
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo actualizar el negocio. Intenta de nuevo.')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('No se pudo actualizar el negocio. Intenta de nuevo.'),
+    )
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { requestRefund } from '@/app/(app)/mis-reservas/actions'
 import { bookingsCopy } from '@/lib/copy/bookings'
 
@@ -26,6 +27,10 @@ export default function RequestRefundForm({
     undefined,
   )
   const copy = bookingsCopy.refund
+
+  useEffect(() => {
+    if (state?.error) toast.error(state.error)
+  }, [state?.error])
 
   if (!open) {
     return (
@@ -66,11 +71,6 @@ export default function RequestRefundForm({
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
         />
       </div>
-      {state?.error && (
-        <p className="text-xs font-medium text-destructive" role="alert">
-          {state.error}
-        </p>
-      )}
       <div className="flex gap-2">
         <button
           type="button"

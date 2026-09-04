@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState, type FormEvent } from 'react'
+import { useActionState, useEffect, useState, type FormEvent } from 'react'
+import { toast } from 'sonner'
 import { savePayoutAccount } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,11 @@ export default function PayoutAccountForm({ businessId, banks, defaultValues }: 
     },
     { error: null, saved: false },
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+    else if (state.saved) toast.success(copy.saved)
+  }, [state.error, state.saved])
 
   // Submitting via onSubmit + a manual action() call (both supported ways to
   // invoke a useActionState action, per the React docs) rather than the
@@ -181,17 +187,6 @@ export default function PayoutAccountForm({ businessId, banks, defaultValues }: 
           placeholder={copy.holderEmailPlaceholder}
         />
       </div>
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
-      {state.saved && (
-        <p className="text-sm text-primary font-medium" role="status">
-          {copy.saved}
-        </p>
-      )}
 
       <Button type="submit" className="w-full rounded-xl min-h-11" disabled={pending}>
         {pending ? copy.saving : copy.save}

@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import CreateServiceForm from './CreateServiceForm'
 
 const createServiceMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-negocio/actions', () => ({
   createService: (formData: FormData) => createServiceMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const BIZ_ID = '11111111-1111-1111-1111-111111111111'
@@ -108,7 +113,7 @@ describe('CreateServiceForm', () => {
     expect(fd.get('attr_meeting_point')).toBe('Parque principal')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     createServiceMock.mockResolvedValue({ error: 'Nombre y precio son requeridos. El precio no puede ser negativo.' })
     const user = userEvent.setup()
     render(<CreateServiceForm businessId={BIZ_ID} serviceTypes={SERVICE_TYPES} />)
@@ -116,8 +121,10 @@ describe('CreateServiceForm', () => {
     await user.click(screen.getByRole('radio', { name: 'Tour / actividad' }))
     await user.click(screen.getByRole('button', { name: 'Guardar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Nombre y precio son requeridos. El precio no puede ser negativo.',
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Nombre y precio son requeridos. El precio no puede ser negativo.',
+      ),
     )
   })
 

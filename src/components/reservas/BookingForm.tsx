@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 import { createBooking } from '@/app/(app)/reservas/actions'
 import { bookingsCopy } from '@/lib/copy/bookings'
@@ -48,6 +49,10 @@ export default function BookingForm({
   )
 
   const total = pricingUnit === 'fixed' ? price : price * quantity
+
+  useEffect(() => {
+    if (state?.error) toast.error(state.error)
+  }, [state?.error])
 
   function handleQuantityChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseInt(e.target.value, 10)
@@ -108,13 +113,6 @@ export default function BookingForm({
             : `$${price.toLocaleString('es-CO')} × ${quantity} ${UNIT_SUFFIX[pricingUnit]}`}
         </p>
       </div>
-
-      {/* Inline error */}
-      {state?.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
 
       {/* Submit */}
       <Button

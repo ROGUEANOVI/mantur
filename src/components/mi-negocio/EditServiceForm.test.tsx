@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import EditServiceForm from './EditServiceForm'
 
 const updateServiceMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-negocio/actions', () => ({
   updateService: (...args: unknown[]) => updateServiceMock(...args),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const SERVICE_ID = '22222222-2222-2222-2222-222222222222'
@@ -138,7 +143,7 @@ describe('EditServiceForm', () => {
     expect(fd.get('base_price')).toBe('60000')
   })
 
-  it('shows a success message and no error after a successful save', async () => {
+  it('shows a success toast and no error toast after a successful save', async () => {
     updateServiceMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(
@@ -153,11 +158,11 @@ describe('EditServiceForm', () => {
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Cambios guardados.')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Cambios guardados.'))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('shows the error message and no success status when the save fails', async () => {
+  it('shows an error toast and no success toast when the save fails', async () => {
     updateServiceMock.mockResolvedValue({ error: 'No se pudo actualizar el servicio. Intenta de nuevo.' })
     const user = userEvent.setup()
     render(
@@ -172,11 +177,13 @@ describe('EditServiceForm', () => {
 
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo actualizar el servicio. Intenta de nuevo.')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('No se pudo actualizar el servicio. Intenta de nuevo.'),
+    )
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('renders neither status nor alert before submission', () => {
+  it('shows neither toast before submission', () => {
     render(
       <EditServiceForm
         serviceId={SERVICE_ID}
@@ -186,8 +193,8 @@ describe('EditServiceForm', () => {
         defaultValues={DEFAULT_VALUES}
       />,
     )
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

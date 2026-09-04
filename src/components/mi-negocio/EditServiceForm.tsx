@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { updateService } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { getAttributeFields, PRICING_UNIT_LABELS, type PricingUnit } from '@/lib/services/attributeConfig'
@@ -46,6 +47,11 @@ export default function EditServiceForm({
     error: null,
     saved: false,
   })
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+    else if (state.saved) toast.success(copy.services.saved)
+  }, [state.error, state.saved])
 
   const attributeFields = getAttributeFields(serviceTypeSlug)
 
@@ -180,18 +186,6 @@ export default function EditServiceForm({
             )
           })}
         </div>
-      )}
-
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
-
-      {state.saved && !state.error && (
-        <p role="status" className="text-sm text-primary font-medium">
-          {copy.services.saved}
-        </p>
       )}
 
       <Button

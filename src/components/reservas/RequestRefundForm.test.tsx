@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import RequestRefundForm from './RequestRefundForm'
 
 const requestRefundMock = vi.fn()
 
 vi.mock('@/app/(app)/mis-reservas/actions', () => ({
   requestRefund: (formData: FormData) => requestRefundMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const BOOKING_ID = '44444444-4444-4444-4444-444444444444'
@@ -57,7 +62,7 @@ describe('RequestRefundForm', () => {
     expect(fd.get('reason')).toBe('Cambio de planes')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     requestRefundMock.mockResolvedValue({ error: 'Ya existe una solicitud de reembolso para esta reserva.' })
     const user = userEvent.setup()
     render(<RequestRefundForm bookingId={BOOKING_ID} likelyAutoVoid={true} />)
@@ -65,7 +70,9 @@ describe('RequestRefundForm', () => {
     await user.click(screen.getByRole('button', { name: 'Solicitar reembolso' }))
     await user.click(screen.getByRole('button', { name: 'Confirmar solicitud' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ya existe una solicitud de reembolso para esta reserva.')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Ya existe una solicitud de reembolso para esta reserva.'),
+    )
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {
