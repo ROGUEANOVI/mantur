@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { Check, X } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { updatePassword } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
@@ -36,6 +37,10 @@ export default function ResetPasswordForm() {
     },
     { error: null },
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state.error])
 
   return (
     <div className="space-y-5">
@@ -87,12 +92,6 @@ export default function ResetPasswordForm() {
             </p>
           )}
         </div>
-
-        {state.error && (
-          <p role="alert" className="text-sm text-destructive">
-            {state.error}
-          </p>
-        )}
 
         <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
           {pending ? 'Guardando...' : copy.submit}

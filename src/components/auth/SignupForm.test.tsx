@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import SignupForm from './SignupForm'
 
 const signUpMock = vi.fn()
@@ -11,6 +12,10 @@ vi.mock('@/app/(auth)/actions', () => ({
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: vi.fn(() => ({ auth: { signInWithOAuth: vi.fn() } })),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const STRONG_PASSWORD = 'Correcta1!'
@@ -81,7 +86,9 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Contraseña'), 'weak')
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('La contraseña no cumple los requisitos de seguridad')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('La contraseña no cumple los requisitos de seguridad'),
+    )
     expect(signUpMock).not.toHaveBeenCalled()
   })
 
@@ -120,7 +127,7 @@ describe('SignupForm', () => {
     expect(fd.get('password')).toBe(STRONG_PASSWORD)
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     signUpMock.mockResolvedValue({ error: 'Este correo ya está registrado' })
     const user = userEvent.setup()
     render(<SignupForm />)
@@ -130,7 +137,7 @@ describe('SignupForm', () => {
     await user.type(screen.getByLabelText('Contraseña'), STRONG_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Este correo ya está registrado')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Este correo ya está registrado'))
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {

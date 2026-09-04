@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { signUp } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
@@ -40,6 +41,10 @@ export default function SignupForm() {
     },
     { error: null },
   )
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state.error])
 
   if (state.pendingConfirmation) {
     return (
@@ -111,12 +116,6 @@ export default function SignupForm() {
             </div>
           )}
         </div>
-
-        {state.error && (
-          <p role="alert" className="text-sm text-destructive">
-            {state.error}
-          </p>
-        )}
 
         <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
           {pending ? 'Creando cuenta...' : copy.submit}

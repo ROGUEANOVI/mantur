@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import LoginForm from './LoginForm'
 
 const signInMock = vi.fn()
@@ -11,6 +12,10 @@ vi.mock('@/app/(auth)/actions', () => ({
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: vi.fn(() => ({ auth: { signInWithOAuth: vi.fn() } })),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 beforeEach(() => {
@@ -39,7 +44,7 @@ describe('LoginForm', () => {
     expect(fd.get('password')).toBe('Secreta123!')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     signInMock.mockResolvedValue({ error: 'Correo o contraseña incorrectos' })
     const user = userEvent.setup()
     render(<LoginForm />)
@@ -48,15 +53,15 @@ describe('LoginForm', () => {
     await user.type(screen.getByLabelText('Contraseña'), 'wrong')
     await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Correo o contraseña incorrectos')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Correo o contraseña incorrectos'))
   })
 
-  it('renders no error before submission', () => {
+  it('shows no error toast before submission', () => {
     render(<LoginForm />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('does not render an error when signIn resolves with no value (redirect path)', async () => {
+  it('does not show an error toast when signIn resolves with no value (redirect path)', async () => {
     signInMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<LoginForm />)
@@ -66,7 +71,7 @@ describe('LoginForm', () => {
     await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
     await waitFor(() => expect(signInMock).toHaveBeenCalled())
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('disables the submit button and shows the pending label while the action is in flight', async () => {
@@ -89,23 +94,25 @@ describe('LoginForm', () => {
     expect(screen.getByRole('button', { name: 'Iniciar sesión con Google' })).toBeInTheDocument()
   })
 
-  it('shows the oauth error message when authError is "oauth"', () => {
+  it('shows the oauth error message as a toast when authError is "oauth"', async () => {
     render(<LoginForm authError="oauth" />)
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'No se pudo iniciar sesión con Google. Intenta de nuevo.',
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('No se pudo iniciar sesión con Google. Intenta de nuevo.'),
     )
   })
 
-  it('shows the confirmation-link error message when authError is "confirm"', () => {
+  it('shows the confirmation-link error message as a toast when authError is "confirm"', async () => {
     render(<LoginForm authError="confirm" />)
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'El enlace de confirmación no es válido o ya expiró. Intenta registrarte de nuevo.',
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'El enlace de confirmación no es válido o ya expiró. Intenta registrarte de nuevo.',
+      ),
     )
   })
 
-  it('does not show an auth error message by default', () => {
+  it('does not show an auth error toast by default', () => {
     render(<LoginForm />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('toggles the password field between hidden and visible', async () => {
@@ -130,16 +137,18 @@ describe('LoginForm', () => {
     )
   })
 
-  it('shows the reset-success message when resetSuccess is true', () => {
+  it('shows the reset-success message as a toast when resetSuccess is true', async () => {
     render(<LoginForm resetSuccess />)
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Tu contraseña fue actualizada. Inicia sesión con tu nueva contraseña.',
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Tu contraseña fue actualizada. Inicia sesión con tu nueva contraseña.',
+      ),
     )
   })
 
-  it('does not show the reset-success message by default', () => {
+  it('does not show a reset-success toast by default', () => {
     render(<LoginForm />)
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('preserves the entered email and password after a failed login, instead of clearing them', async () => {
@@ -151,7 +160,7 @@ describe('LoginForm', () => {
     await user.type(screen.getByLabelText('Contraseña'), 'wrong-pass')
     await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
-    await screen.findByRole('alert')
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(screen.getByLabelText('Correo electrónico')).toHaveValue('ana@example.com')
     expect(screen.getByLabelText('Contraseña')).toHaveValue('wrong-pass')
   })

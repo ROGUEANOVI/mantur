@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import ForgotPasswordForm from './ForgotPasswordForm'
 
 const requestPasswordResetMock = vi.fn()
 
 vi.mock('@/app/(auth)/actions', () => ({
   requestPasswordReset: (formData: FormData) => requestPasswordResetMock(formData),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 beforeEach(() => {
@@ -32,14 +37,14 @@ describe('ForgotPasswordForm', () => {
     expect(fd.get('email')).toBe('ana@example.com')
   })
 
-  it('shows the server-returned error message', async () => {
+  it('shows the server-returned error message as a toast', async () => {
     requestPasswordResetMock.mockResolvedValue({ error: 'Ingresa tu correo electrónico.' })
     const user = userEvent.setup()
     render(<ForgotPasswordForm />)
 
     await user.click(screen.getByRole('button', { name: 'Enviar enlace' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ingresa tu correo electrónico.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Ingresa tu correo electrónico.'))
   })
 
   it('replaces the form with a confirmation message once the email is sent', async () => {
@@ -68,15 +73,15 @@ describe('ForgotPasswordForm', () => {
     resolveAction({ error: null, emailSent: true })
   })
 
-  it('shows the expired-link message when authError is "expired"', () => {
+  it('shows the expired-link message as a toast when authError is "expired"', async () => {
     render(<ForgotPasswordForm authError="expired" />)
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('El enlace no es válido o ya expiró. Solicita uno nuevo.'),
     )
   })
 
-  it('does not show an auth error message by default', () => {
+  it('does not show an auth error toast by default', () => {
     render(<ForgotPasswordForm />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

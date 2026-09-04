@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 import { signIn } from '@/app/(auth)/actions'
 import { authCopy } from '@/lib/copy/auth'
@@ -52,20 +53,20 @@ export default function LoginForm({
         ? copy.errors.confirmFailed
         : null
 
+  useEffect(() => {
+    if (resetSuccess) toast.success(copy.resetSuccess)
+  }, [resetSuccess])
+
+  useEffect(() => {
+    if (authErrorMessage) toast.error(authErrorMessage)
+  }, [authErrorMessage])
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error)
+  }, [state.error])
+
   return (
     <div className="space-y-5">
-      {resetSuccess && (
-        <p role="status" className="text-sm text-primary">
-          {copy.resetSuccess}
-        </p>
-      )}
-
-      {authErrorMessage && (
-        <p role="alert" className="text-sm text-destructive">
-          {authErrorMessage}
-        </p>
-      )}
-
       <form action={formAction} className="space-y-5" noValidate>
         {/* Email */}
         <div className="space-y-1.5">
@@ -104,13 +105,6 @@ export default function LoginForm({
             </Link>
           </div>
         </div>
-
-        {/* Inline error — only rendered when the server action returns one */}
-        {state.error && (
-          <p role="alert" className="text-sm text-destructive">
-            {state.error}
-          </p>
-        )}
 
         {/* Submit */}
         <Button type="submit" className="w-full hover:-translate-y-0.5" disabled={pending}>
