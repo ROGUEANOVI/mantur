@@ -72,6 +72,11 @@ vi.mock('@/lib/email/refundEmails', () => ({
   sendRefundProcessedEmail: (...args: unknown[]) => sendRefundProcessedEmailMock(...args),
 }))
 
+const syncAlegraCreditNoteForRefundMock = vi.fn()
+vi.mock('@/lib/alegra/refundCreditNotes', () => ({
+  syncAlegraCreditNoteForRefund: (...args: unknown[]) => syncAlegraCreditNoteForRefundMock(...args),
+}))
+
 const { requestRefund } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
@@ -310,6 +315,7 @@ describe('same-day 100% refund → automatic Wompi void', () => {
     expect(cascadeRpcMock).toHaveBeenCalledWith({ p_refund_request_id: 'refund-1' })
     expect(revertRpcMock).not.toHaveBeenCalled()
     expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 100000, 'void')
+    expect(syncAlegraCreditNoteForRefundMock).toHaveBeenCalledWith(expect.anything(), 'refund-1')
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
   })
 
@@ -342,6 +348,7 @@ describe('same-day 100% refund → automatic Wompi void', () => {
 
     expect(cascadeRpcMock).toHaveBeenCalledWith({ p_refund_request_id: 'refund-1' })
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+    expect(syncAlegraCreditNoteForRefundMock).not.toHaveBeenCalled()
   })
 
   it('leaves the row claimed (processing) without cascading or emailing when Wompi accepts the void but has not confirmed VOIDED yet — the webhook confirms it later', async () => {
@@ -357,6 +364,7 @@ describe('same-day 100% refund → automatic Wompi void', () => {
     expect(cascadeRpcMock).not.toHaveBeenCalled()
     expect(revertRpcMock).not.toHaveBeenCalled()
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+    expect(syncAlegraCreditNoteForRefundMock).not.toHaveBeenCalled()
   })
 
   it('does not call Wompi or cascade when an admin action wins the claim race first (claim returns false)', async () => {

@@ -5,6 +5,7 @@ import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
 import { sendBusinessBookingConfirmedEmail, sendGuideBookingConfirmedEmail } from '@/lib/email/bookingEmails'
 import { findOrCreateContact } from '@/lib/alegra/contacts'
 import { createCommissionInvoice } from '@/lib/alegra/invoices'
+import { syncAlegraCreditNoteForRefund } from '@/lib/alegra/refundCreditNotes'
 import { estimateWompiFeeCents } from '@/lib/wompi/fees'
 import { type WompiWebhookEvent, isValidChecksum, isFreshTimestamp } from '@/lib/wompi/webhookSignature'
 
@@ -345,6 +346,17 @@ async function confirmRefundVoidAndNotify(admin: AdminClient, wompiTransactionId
       }>()
 
     if (error || !data?.confirmed) return
+
+    // Money actually moved at Wompi either way (this is why the RPC always
+    // reconciles transactions/bookings below regardless of the mismatch
+    // flag) — the credit note should fire too, even in the mismatch branch.
+    // claim_refund_request_for_credit_note() only claims a row that is
+    // itself 'processed', so if the mismatch means refund_requests was left
+    // 'rejected' by a racing admin action, this naturally no-ops there
+    // instead of needing a special case here.
+    if (data.refund_request_id) {
+      await syncAlegraCreditNoteForRefund(admin, data.refund_request_id)
+    }
 
     // The money side (transactions/bookings) is always reconciled by the
     // RPC regardless of this flag — a mismatch means refund_requests was

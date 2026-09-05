@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { sendRefundProcessedEmail, sendRefundRejectedEmail } from '@/lib/email/refundEmails'
+import { syncAlegraCreditNoteForRefund } from '@/lib/alegra/refundCreditNotes'
 
 type ActionResult = { error: string } | { success: true }
 
@@ -67,6 +68,8 @@ export async function markRefundProcessedManually(formData: FormData): Promise<v
         await sendRefundProcessedEmail(email, refund.net_refund_amount_cents ?? refund.refund_amount_cents, 'manual')
       }
     }
+
+    await syncAlegraCreditNoteForRefund(admin, refundRequestId)
   }
 
   revalidatePath('/admin/reembolsos')

@@ -69,6 +69,11 @@ vi.mock('@/lib/email/refundEmails', () => ({
   sendRefundRejectedEmail: (...args: unknown[]) => sendRefundRejectedEmailMock(...args),
 }))
 
+const syncAlegraCreditNoteForRefundMock = vi.fn()
+vi.mock('@/lib/alegra/refundCreditNotes', () => ({
+  syncAlegraCreditNoteForRefund: (...args: unknown[]) => syncAlegraCreditNoteForRefundMock(...args),
+}))
+
 const { markRefundProcessedManually, rejectRefundRequest, updateRefundPolicyRate } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
@@ -123,8 +128,17 @@ describe('markRefundProcessedManually', () => {
       p_processed_by: 'admin-1',
     })
     expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 46250, 'manual')
+    expect(syncAlegraCreditNoteForRefundMock).toHaveBeenCalledWith(expect.anything(), REFUND_ID)
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/reembolsos')
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('never attempts an Alegra credit note when the RPC did not apply', async () => {
+    markProcessedRpcMock.mockResolvedValue({ data: false, error: null })
+
+    await markRefundProcessedManually(formData({ refundRequestId: REFUND_ID }))
+
+    expect(syncAlegraCreditNoteForRefundMock).not.toHaveBeenCalled()
   })
 
   it('falls back to the gross amount if net_refund_amount_cents is unexpectedly null', async () => {

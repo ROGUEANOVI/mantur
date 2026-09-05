@@ -9,6 +9,7 @@ import { refundRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { computeHoursUntilBooking, computeRefundAmountCents, bogotaDateString } from '@/lib/refunds'
 import { voidWompiTransaction } from '@/lib/wompi/refunds'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
+import { syncAlegraCreditNoteForRefund } from '@/lib/alegra/refundCreditNotes'
 
 type RefundResult = { error: string } | void
 
@@ -151,7 +152,10 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
           // paid -> voided sends the notification, so the tourist is never
           // emailed twice for the same refund.
           const { data: cascaded } = await admin.rpc('cascade_refund_to_booking', { p_refund_request_id: refundRequest.id })
-          if (cascaded && email) await sendRefundProcessedEmail(email, refundAmountCents, 'void')
+          if (cascaded) {
+            if (email) await sendRefundProcessedEmail(email, refundAmountCents, 'void')
+            await syncAlegraCreditNoteForRefund(admin, refundRequest.id)
+          }
         }
       } else {
         // Undo the claim so the row goes back to 'pending' for an admin to

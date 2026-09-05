@@ -111,6 +111,11 @@ vi.mock('@/lib/alegra/invoices', () => ({
   createCommissionInvoice: (...args: unknown[]) => createCommissionInvoiceMock(...args),
 }))
 
+const syncAlegraCreditNoteForRefundMock = vi.fn()
+vi.mock('@/lib/alegra/refundCreditNotes', () => ({
+  syncAlegraCreditNoteForRefund: (...args: unknown[]) => syncAlegraCreditNoteForRefundMock(...args),
+}))
+
 const { POST } = await import('./route')
 
 const SECRET = 'test-events-secret'
@@ -487,15 +492,17 @@ describe('POST /api/webhooks/wompi — async confirmation of a same-day refund v
     expect(res.status).toBe(200)
     expect(getUserByIdMock).toHaveBeenCalledWith('user-1')
     expect(sendRefundProcessedEmailMock).toHaveBeenCalledWith('tourist@example.com', 70000, 'void')
+    expect(syncAlegraCreditNoteForRefundMock).toHaveBeenCalledWith(expect.anything(), 'refund-1')
   })
 
-  it('does not email when the RPC finds no matching paid transaction to reconcile (confirmed: false)', async () => {
+  it('does not email or attempt a credit note when the RPC finds no matching paid transaction to reconcile (confirmed: false)', async () => {
     const res = await POST(postRequest(buildEvent({ status: 'VOIDED' })))
     expect(res.status).toBe(200)
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+    expect(syncAlegraCreditNoteForRefundMock).not.toHaveBeenCalled()
   })
 
-  it('skips the email (never contradicts an admin decision) and never looks up the user when confirmed but bookkeeping_mismatch is true — e.g. an admin rejected the row while the void was in flight', async () => {
+  it('skips the email (never contradicts an admin decision) but still attempts the Alegra credit note when confirmed but bookkeeping_mismatch is true — money moved at Wompi either way, only the tourist-facing email is skipped', async () => {
     confirmVoidMock.mockReturnValue({
       data: { confirmed: true, refund_request_id: 'refund-1', requested_by: 'user-1', refund_amount_cents: 70000, bookkeeping_mismatch: true },
       error: null,
@@ -506,6 +513,7 @@ describe('POST /api/webhooks/wompi — async confirmation of a same-day refund v
     expect(res.status).toBe(200)
     expect(getUserByIdMock).not.toHaveBeenCalled()
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+    expect(syncAlegraCreditNoteForRefundMock).toHaveBeenCalledWith(expect.anything(), 'refund-1')
   })
 
   it('still returns 200 and does not throw when the confirm RPC itself errors', async () => {
@@ -513,9 +521,10 @@ describe('POST /api/webhooks/wompi — async confirmation of a same-day refund v
     const res = await POST(postRequest(buildEvent({ status: 'VOIDED' })))
     expect(res.status).toBe(200)
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+    expect(syncAlegraCreditNoteForRefundMock).not.toHaveBeenCalled()
   })
 
-  it('still returns 200 when no user email is found for the requester', async () => {
+  it('still returns 200 when no user email is found for the requester, but still attempts the credit note', async () => {
     confirmVoidMock.mockReturnValue({
       data: { confirmed: true, refund_request_id: 'refund-1', requested_by: 'user-1', refund_amount_cents: 70000, bookkeeping_mismatch: false },
       error: null,
@@ -526,6 +535,7 @@ describe('POST /api/webhooks/wompi — async confirmation of a same-day refund v
 
     expect(res.status).toBe(200)
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+    expect(syncAlegraCreditNoteForRefundMock).toHaveBeenCalledWith(expect.anything(), 'refund-1')
   })
 })
 
