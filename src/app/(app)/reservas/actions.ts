@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { buildWompiCheckoutUrl } from '@/lib/wompi/checkout'
+import { sendPackagePrereservaRequestedEmail } from '@/lib/email/bookingEmails'
 
 type BookingResult = { error: string } | void
 
@@ -29,6 +30,54 @@ async function getAuthenticatedTourist() {
   if (profile?.role !== 'tourist') redirect('/')
 
   return { supabase, userId: user.id }
+}
+
+// Resolves every profile with role='admin' to their auth email — there's
+// currently no dedicated "admin recipients" table, just the role column.
+// Never throws: an email delivery problem must not break the tourist's own
+// booking flow, same reasoning as notifyBusinessOfBooking in the Wompi
+// webhook.
+async function notifyAdminsOfPackagePrereserva(
+  admin: ReturnType<typeof createAdminClient>,
+  params: { packageName: string; touristId: string; bookingDate: string; quantity: number; notes: string | null },
+): Promise<void> {
+  try {
+    const { data: adminProfiles, error: adminProfilesError } = await admin.from('profiles').select('id').eq('role', 'admin')
+    if (adminProfilesError) {
+      console.error('Failed to look up admin profiles for package prereserva notification', adminProfilesError)
+      return
+    }
+    if (!adminProfiles?.length) return
+
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', params.touristId)
+      .single<{ full_name: string | null }>()
+
+    const adminEmails = (
+      await Promise.all(
+        adminProfiles.map(async ({ id }) => {
+          const { data } = await admin.auth.admin.getUserById(id)
+          return data.user?.email ?? null
+        }),
+      )
+    ).filter((email): email is string => !!email)
+
+    await Promise.all(
+      adminEmails.map((email) =>
+        sendPackagePrereservaRequestedEmail(email, {
+          packageName: params.packageName,
+          touristName: touristProfile?.full_name ?? 'Un turista',
+          bookingDate: params.bookingDate,
+          quantity: params.quantity,
+          notes: params.notes,
+        }),
+      ),
+    )
+  } catch (error) {
+    console.error('Unexpected error while notifying admins of a new package prereserva', error)
+  }
 }
 
 export async function createBooking(formData: FormData): Promise<BookingResult> {
@@ -145,10 +194,11 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
   // packages_select RLS already filters to is_active = true.
   const { data: pkg } = await supabase
     .from('packages')
-    .select('id, base_price, pricing_unit, capacity')
+    .select('id, name, base_price, pricing_unit, capacity')
     .eq('id', packageId)
     .single<{
       id: string
+      name: string
       base_price: number
       pricing_unit: 'per_person' | 'per_night' | 'fixed'
       capacity: number | null
@@ -190,6 +240,14 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
   })
 
   if (rpcError || !bookingId) return { error: bookingsCopy.errors.generic }
+
+  await notifyAdminsOfPackagePrereserva(admin, {
+    packageName: pkg.name,
+    touristId: userId,
+    bookingDate,
+    quantity: storedQuantity,
+    notes: rawNotes,
+  })
 
   revalidatePath('/mis-reservas')
   redirect(`/reservas/${bookingId}/confirmacion`)
