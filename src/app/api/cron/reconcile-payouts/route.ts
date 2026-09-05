@@ -32,16 +32,22 @@ export async function GET(request: Request) {
   }
 
   if (request.headers.get('authorization') !== `Bearer ${secret}`) {
+    console.warn('Cron reconcile-payouts: invalid or missing bearer token')
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   const admin = createAdminClient()
   const stuckPendingCutoff = new Date(Date.now() - STUCK_PAYOUT_HOURS * 60 * 60 * 1000).toISOString()
 
+  // Capped well above any realistic daily volume for this business — a
+  // backlog larger than this would need attention beyond what a cron job
+  // silently retrying can provide anyway; any leftover rows are simply
+  // picked up on the next day's run.
   const { data: candidates, error: candidatesError } = await admin
     .from('provider_payouts')
     .select('id')
     .or(`status.eq.failed,and(status.eq.pending,created_at.lt.${stuckPendingCutoff})`)
+    .limit(200)
 
   if (candidatesError) {
     console.error('Failed to query stuck provider payouts for reconciliation', candidatesError)

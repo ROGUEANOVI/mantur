@@ -6,7 +6,9 @@ const rpcMock = vi.fn()
 function makeFromChain() {
   return {
     select: vi.fn(() => ({
-      or: vi.fn(() => candidatesQueryMock()),
+      or: vi.fn(() => ({
+        limit: vi.fn(() => candidatesQueryMock()),
+      })),
     })),
   }
 }
