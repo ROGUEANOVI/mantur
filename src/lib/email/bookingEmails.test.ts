@@ -12,6 +12,8 @@ const {
   sendBusinessBookingConfirmedEmail,
   guideBookingConfirmedEmail,
   sendGuideBookingConfirmedEmail,
+  packagePrereservaRequestedEmail,
+  sendPackagePrereservaRequestedEmail,
   packagePrereservaConfirmedEmail,
   sendPackagePrereservaConfirmedEmail,
   packagePrereservaCancelledEmail,
@@ -129,6 +131,54 @@ describe('sendGuideBookingConfirmedEmail', () => {
   it('does not throw when Resend rejects the send', async () => {
     sendMock.mockRejectedValue(new Error('network error'))
     await expect(sendGuideBookingConfirmedEmail('guia@example.com', GUIDE_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const PACKAGE_REQUESTED_PARAMS = {
+  packageName: 'Ruta Serranía del Perijá',
+  touristName: 'Ana Pérez',
+  bookingDate: '2026-09-05',
+  quantity: 2,
+  notes: null as string | null,
+}
+
+describe('packagePrereservaRequestedEmail', () => {
+  it('includes the package name, tourist name, formatted date, quantity, and a link to the admin queue', () => {
+    const { subject, html } = packagePrereservaRequestedEmail(PACKAGE_REQUESTED_PARAMS)
+    expect(subject).toBe('Nueva solicitud de paquete: Ruta Serranía del Perijá')
+    expect(html).toContain('Ruta Serranía del Perijá')
+    expect(html).toContain('Ana Pérez')
+    expect(html).toContain('sábado, 5 de septiembre de 2026')
+    expect(html).toContain('Cantidad:</strong> 2')
+    expect(html).toContain('https://mantur.co/admin/paquetes/solicitudes')
+  })
+
+  it('omits the notes block when notes is null', () => {
+    const { html } = packagePrereservaRequestedEmail(PACKAGE_REQUESTED_PARAMS)
+    expect(html).not.toContain('Notas del turista')
+  })
+
+  it('includes the notes block, escaped, when notes is present', () => {
+    const { html } = packagePrereservaRequestedEmail({ ...PACKAGE_REQUESTED_PARAMS, notes: 'Llegamos con <b>niños</b>' })
+    expect(html).toContain('Notas del turista')
+    expect(html).toContain('Llegamos con &lt;b&gt;niños&lt;/b&gt;')
+    expect(html).not.toContain('Llegamos con <b>niños</b>')
+  })
+})
+
+describe('sendPackagePrereservaRequestedEmail', () => {
+  it('sends the email with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendPackagePrereservaRequestedEmail('admin@mantur.co', PACKAGE_REQUESTED_PARAMS)
+
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'admin@mantur.co', subject: 'Nueva solicitud de paquete: Ruta Serranía del Perijá' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendPackagePrereservaRequestedEmail('admin@mantur.co', PACKAGE_REQUESTED_PARAMS)).resolves.toBeUndefined()
   })
 })
 

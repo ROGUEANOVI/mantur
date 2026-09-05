@@ -156,6 +156,62 @@ export async function sendGuideBookingConfirmedEmail(
 // Packages keep a real in-app pre-reserva flow, so the tourist gets notified
 // at each state transition an admin drives from /admin/paquetes/solicitudes.
 
+// Admin-facing — sent to every profile with role='admin' the moment a
+// tourist submits a package pre-reserva request (createPackagePrereserva in
+// reservas/actions.ts), since that action itself never emails anyone.
+// Without this, the only way an admin learns of a new request is checking
+// /admin/paquetes/solicitudes manually.
+export type PackagePrereservaRequestedParams = {
+  packageName: string
+  touristName: string
+  bookingDate: string
+  quantity: number
+  notes: string | null
+}
+
+export function packagePrereservaRequestedEmail(
+  params: PackagePrereservaRequestedParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      Hay una nueva solicitud de disponibilidad para el paquete
+      <strong>${escapeHtml(params.packageName)}</strong>.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Turista:</strong> ${escapeHtml(params.touristName)}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Fecha:</strong> ${formatBookingDate(params.bookingDate)}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      <strong>Cantidad:</strong> ${params.quantity}
+    </p>
+    ${
+      params.notes
+        ? `<p style="font-size: 14px; line-height: 1.6; margin: 12px 0 0; padding: 12px 16px; background: #f5faf7; border-radius: 12px;">
+             <strong>Notas del turista:</strong> ${escapeHtml(params.notes)}
+           </p>`
+        : ''
+    }
+    ${button('Revisar solicitud', `${APP_URL}/admin/paquetes/solicitudes`)}
+  `)
+
+  return { subject: `Nueva solicitud de paquete: ${params.packageName}`, html }
+}
+
+export async function sendPackagePrereservaRequestedEmail(
+  to: string,
+  params: PackagePrereservaRequestedParams,
+): Promise<void> {
+  const { subject, html } = packagePrereservaRequestedEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send package prereserva requested email', error)
+  }
+}
+
 export type PackagePrereservaConfirmedParams = {
   packageName: string
   touristName: string

@@ -64,10 +64,32 @@ const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
   throw new Error(`unexpected rpc: ${fn}`)
 })
 
+// createPackagePrereserva also uses the admin client to look up every
+// role='admin' profile and email them (notifyAdminsOfPackagePrereserva) —
+// routed by select columns since both queries hit `profiles` with the same
+// shape (see the identical technique in wompi/route.test.ts).
+const adminProfilesListMock = vi.fn()
+const touristProfileSingleMock = vi.fn()
+const getUserByIdMock = vi.fn()
+
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
     rpc: rpcMock,
+    from: (table: string) => {
+      if (table !== 'profiles') throw new Error(`unexpected table on admin client: ${table}`)
+      return {
+        select: (columns: string) => ({
+          eq: () => (columns === 'id' ? adminProfilesListMock() : { single: () => touristProfileSingleMock() }),
+        }),
+      }
+    },
+    auth: { admin: { getUserById: getUserByIdMock } },
   })),
+}))
+
+const sendPackagePrereservaRequestedEmailMock = vi.fn()
+vi.mock('@/lib/email/bookingEmails', () => ({
+  sendPackagePrereservaRequestedEmail: (...args: unknown[]) => sendPackagePrereservaRequestedEmailMock(...args),
 }))
 
 const checkRateLimitMock = vi.fn()
@@ -125,6 +147,11 @@ beforeEach(() => {
   authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
   checkRateLimitMock.mockResolvedValue(true)
+  // Defaults for the package-prereserva admin-notification path: one admin,
+  // resolvable to an email, and a resolvable tourist name.
+  adminProfilesListMock.mockResolvedValue({ data: [{ id: 'admin-1' }] })
+  touristProfileSingleMock.mockResolvedValue({ data: { full_name: 'Ana Pérez' } })
+  getUserByIdMock.mockResolvedValue({ data: { user: { email: 'admin@mantur.co' } } })
 })
 
 describe('rate limiting (shared by both booking actions)', () => {
@@ -481,12 +508,14 @@ describe('createGuideTourBooking', () => {
 const PACKAGE_ID = '33333333-3333-3333-3333-333333333333'
 
 function packageRow(overrides: Partial<{
+  name: string
   base_price: number
   capacity: number | null
   pricing_unit: 'per_person' | 'per_night' | 'fixed'
 }> = {}) {
   return {
     id: PACKAGE_ID,
+    name: overrides.name ?? 'Ruta Serranía del Perijá',
     base_price: overrides.base_price ?? 100000,
     capacity: 'capacity' in overrides ? overrides.capacity : 10,
     pricing_unit: overrides.pricing_unit ?? 'per_person',
@@ -618,5 +647,81 @@ describe('createPackagePrereserva', () => {
 
     const payload = createPackagePrereservaRpcMock.mock.calls[0][0]
     expect(payload.p_total_amount).toBe(45_000)
+  })
+
+  describe('admin notification on a new request', () => {
+    it('emails every admin with the package, tourist name, date, and quantity', async () => {
+      packageSingle.mockResolvedValue({ data: packageRow({ name: 'Ruta Serranía del Perijá' }) })
+      createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-20', error: null })
+      adminProfilesListMock.mockResolvedValue({ data: [{ id: 'admin-1' }, { id: 'admin-2' }] })
+      getUserByIdMock.mockImplementation((id: string) =>
+        Promise.resolve({ data: { user: { email: id === 'admin-1' ? 'admin1@mantur.co' : 'admin2@mantur.co' } } }),
+      )
+
+      const fd = formData({ package_id: PACKAGE_ID, quantity: '2', booking_date: FUTURE_DATE, notes: 'Somos 2 adultos' })
+      await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-20/confirmacion')
+
+      expect(sendPackagePrereservaRequestedEmailMock).toHaveBeenCalledWith('admin1@mantur.co', {
+        packageName: 'Ruta Serranía del Perijá',
+        touristName: 'Ana Pérez',
+        bookingDate: FUTURE_DATE,
+        quantity: 2,
+        notes: 'Somos 2 adultos',
+      })
+      expect(sendPackagePrereservaRequestedEmailMock).toHaveBeenCalledWith('admin2@mantur.co', expect.anything())
+    })
+
+    it('never emails when there are no admin profiles', async () => {
+      packageSingle.mockResolvedValue({ data: packageRow() })
+      createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-21', error: null })
+      adminProfilesListMock.mockResolvedValue({ data: [] })
+
+      const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+      await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-21/confirmacion')
+
+      expect(getUserByIdMock).not.toHaveBeenCalled()
+      expect(sendPackagePrereservaRequestedEmailMock).not.toHaveBeenCalled()
+    })
+
+    it('skips an admin with no resolvable email but still emails the rest', async () => {
+      packageSingle.mockResolvedValue({ data: packageRow() })
+      createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-22', error: null })
+      adminProfilesListMock.mockResolvedValue({ data: [{ id: 'admin-1' }, { id: 'admin-2' }] })
+      getUserByIdMock.mockImplementation((id: string) =>
+        Promise.resolve({ data: { user: id === 'admin-1' ? null : { email: 'admin2@mantur.co' } } }),
+      )
+
+      const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+      await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-22/confirmacion')
+
+      expect(sendPackagePrereservaRequestedEmailMock).toHaveBeenCalledTimes(1)
+      expect(sendPackagePrereservaRequestedEmailMock).toHaveBeenCalledWith('admin2@mantur.co', expect.anything())
+    })
+
+    it('still redirects when notifying admins throws unexpectedly', async () => {
+      packageSingle.mockResolvedValue({ data: packageRow() })
+      createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-23', error: null })
+      adminProfilesListMock.mockRejectedValue(new Error('db down'))
+
+      const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+      await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-23/confirmacion')
+    })
+
+    it('logs and never emails when the admin profiles lookup itself returns a Supabase error', async () => {
+      packageSingle.mockResolvedValue({ data: packageRow() })
+      createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-24', error: null })
+      adminProfilesListMock.mockResolvedValue({ data: null, error: { message: 'connection reset' } })
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const fd = formData({ package_id: PACKAGE_ID, quantity: '1', booking_date: FUTURE_DATE })
+      await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-24/confirmacion')
+
+      expect(sendPackagePrereservaRequestedEmailMock).not.toHaveBeenCalled()
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to look up admin profiles for package prereserva notification',
+        { message: 'connection reset' },
+      )
+      consoleErrorSpy.mockRestore()
+    })
   })
 })
