@@ -301,6 +301,24 @@ export const adminCopy = {
     } as Record<string, string>,
   },
 
+  facturas: {
+    title: 'Facturas pendientes de confirmar en la DIAN',
+    subtitle:
+      'Facturas ya creadas en Alegra cuyo estado ante la DIAN aún no se ha verificado. Alegra no notifica el resultado automáticamente en este plan — hay que consultarlo manualmente por factura.',
+    empty: 'No hay facturas pendientes de verificar.',
+    booking: 'Reserva',
+    createdAt: 'Facturada el',
+    invoiceId: 'ID de factura en Alegra',
+    check: 'Verificar estado DIAN',
+    checking: 'Verificando...',
+    stillPending: 'Todavía sin confirmar en la DIAN — sin cambios.',
+    updated: 'Estado actualizado.',
+    errors: {
+      notFound: 'Transacción o factura no encontrada.',
+      generic: 'No se pudo consultar el estado en Alegra. Intenta de nuevo.',
+    },
+  },
+
   lugares: {
     title: 'Lugares turísticos',
     subtitle: 'Atracciones y puntos de interés de Manaure Balcón del Cesar.',
