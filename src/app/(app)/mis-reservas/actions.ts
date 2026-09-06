@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
-import { refundRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
+import { refundRequestRateLimit, guideTourReviewRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { computeHoursUntilBooking, computeRefundAmountCents, bogotaDateString } from '@/lib/refunds'
 import { voidWompiTransaction } from '@/lib/wompi/refunds'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
@@ -171,4 +171,66 @@ export async function requestRefund(formData: FormData): Promise<RefundResult> {
   }
 
   revalidatePath('/mis-reservas')
+}
+
+type ReviewResult = { error: string } | { success: true }
+
+// Eligibility mirrors guide_tour_reviews_insert's own WITH CHECK exactly
+// (20260914000000_create_guide_tour_reviews.sql) — no bookings.status =
+// 'completed' transition exists anywhere in this codebase, so "the tour
+// happened" is computed directly from booking_date having already passed,
+// rather than inventing that machinery just for this feature.
+export async function createGuideTourReview(formData: FormData): Promise<ReviewResult> {
+  const { userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(guideTourReviewRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
+
+  const bookingId = formData.get('booking_id') as string
+  if (!UUID_RE.test(bookingId)) return { error: bookingsCopy.review.errors.notEligible }
+
+  const ratingRaw = Number(formData.get('rating'))
+  if (!Number.isInteger(ratingRaw) || ratingRaw < 1 || ratingRaw > 5) {
+    return { error: bookingsCopy.review.errors.invalidRating }
+  }
+
+  // Server-side cap independent of the form's own maxLength, same reasoning
+  // as requestRefund's payoutInstructions — matches the CHECK on
+  // guide_tour_reviews.comment (1000 chars) with headroom to spare.
+  const comment = (formData.get('comment') as string | null)?.trim().slice(0, 500) || null
+
+  const admin = createAdminClient()
+
+  const { data: booking } = await admin
+    .from('bookings')
+    .select('id, tourist_id, guide_tour_id, booking_date, status')
+    .eq('id', bookingId)
+    .single()
+
+  if (!booking || booking.tourist_id !== userId || !booking.guide_tour_id) {
+    return { error: bookingsCopy.review.errors.notEligible }
+  }
+
+  const todayBogota = bogotaDateString(new Date())
+  if (booking.status !== 'confirmed' || booking.booking_date >= todayBogota) {
+    return { error: bookingsCopy.review.errors.notEligible }
+  }
+
+  const { error: insertError } = await admin.from('guide_tour_reviews').insert({
+    guide_tour_id: booking.guide_tour_id,
+    booking_id: bookingId,
+    tourist_id: userId,
+    rating: ratingRaw,
+    comment,
+  })
+
+  if (insertError) {
+    // 23505 = unique_violation on guide_tour_reviews.booking_id — this
+    // booking already has a review.
+    if (insertError.code === '23505') return { error: bookingsCopy.review.errors.alreadyReviewed }
+    return { error: bookingsCopy.review.errors.generic }
+  }
+
+  revalidatePath('/mis-reservas')
+  return { success: true }
 }

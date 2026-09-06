@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { Clock, Users, Phone } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -8,6 +7,9 @@ import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import TourBookingForm from '@/components/guias/TourBookingForm'
+import TourImageCarousel from '@/components/guias/TourImageCarousel'
+import TourRatingSummary from '@/components/guias/TourRatingSummary'
+import TourReviewsList, { type TourReview } from '@/components/guias/TourReviewsList'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import Reveal from '@/components/shared/Reveal'
 import Avatar from '@/components/shared/Avatar'
@@ -108,6 +110,29 @@ export default async function GuideProfilePage({
     .order('created_at', { ascending: true })
 
   const tours = (toursData ?? []) as unknown as Tour[]
+  const tourIds = tours.map((t) => t.id)
+
+  const { data: reviewsData } = tourIds.length
+    ? await admin
+        .from('guide_tour_reviews')
+        .select('guide_tour_id, rating, comment, created_at')
+        .in('guide_tour_id', tourIds)
+        .order('created_at', { ascending: false })
+    : { data: [] as { guide_tour_id: string; rating: number; comment: string | null; created_at: string }[] }
+
+  const reviewsByTour = new Map<string, TourReview[]>()
+  for (const row of reviewsData ?? []) {
+    const list = reviewsByTour.get(row.guide_tour_id) ?? []
+    list.push({ rating: row.rating, comment: row.comment, created_at: row.created_at })
+    reviewsByTour.set(row.guide_tour_id, list)
+  }
+
+  function ratingSummaryFor(tourId: string): { avgRating: number | null; count: number } {
+    const reviews = reviewsByTour.get(tourId) ?? []
+    if (reviews.length === 0) return { avgRating: null, count: 0 }
+    const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    return { avgRating: avg, count: reviews.length }
+  }
 
   let bookingAccess: 'tourist' | 'guest' | 'other_role' = 'guest'
   if (userResult.data.user) {
@@ -223,14 +248,13 @@ export default async function GuideProfilePage({
                 <div
                   className="rounded-2xl border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden"
                 >
-                  {tour.images.length > 0 && (
-                    <div className="relative w-full h-36">
-                      <Image src={tour.images[0]} alt={tour.name} fill sizes="(min-width: 640px) 512px, 100vw" className="object-cover" />
-                    </div>
-                  )}
+                  <TourImageCarousel images={tour.images} name={tour.name} />
 
                   <div className="p-4 space-y-3">
-                    <h3 className="font-semibold text-foreground text-base">{tour.name}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-foreground text-base">{tour.name}</h3>
+                      <TourRatingSummary {...ratingSummaryFor(tour.id)} />
+                    </div>
 
                     {tour.description && (
                       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -260,6 +284,8 @@ export default async function GuideProfilePage({
                       price={Number(tour.price)}
                       access={bookingAccess}
                     />
+
+                    <TourReviewsList reviews={reviewsByTour.get(tour.id) ?? []} />
                   </div>
                 </div>
                 </Reveal>

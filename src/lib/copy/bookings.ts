@@ -113,4 +113,22 @@ export const bookingsCopy = {
       alreadyRequested: 'Ya existe una solicitud de reembolso para esta reserva.',
     },
   },
+
+  review: {
+    leaveReview: 'Dejar reseña',
+    ratingLabel: '¿Cómo calificarías este tour?',
+    commentLabel: 'Comentario (opcional)',
+    commentPlaceholder: 'Cuéntale a otros turistas cómo fue tu experiencia...',
+    submit: 'Enviar reseña',
+    submitting: 'Enviando...',
+    cancel: 'Cancelar',
+    submitted: '¡Gracias por tu reseña!',
+    alreadyReviewed: 'Ya reseñaste este tour',
+    errors: {
+      invalidRating: 'Selecciona una calificación de 1 a 5 estrellas.',
+      notEligible: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.',
+      alreadyReviewed: 'Ya dejaste una reseña para esta reserva.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
+    },
+  },
 }

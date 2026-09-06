@@ -44,6 +44,16 @@ export const refundRequestRateLimit = new Ratelimit({
   prefix: 'ratelimit:refund-request',
 })
 
+// Guide tour reviews: keyed by user id. Low-frequency by nature (one review
+// per booking, enforced by guide_tour_reviews.booking_id UNIQUE) — mainly
+// guards against cheap probing/enumeration of booking ids via repeated
+// invalid attempts, same reasoning as refundRequestRateLimit above.
+export const guideTourReviewRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
+  prefix: 'ratelimit:guide-tour-review',
+})
+
 // Change-password current-password verification: keyed by user id. A
 // compromised-but-authenticated session (stolen cookie, shared device)
 // could otherwise throw unlimited current-password guesses at
