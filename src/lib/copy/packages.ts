@@ -13,4 +13,11 @@ export const packagesCopy = {
     includedEmpty: 'La información de este paquete se está actualizando.',
     back: 'Volver a paquetes',
   },
+
+  reviews: {
+    noReviewsYet: 'Aún no tiene reseñas.',
+    reviewCount: (n: number) => (n === 1 ? '1 reseña' : `${n} reseñas`),
+    itemNoReviewsYet: 'Sin calificar',
+    itemReviewCount: (n: number) => (n === 1 ? '1' : `${n}`),
+  },
 } as const

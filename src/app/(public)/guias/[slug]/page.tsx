@@ -8,8 +8,8 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import TourBookingForm from '@/components/guias/TourBookingForm'
 import TourImageCarousel from '@/components/guias/TourImageCarousel'
-import TourRatingSummary from '@/components/guias/TourRatingSummary'
-import TourReviewsList, { type TourReview } from '@/components/guias/TourReviewsList'
+import RatingSummary from '@/components/shared/RatingSummary'
+import ReviewsList, { type Review } from '@/components/shared/ReviewsList'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import Reveal from '@/components/shared/Reveal'
 import Avatar from '@/components/shared/Avatar'
@@ -120,7 +120,7 @@ export default async function GuideProfilePage({
         .order('created_at', { ascending: false })
     : { data: [] as { guide_tour_id: string; rating: number; comment: string | null; created_at: string }[] }
 
-  const reviewsByTour = new Map<string, TourReview[]>()
+  const reviewsByTour = new Map<string, Review[]>()
   for (const row of reviewsData ?? []) {
     const list = reviewsByTour.get(row.guide_tour_id) ?? []
     list.push({ rating: row.rating, comment: row.comment, created_at: row.created_at })
@@ -253,7 +253,11 @@ export default async function GuideProfilePage({
                   <div className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold text-foreground text-base">{tour.name}</h3>
-                      <TourRatingSummary {...ratingSummaryFor(tour.id)} />
+                      <RatingSummary
+                        {...ratingSummaryFor(tour.id)}
+                        noReviewsText={guidesCopy.profilePage.noReviewsYet}
+                        reviewCountText={guidesCopy.profilePage.reviewCount}
+                      />
                     </div>
 
                     {tour.description && (
@@ -285,7 +289,7 @@ export default async function GuideProfilePage({
                       access={bookingAccess}
                     />
 
-                    <TourReviewsList reviews={reviewsByTour.get(tour.id) ?? []} />
+                    <ReviewsList reviews={reviewsByTour.get(tour.id) ?? []} />
                   </div>
                 </div>
                 </Reveal>

@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils'
 import { bogotaDateString } from '@/lib/refunds'
 import RequestRefundForm from '@/components/reservas/RequestRefundForm'
 import LeaveReviewForm from '@/components/guias/LeaveReviewForm'
+import PackageLeaveReviewForm from '@/components/paquetes/PackageLeaveReviewForm'
+import { resolvePackageItemLabel, type PackageIncludedItemRow } from '@/lib/packages/labels'
 
 type BookingItem = {
   id: string
@@ -24,15 +26,16 @@ type BookingItem = {
     name: string
     tourist_guides: { profiles: { full_name: string | null } | null } | null
   } | null
-  packages: { name: string } | null
+  packages: { id: string; name: string } | null
   // refund_requests.booking_id is UNIQUE, so PostgREST embeds this as a
   // to-one relation (an object, not an array) — same pattern already used
   // for guide_tours.tourist_guides (also unique) elsewhere in this file's
   // sibling confirmacion/page.tsx.
   refund_requests: { status: string } | null
-  // guide_tour_reviews.booking_id is UNIQUE, same to-one embed shape as
-  // refund_requests above.
+  // guide_tour_reviews.booking_id / package_reviews.booking_id are both
+  // UNIQUE, same to-one embed shape as refund_requests above.
   guide_tour_reviews: { id: string } | null
+  package_reviews: { id: string } | null
 }
 
 function formatDate(dateStr: string): string {
@@ -51,7 +54,7 @@ export default async function MisReservasPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(name), refund_requests(status), guide_tour_reviews(id)',
+      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(id, name), refund_requests(status), guide_tour_reviews(id), package_reviews(id)',
     )
     .order('created_at', { ascending: false })
 
@@ -81,6 +84,40 @@ export default async function MisReservasPage() {
     for (const tx of txRows ?? []) {
       const chargedToday = bogotaDateString(new Date(tx.created_at)) === todayBogota
       likelyAutoVoidByBookingId.set(tx.booking_id, tx.payment_method_type === 'CARD' && chargedToday)
+    }
+  }
+
+  // Only bookings where PackageLeaveReviewForm can actually render (same
+  // eligibility createPackageReview re-checks server-side) need their
+  // package's items resolved — package_items has no public SELECT policy
+  // (it holds internal_cost_cents), so this reads via the admin client with
+  // an explicit public-safe column list, same posture as
+  // /paquetes/[slug]/page.tsx.
+  const reviewablePackageIds = [
+    ...new Set(
+      items
+        .filter(
+          (b) =>
+            b.packages && b.status === 'confirmed' && b.booking_date < todayBogota && !b.package_reviews,
+        )
+        .map((b) => b.packages!.id),
+    ),
+  ]
+
+  const packageItemsByPackageId = new Map<string, { id: string; label: string }[]>()
+  if (reviewablePackageIds.length > 0) {
+    const admin = createAdminClient()
+    const { data: itemRows } = await admin
+      .from('package_items')
+      .select(
+        'id, package_id, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name)))',
+      )
+      .in('package_id', reviewablePackageIds)
+
+    for (const row of (itemRows ?? []) as unknown as (PackageIncludedItemRow & { package_id: string })[]) {
+      const list = packageItemsByPackageId.get(row.package_id) ?? []
+      list.push({ id: row.id, label: resolvePackageItemLabel(row) })
+      packageItemsByPackageId.set(row.package_id, list)
     }
   }
 
@@ -216,6 +253,22 @@ export default async function MisReservasPage() {
                     !booking.guide_tour_reviews && (
                       <div className="mt-3 pt-3 border-t border-border">
                         <LeaveReviewForm bookingId={booking.id} />
+                      </div>
+                    )}
+
+                  {/* Review: same eligibility, applied to a package booking
+                      instead — deliberately its own review system
+                      (package_reviews), never touching guide_tour_reviews
+                      even though a package can bundle a guide tour. */}
+                  {booking.packages &&
+                    booking.status === 'confirmed' &&
+                    booking.booking_date < todayBogota &&
+                    !booking.package_reviews && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <PackageLeaveReviewForm
+                          bookingId={booking.id}
+                          items={packageItemsByPackageId.get(booking.packages.id) ?? []}
+                        />
                       </div>
                     )}
                 </div>

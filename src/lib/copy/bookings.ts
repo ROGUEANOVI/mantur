@@ -131,4 +131,22 @@ export const bookingsCopy = {
       generic: 'Ocurrió un error. Intenta de nuevo.',
     },
   },
+
+  packageReview: {
+    leaveReview: 'Dejar reseña',
+    ratingLabel: '¿Cómo calificarías el paquete en general?',
+    itemRatingLabel: (label: string) => `Calificación para: ${label}`,
+    commentLabel: 'Comentario (opcional)',
+    commentPlaceholder: 'Cuéntale a otros turistas cómo fue tu experiencia...',
+    submit: 'Enviar reseña',
+    submitting: 'Enviando...',
+    cancel: 'Cancelar',
+    submitted: '¡Gracias por tu reseña!',
+    errors: {
+      invalidRating: 'Selecciona una calificación de 1 a 5 estrellas.',
+      notEligible: 'Solo puedes reseñar paquetes ya realizados de reservas confirmadas.',
+      alreadyReviewed: 'Ya dejaste una reseña para esta reserva.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
+    },
+  },
 }

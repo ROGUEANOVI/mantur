@@ -1,6 +1,6 @@
 import { Star } from 'lucide-react'
 
-export type TourReview = { rating: number; comment: string | null; created_at: string }
+export type Review = { rating: number; comment: string | null; created_at: string }
 
 function formatReviewDate(iso: string): string {
   return new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -8,9 +8,11 @@ function formatReviewDate(iso: string): string {
 
 // Deliberately anonymous — no page in this app exposes a tourist's name
 // publicly, same reasoning that kept `phone` out of any public join.
-// Renders nothing when empty — TourRatingSummary next to the tour title
+// Renders nothing when empty — RatingSummary next to the entity's title
 // already communicates "no reviews yet" once, no need to repeat it here.
-export default function TourReviewsList({ reviews }: { reviews: TourReview[] }) {
+// Generic across any reviewable entity (guide tours, packages) that shares
+// this rating+comment+created_at shape.
+export default function ReviewsList({ reviews }: { reviews: Review[] }) {
   if (reviews.length === 0) return null
 
   return (
