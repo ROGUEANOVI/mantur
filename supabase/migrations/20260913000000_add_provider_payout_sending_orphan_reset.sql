@@ -18,20 +18,21 @@
 -- is the exact same guarantee retryProviderPayout() and the reconciliation
 -- cron already rely on for 'pending'/'failed' rows.
 --
--- p_orphan_minutes defaults to 10 to match the existing SENDING_ORPHAN_MINUTES
--- constant (src/app/(app)/admin/pendingCounts.ts, also mirrored in
--- mark_provider_payout_resolved_manually's own 10-minute floor,
--- 20260901000000_add_provider_payout_manual_resolution.sql) — the daily
--- reconciliation cron (src/app/api/cron/reconcile-payouts/route.ts) calls
--- this explicitly with that same constant so there is one source of truth
--- on the TypeScript side.
+-- p_orphan_minutes has no default and is required: the daily reconciliation
+-- cron (src/app/api/cron/reconcile-payouts/route.ts) always calls this with
+-- the SENDING_ORPHAN_MINUTES constant (src/app/(app)/admin/pendingCounts.ts,
+-- also mirrored in mark_provider_payout_resolved_manually's own 10-minute
+-- floor, 20260901000000_add_provider_payout_manual_resolution.sql) — making
+-- the argument mandatory keeps that constant the single source of truth
+-- instead of also duplicating its value as a SQL-side default that could
+-- silently drift from it.
 --
 -- Depends on:
 --   20260830200000_create_provider_payouts_ledger (provider_payouts)
 --   20260901000000_add_provider_payout_manual_resolution ('sending' status)
 -- =============================================================
 
-CREATE OR REPLACE FUNCTION public.reset_stale_sending_provider_payouts(p_orphan_minutes integer DEFAULT 10)
+CREATE OR REPLACE FUNCTION public.reset_stale_sending_provider_payouts(p_orphan_minutes integer)
 RETURNS TABLE (id uuid)
 LANGUAGE plpgsql
 SECURITY DEFINER

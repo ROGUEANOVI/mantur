@@ -74,6 +74,17 @@ export type SendProviderPayoutResult =
   | { ok: true; wompiPayoutId: string }
   | { ok: false; error: string }
 
+// Bounds the worst case if Wompi's Payouts API hangs — same reasoning as
+// src/lib/alegra/client.ts's REQUEST_TIMEOUT_MS. This is the backstop the
+// automatic sending-orphan reset (reset_stale_sending_provider_payouts,
+// 20260913000000_add_provider_payout_sending_orphan_reset.sql) actually
+// depends on: without a bound here, a hung request could stay genuinely
+// in-flight past SENDING_ORPHAN_MINUTES, and the daily cron would reset a
+// row that Wompi might still complete moments later. 30s is generous for a
+// synchronous payout-acceptance call (not the payout settling — Wompi
+// confirms that later via its own webhook).
+const PAYOUT_REQUEST_TIMEOUT_MS = 30_000
+
 function requireEnv(
   name: 'WOMPI_PAYOUTS_BASE_URL' | 'WOMPI_PAYOUTS_API_KEY' | 'WOMPI_PAYOUTS_USER_PRINCIPAL_ID' | 'WOMPI_PAYOUTS_ACCOUNT_ID',
 ): string {
@@ -285,6 +296,7 @@ export async function sendProviderPayout(params: {
         accountId,
         paymentType: 'PROVIDERS',
       }),
+      signal: AbortSignal.timeout(PAYOUT_REQUEST_TIMEOUT_MS),
     })
 
     const body = await response.json().catch(() => null)
