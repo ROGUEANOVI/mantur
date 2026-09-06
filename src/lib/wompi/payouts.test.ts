@@ -89,6 +89,7 @@ describe('sendProviderPayout', () => {
     )
 
     const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)
+    expect(vi.mocked(fetch).mock.calls[0][1]!.signal).toBeInstanceOf(AbortSignal)
     expect(body).toEqual({
       legalIdType: 'CC',
       legalId: '123456789',

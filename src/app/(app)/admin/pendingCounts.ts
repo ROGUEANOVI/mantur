@@ -8,6 +8,17 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // agree on the same definition of "stuck".
 export const STUCK_PAYOUT_HOURS = 48
 
+// A 'sending' row older than this is presumed orphaned (the claiming
+// process crashed before recording a result) rather than a live in-flight
+// Wompi call, which normally completes or times out in seconds. Mirrors the
+// floor in mark_provider_payout_resolved_manually
+// (20260901000000_add_provider_payout_manual_resolution.sql) and is passed
+// explicitly to reset_stale_sending_provider_payouts
+// (20260913000000_add_provider_payout_sending_orphan_reset.sql) by the daily
+// reconciliation cron — this constant is the one source of truth on the
+// TypeScript side for a value that's otherwise duplicated in Postgres.
+export const SENDING_ORPHAN_MINUTES = 10
+
 export type SidebarPendingCounts = {
   negocios: number
   solicitudes: number
