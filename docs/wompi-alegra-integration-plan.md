@@ -55,6 +55,21 @@ ahora quedan solo **diseñados, no construidos** — ver la nota de contexto al
 inicio de §7 sobre por qué paquetes sí contempla un flujo de pre-reserva en
 vez de quedar 100% manual como el resto.
 
+**Actualización 2026-09-06 — automatización completa terminada.** Con el
+modelo manual ya validado como forma de operar, se decidió terminar de
+construir toda la automatización pendiente de este documento — Wompi Payouts,
+Alegra, y paquetes — para que quede lista para encender cuando ManTur decida
+escalar el modelo automático, en vez de quedar a medio construir esperando
+ese momento. Los 5 gaps reales que quedaban (cron de reconciliación de
+payouts, polling DIAN de Alegra, notas crédito de Alegra, un hardening de
+RLS en `refund_requests`, y notificación a proveedores de paquetes) se
+cerraron en los PRs #124–#128; **paquetes en sí ya estaba construido desde
+Fase 14** (este documento tenía un error: decía "0% implementado" cuando en
+realidad ya llevaba varios PRs mergeados — corregido en §7). El cobro real
+sigue apagado (decisión de negocio, no técnica) — todo lo de este documento
+queda como infraestructura lista, no como comportamiento visible al usuario
+hoy.
+
 ---
 
 ## 1. Estado actual del código (línea base)
@@ -317,6 +332,22 @@ Nuevo Route Handler: `src/app/api/webhooks/wompi/route.ts` (POST).
   exponiendo potencialmente cédula/cuenta bancaria/nombre/correo del
   destinatario) para poder confirmar/corregir el parseo contra el primer
   evento real.
+- **Visibilidad/reintento manual de admin — implementado.**
+  `/admin/pagos-proveedores` lista pagos atascados (`failed` de cualquier
+  antigüedad, `pending` de más de `STUCK_PAYOUT_HOURS`=48h, `sending`
+  huérfano de más de 10min) con botón de reintento (`retryProviderPayout()`)
+  y resolución manual (`resolveProviderPayoutManually()`, para pagos hechos
+  por fuera de Wompi). No estaba documentado en este plan cuando se construyó.
+- **Reconciliación automática — implementada (2026-09-05, PR #125).** Cron
+  diario (`src/app/api/cron/reconcile-payouts/route.ts`, `vercel.json`,
+  protegido por `CRON_SECRET`) reintenta `pending`/`failed` viejos sin
+  intervención de un admin, reutilizando exactamente el mismo flujo
+  claim→enviar→marcar que ya usa el retry manual. Corre una vez al día
+  (plan Vercel Hobby, sin granularidad horaria); un `sending` huérfano sigue
+  resolviéndose solo a mano por ahora — decisión explícita del founder al
+  construir esto, revisar si conviene automatizarlo cuando haya datos reales
+  de qué tan seguido pasa. Esto cierra el ítem 3 del roadmap (§9) que
+  bloqueaba habilitar payouts reales.
 
 ### 4.5 Testing
 
@@ -501,14 +532,26 @@ correcciones reales encontradas al verificar contra la cuenta real de Alegra
   con las credenciales normales `ALEGRA_USER`/`ALEGRA_TOKEN` de una cuenta
   contable estándar. El mecanismo real para una cuenta normal es **polling**:
   `GET /invoices/{id}?fields=events` devuelve el historial de eventos DIAN
-  (`ACKNOWLEDGMENT_DIAN`, `ACCEPTED_DIAN`). No implementado aún — hoy
-  `transactions.alegra_invoice_status` queda en `'pending'` tras crear la
-  factura y solo pasa a `'rejected'` si la propia llamada de creación falla;
-  nunca se confirma `'emitted'` automáticamente. Sigue pendiente: UI/acción
-  admin que llame ese endpoint y actualice el estado.
-- **Paso 4 (nota crédito en reembolsos) diferido** — no implementado en esta
-  fase; el reembolso/void ya funciona (motor de reembolsos, §5) pero no
-  dispara todavía una nota crédito en Alegra.
+  (`ACKNOWLEDGMENT_DIAN`, `ACCEPTED_DIAN`).
+  **Implementado (2026-09-05, PR #126).** `getInvoiceDianEvents()`/
+  `resolveDianInvoiceStatus()` en `src/lib/alegra/invoices.ts` + nueva página
+  `/admin/facturas` con botón "Verificar estado DIAN" por factura pendiente
+  — un click, sin reintento automático (misma postura que el resto de
+  llamadas a Alegra en este archivo). `ACCEPTED_DIAN` es el único evento de
+  éxito confirmado; el nombre exacto del evento de rechazo (`REJECTED_DIAN`
+  en el código) sigue sin confirmar contra un caso real — el chequeo falla
+  seguro (se queda en `'pending'`) en vez de arriesgar un falso `'emitted'`.
+- **Paso 4 (nota crédito en reembolsos) — implementado (2026-09-05, PR #127).**
+  Nuevo par de columnas `refund_requests.alegra_credit_note_id`/
+  `alegra_credit_note_status` + RPCs `claim_refund_request_for_credit_note`/
+  `mark_refund_request_credit_note_result` (mismo patrón claim/mark que
+  `provider_payouts`), disparadas desde los 3 puntos donde un reembolso llega
+  a `'processed'` (admin manual, void síncrono, confirmación async del
+  webhook). El monto de la nota crédito prorratea el `refund_percentage` del
+  reembolso sobre el `commission_amount_cents` original — ambos ya
+  inmutables, nunca se recalcula nada. Una revisión de seguridad encontró y
+  corrigió una condición de carrera real en la primera versión del RPC de
+  claim (chequeo no atómico) antes de mergear — ver el PR para el detalle.
 - `regime: 'SIMPLIFIED_REGIME'` en `findOrCreateContact()` (para el contacto
   del turista, no de ManTur) quedó como mejor esfuerzo sin verificar contra
   una respuesta real de la API (no había `ALEGRA_TOKEN` disponible al
@@ -556,9 +599,19 @@ propios servicios). **Paquetes es un modelo distinto y deliberadamente más
 controlado**: solo incluye proveedores (hospedaje/restaurantes, guías,
 transporte) que ManTur cura y vetea directamente como "seguros" — de ahí que
 sí tenga sentido construir aquí un flujo de **pre-reserva** en vez de dejarlo
-100% manual por WhatsApp como el resto de la plataforma. Este módulo sigue
-sin construirse (0% implementado); esta sección documenta el diseño acordado
-para cuando se retome, no código ya escrito.
+100% manual por WhatsApp como el resto de la plataforma.
+
+**Actualizado 2026-09-06 — este módulo ya está construido** (Fase 14 del
+CLAUDE.md, PRs #111–#120): `packages`, `package_items`,
+`provider_availability` (Fase 1 self-service ya incluida), `/admin/paquetes`
+CRUD, `/paquetes` público, el flujo de pre-reserva completo
+(`pending_availability → pending_payment → confirmed → paid` vía
+`/admin/paquetes/solicitudes`), y payouts por `package_item` a cada
+proveedor único. No se implementó detrás de un feature flag
+(`platform_config.packages_enabled`) como proponía el párrafo anterior — se
+lanzó directo, ya que el soft-launch real terminó siendo el propio pivote a
+operación manual (§0). El resto de esta sección (7.0–7.3) queda como
+documentación del diseño ya construido, no como pendiente.
 
 **IVA en paquetes**: a diferencia de la comisión de intermediación (§6, IVA
 19% solo sobre la comisión), cuando ManTur vende un paquete actúa como
@@ -607,18 +660,19 @@ puede automatizar después sin fricción:
   práctica: una fecha ya confirmada para un proveedor sirve para *cualquier*
   paquete futuro que lo incluya — el trabajo manual decrece con el tiempo en
   vez de repetirse por cada pre-reserva.
-- **Fase 2 (NO se construye ahora — es la razón de ser de este diseño)**:
-  cuando un proveedor esté listo para autoservicio, se agrega una vista de
-  calendario simple en su propio panel (`/mi-negocio/[id]/disponibilidad`,
-  `/mi-perfil-guia/disponibilidad`, `/mi-perfil-transporte/disponibilidad`)
-  que escribe en la **misma tabla**, para su propio `provider_id`, con una
-  nueva política RLS `provider_availability_insert_own`/`_update_own` —
-  calcada del patrón ya usado en `business_payout_accounts_insert_own`. Solo
-  cambia quién escribe (`source` pasa a `provider_self_service`); ManTur dejar
-  de tener que confirmar manualmente solo para los proveedores que ya
-  adoptaron el autoservicio. **Cero migración de esquema para pasar de Fase 1
-  a Fase 2** — es exactamente lo que hace que la arquitectura quede "lista
-  para automatizar sin fricción".
+- **Fase 2 — construida (2026-09-04, PR #119, endurecida en PR #120)**:
+  negocios y guías ya pueden marcar su propia disponibilidad general en su
+  panel (`/mi-negocio/[id]/disponibilidad`, `/mi-perfil-guia/disponibilidad`
+  — el de transportadores no se construyó, ya que el transporte sigue fuera
+  de alcance de este plan, §8) escribiendo en la **misma tabla**, para su
+  propio `provider_id`, vía la política RLS `provider_availability_insert_own`/
+  `_update_own`. `source` pasa a `provider_self_service` cuando el propio
+  proveedor escribe. Una revisión de seguridad encontró que la política
+  original solo validaba la propiedad del proveedor, no que `source`/
+  `resolved_by` realmente reflejaran quién escribió — corregido en PR #120
+  (migración `20260908100000_tighten_provider_availability_self_service_check.sql`)
+  antes de que quedara explotable. Como estaba previsto, la migración de Fase 1
+  a Fase 2 no requirió ningún cambio de esquema nuevo más allá de esa política.
 
 ### 7.1 Esquema nuevo
 
@@ -714,15 +768,10 @@ puede automatizar después sin fricción:
 2. **Wompi checkout**: redirect real, webhook `route.ts` con verificación de
    firma, transición de estados, tests.
 3. **Wompi Payouts**: tabla `provider_payouts`, disparo automático al marcar
-   `paid`, tests de idempotencia. **Implementado con un gap conocido**
-   (hallazgo de `security-reviewer`, alto): un payout puede quedar
-   atascado en `pending`/`failed` para siempre si el proceso falla entre
-   encolar y confirmar el resultado, o si la llamada a Wompi falla — nada
-   hoy re-intenta automáticamente. No bloquea el desarrollo del resto del
-   plan, pero **sí bloquea habilitar payouts reales** (ver ítem 9): antes de
-   eso hace falta un job de reconciliación o acción de admin que busque
-   filas `pending`/`failed` viejas y reintente `sendProviderPayout()`
-   reusando el mismo `provider_payouts.id` como idempotency-key.
+   `paid`, tests de idempotencia. **Implementado.** El gap que bloqueaba
+   habilitar payouts reales (ningún reintento automático para filas
+   `pending`/`failed` atascadas) está cerrado: cron diario de reconciliación
+   + `/admin/pagos-proveedores` para retry/resolución manual — ver §4.4.
    **Webhook de confirmación async (`'sent' → 'paid'/'failed'`) —
    implementado**, ver §4.4.
 4. **Motor de reembolsos**: `refund_policy_config`, `refund_requests`, flujo
@@ -736,16 +785,22 @@ puede automatizar después sin fricción:
    ambiguo con el void ya aplicado del lado de Wompi (hallazgo de
    `security-reviewer`, corregido antes de comitear).
 5. **Alegra facturación**: sync de contactos, creación de factura al
-   confirmarse el pago, webhook de reconciliación, tests.
+   confirmarse el pago, **implementado**; reconciliación DIAN vía polling
+   también **implementada** (2026-09-05, PR #126) — ver §6.3.1.
 6. **Alegra notas crédito**: enlazadas al flujo de reembolsos del paso 4.
-   **Diferido por el pivote a operación manual (2026-09-02)** — facturación
-   hoy es manual en Alegra, no dispara este flujo.
+   **Implementado** (2026-09-05, PR #127) — ver §6.3.1. La automatización
+   queda completa aunque el cobro real siga apagado por el pivote a
+   operación manual; factura manual en Alegra sigue siendo el flujo real
+   mientras tanto.
 7. **Paquetes/tours**: esquema, `/admin/paquetes`, `/paquetes` público,
    extensión de la constraint XOR de `bookings`, payouts múltiples por
-   paquete, flujo de pre-reserva + `provider_availability` (ver §7.0) —
-   **detrás de bandera hasta que el código esté probado**. **Diseño
-   actualizado 2026-09-02, sin construir todavía** — es la línea de negocio
-   principal una vez la operación manual valide demanda.
+   paquete, flujo de pre-reserva + `provider_availability` (ver §7.0).
+   **Implementado** (Fase 14 del CLAUDE.md, PRs #111–#120) — es la línea de
+   negocio principal una vez la operación manual valide demanda. Se lanzó
+   sin feature flag, ya que el pivote a operación manual (§0) terminó
+   siendo el soft-launch controlado que este ítem proponía. Notificación al
+   proveedor de un `package_item` en cada etapa de la pre-reserva —
+   **implementada** (2026-09-06, PR #128).
 8. **Revisión de seguridad obligatoria** (`security-reviewer` subagent, por
    CLAUDE.md) antes de cualquier PR de este trabajo que toque dinero —
    especial atención a: verificación de firma de webhooks, que ningún monto
@@ -756,11 +811,16 @@ puede automatizar después sin fricción:
 9. **Corte a producción**: llaves reales de Wompi (esperar confirmación de
    aprobación del comercio, banner de 3 días hábiles) y Alegra, actualizar
    `src/lib/copy/legal.ts` (quitar la nota de "aún no constituida"),
-   habilitación DIAN de Alegra confirmada, des-flaggear paquetes.
-   **Payouts reales específicamente requieren además**: el job/acción de
-   reconciliación del ítem 3, y visibilidad de admin sobre `provider_payouts`
-   (aunque sea una tabla simple en `/admin`) — sin esto, un payout fallido es
-   invisible salvo revisión manual de logs.
+   habilitación DIAN de Alegra confirmada. Los ítems técnicos que antes
+   bloqueaban este paso (job de reconciliación de payouts, visibilidad de
+   admin sobre `provider_payouts`) ya están resueltos — ver ítem 3. Lo único
+   que falta aquí es checklist legal/credenciales (§2), no código.
+10. **`refund_requests_insert` RLS — cerrado** (2026-09-05, PR #124). La
+    política solo validaba `requested_by`/`status`, nunca que `booking_id`/
+    `transaction_id` realmente pertenecieran al llamante — mismo patrón de
+    bug ya corregido una vez en `provider_availability` (ítem 7's Fase 2).
+    Defense-in-depth únicamente (el flujo real usa el cliente admin), pero
+    cerrado igual.
 
 ---
 

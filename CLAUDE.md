@@ -403,6 +403,30 @@ now gets an email when their tour booking is confirmed, closing the one gap
 in that pair that was still live (guide-tour booking was never disabled by
 the Phase 13 manual-ops pivot) (`#122`).
 
+### Phase 16 — Wompi/Alegra automation gaps closed (PRs #123–#128 — merged)
+Admins get emailed when a package availability request arrives (`#123`).
+Then, with manual ops validated as the way ManTur actually operates today,
+the remaining automation gaps from `docs/wompi-alegra-integration-plan.md`
+were finished anyway — so the automation is fully ready to switch back on
+whenever that decision is made, instead of staying half-built. Tightened
+`refund_requests_insert` RLS to validate real booking/transaction ownership,
+same bug class as a previously-fixed `provider_availability` gap (`#124`).
+Daily cron (`src/app/api/cron/reconcile-payouts/route.ts`, `vercel.json`)
+auto-retries stuck `provider_payouts` rows, reusing the same claim/send/mark
+flow `/admin/pagos-proveedores`'s manual retry already used (`#125`). Alegra
+DIAN-acceptance polling (`getInvoiceDianEvents()`/`resolveDianInvoiceStatus()`
++ new `/admin/facturas` page) — no webhook exists on this account tier, so
+this is the only way to confirm `alegra_invoice_status` beyond `'pending'`
+(`#126`). Alegra credit notes issued automatically when a refund reaches
+`'processed'`, from any of its three call sites (`#127` — a security review
+caught and fixed a real race condition in the claim RPC before merge, and a
+`.single()`-vs-`.maybeSingle()` bug that mislabeled routine no-ops as
+errors). Business/guide providers behind a package now get emailed at
+confirmation, cancellation, and payout, not just the tourist (`#128`).
+`docs/wompi-alegra-integration-plan.md` was also corrected — it had said
+Paquetes was "0% implemented" when Phase 14 had already shipped it, and
+`/admin/pagos-proveedores` wasn't documented as existing at all.
+
 ## Pending / post-MVP
 
 - **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
@@ -422,26 +446,16 @@ the Phase 13 manual-ops pivot) (`#122`).
   now exists — `/mi-perfil-guia/disponibilidad`, Phase 14 — so that part of
   this item is done.)
 - **Wompi Payouts**: code-complete and deployed, including async
-  confirmation via Wompi's own Payouts webhook (Phase 12, PR #109), but
-  still unverified against a real production payout event — see project
-  memory `wompi_payouts_integration_status`.
+  confirmation via Wompi's own Payouts webhook (Phase 12, PR #109) and a
+  daily reconciliation cron for stuck rows (Phase 16, PR #125), but still
+  unverified against a real production payout event — see project memory
+  `wompi_payouts_integration_status`.
 - **Alegra invoicing**: contact + commission-invoice creation on payment
-  confirmation is live (see `docs/wompi-alegra-integration-plan.md` §6.3.1),
-  but credit notes on refund and DIAN-status reconciliation (polling
-  `GET /invoices/{id}?fields=events` — no webhook is available on this
-  account tier) are not built yet. Package sales are invoiced manually in
-  Alegra's own UI under the manual-ops model, not through this webhook-driven
-  flow — see project memory `manual_operation_pivot`.
-- **Package (paquetes) provider notifications**: a business owner or guide
-  who is part of a package gets no notification at any pre-reserva stage
-  (availability request, confirmation, payout) — the whole flow in
-  `/admin/paquetes/solicitudes` is admin-driven today, by design under
-  manual ops. Worth revisiting once packages scale past what one admin can
-  track by eye.
-- **refund_requests INSERT RLS**: booking ownership/amounts are unvalidated
-  at INSERT time (same gap pattern as `bookings_insert` before it was
-  fixed) — deferred from PR #103, see project memory
-  `refund_requests_insert_rls_gap`.
+  confirmation, DIAN-status polling, and credit notes on refund are all live
+  (Phase 16, PRs #126–#127 — see `docs/wompi-alegra-integration-plan.md`
+  §6.3.1). Package sales are still invoiced manually in Alegra's own UI
+  under the manual-ops model, not through this webhook-driven flow — see
+  project memory `manual_operation_pivot`.
 
 ## Data model (v1 — English names, relational)
 
