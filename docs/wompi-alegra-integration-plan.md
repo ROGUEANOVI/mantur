@@ -142,17 +142,14 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
       comercio "MANTUR TURISMO S A S" ya existe, cuenta de desembolso
       vinculada a la cuenta Bancolombia de arriba, métodos de pago
       (tarjetas, Nequi, PSE, Botón Bancolombia, Bancolombia QR, Daviplata,
-      SU+Pay) ya habilitados. **Pendiente**: aprobación final del comercio
-      por parte de Wompi (banner propio del dashboard: máx. 3 días hábiles
-      desde el alta) — no bloquea desarrollo, solo el primer retiro real.
+      SU+Pay) ya habilitados. **Comercio ya APROBADO por Wompi** (confirmado
+      2026-09-06) — ya no bloquea el primer retiro real.
 - [x] "Pagos a Terceros" (el producto de dispersión elegido en §5) ya
       aparece disponible en el dashboard de Wompi — falta solo activarlo
       formalmente y obtener sus credenciales propias (`x-api-key` +
       `user-principal-id`) cuando se implemente §5.
-- [ ] RUT en estado ACTIVO, sin clave de apertura, con marca de agua
-      "CERTIFICADO"/"COPIA CERTIFICADO" — confirmar que quedó anexado
-      correctamente en Wompi si la aprobación del comercio se demora más
-      de 3 días hábiles (causa más común de rechazo).
+- [x] RUT en estado ACTIVO — el comercio ya fue aprobado por Wompi
+      (2026-09-06), condición implícita de esa aprobación.
 - [ ] Repetir/confirmar credenciales de **sandbox** de Wompi (llaves
       distintas a las de producción) para poder desarrollar y probar sin
       tocar el comercio real ya vinculado a dinero real.
@@ -162,16 +159,15 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
       Esta es la condición legal que habilitaba §7 (paquetes) — **ya
       cumplida**, la bandera de §7 puede quedar condicionada solo a que el
       desarrollo esté listo, no a este trámite.
-- [ ] RNT de ManTur como **"Plataforma electrónica o digital"** (la
-      subcategoría que cubre el rol de intermediario/marketplace en sí,
-      distinta de la de operador) — radicado #40412, estado **"Inscripción:
-      en trámite"** en `rnt.confecamaras.co`. No bloquea el desarrollo de
-      este plan (el rol de intermediario ya opera hoy sin ella), pero
-      conviene darle seguimiento porque formaliza el negocio actual de
-      ManTur (reservas de negocios/guías) igual que el RNT operador formaliza
-      los paquetes. Recordar la nota del propio RNT: toda inscripción debe
-      renovarse cada año entre el 1 de enero y el 31 de marzo o se suspende
-      automáticamente el 1 de abril.
+- [x] RNT de ManTur como **"Plataforma electrónica o digital"** — RNT
+      #300054, radicado #40412, estado **ACTIVO** ("Inscripción: APROBADA",
+      2/sep/2026, Cámara de Comercio de Valledupar). Formaliza el rol de
+      intermediario de ManTur (reservas de negocios/guías) igual que el RNT
+      #299376 formaliza los paquetes. Reflejado en
+      `src/lib/copy/legal.ts` (sección "Registro legal"). Recordar la nota
+      del propio RNT: **ambos** registros deben renovarse cada año entre el
+      1 de enero y el 31 de marzo o se suspenden automáticamente el 1 de
+      abril.
 - [x] Cuenta Alegra creada (`app.alegra.com`, empresa "MANTUR..." ya
       seleccionada) — 2026-08-29. El menú lateral ya trae Ingresos, Gastos,
       Contactos, Inventario, Bancos, Contabilidad, Reportes, Nómina, POS y
@@ -195,21 +191,28 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
       por el lado de Alegra. Mantenerla activa igual es útil como respaldo
       de conciliación y para cualquier cobro manual que se haga directamente
       desde Alegra fuera de la plataforma.
-- [ ] Generar el token de API de Alegra (`ALEGRA_USER` + `ALEGRA_TOKEN`)
-      desde `developer.alegra.com` — el código de §6 ya está implementado y
-      esperando este valor para poder probarse end-to-end.
-- [ ] **Revisión con abogado/contador**: la estructura contractual entre
-      ManTur y cada negocio/guía/transportador (mandato o comisión mercantil)
-      debe quedar clara para que ManTur, al recaudar el 100% del pago del
-      turista y luego pagar la parte del prestador, no quede clasificada como
-      intermediario de pagos regulado (aggregator) ante la Superintendencia
-      Financiera. El patrón "marketplace cobra en su propia cuenta y le debe
-      el pago al proveedor como cuenta por pagar" es el estándar de la
-      industria, pero debe quedar respaldado en los términos y condiciones
-      y/o contratos de vinculación de cada rol.
-- [ ] Actualizar `src/lib/copy/legal.ts` línea 73 ("ManTur aún no está
-      constituida como una entidad legal registrada") una vez CCV/DIAN estén
-      completos — cambio de copy trivial, no bloquea nada técnico.
+- [x] Generar el token de API de Alegra (`ALEGRA_USER` + `ALEGRA_TOKEN`)
+      desde `developer.alegra.com` — ya configurado en Vercel producción
+      (confirmado 2026-09-05 vía `vercel env ls`).
+- [x] **Estructura contractual (mandato vs. intermediario de pagos
+      regulado) — resuelta 2026-09-06 aplicando el estándar de la
+      industria (Airbnb/Booking/Civitatis), sin esperar revisión formal de
+      abogado/contador por decisión explícita del founder.** El patrón ya
+      construido ("ManTur cobra el 100% y le paga al proveedor como cuenta
+      por pagar") queda respaldado como una relación de **mandato/comisión
+      mercantil** en `src/lib/copy/legal.ts` (sección "5. Reservas y
+      pagos" de Términos y Condiciones): ManTur recauda "actuando como
+      mandatario del negocio, guía o transportador para efectos de ese
+      recaudo", nunca como intermediario de pagos regulado. Se acepta al
+      activar cualquier rol de proveedor, vía la aceptación general de
+      términos ya existente en el signup — no se agregó un checkbox nuevo
+      por rol. Esto reduce el riesgo pero **no reemplaza una revisión legal
+      formal**; recomendable confirmarlo con un abogado antes del corte a
+      producción real (ítem 9 del roadmap, §9), especialmente si el volumen
+      de transacciones crece.
+- [x] Actualizar `src/lib/copy/legal.ts` — ya refleja MANTUR TURISMO S.A.S.,
+      NIT, Matrícula Mercantil y ambos RNT (#299376 y #300054); la nota de
+      "aún no constituida" ya no existe en el archivo.
 
 ---
 
@@ -552,6 +555,15 @@ correcciones reales encontradas al verificar contra la cuenta real de Alegra
   inmutables, nunca se recalcula nada. Una revisión de seguridad encontró y
   corrigió una condición de carrera real en la primera versión del RPC de
   claim (chequeo no atómico) antes de mergear — ver el PR para el detalle.
+  **Criterio de prorrateo — confirmado 2026-09-06** (estándar de mercado,
+  sin esperar revisión formal de contador, por decisión del founder): un
+  reembolso parcial significa que el servicio de intermediación de ManTur
+  también se prestó solo parcialmente, así que la base gravable de IVA de
+  esa comisión debe reducirse en la misma proporción — prorratear (no solo
+  emitir nota crédito en reembolso 100%) es el criterio correcto, no solo
+  el más simple de implementar. Recomendable que el contador lo confirme en
+  la primera declaración de IVA real, pero no bloquea nada mientras el
+  cobro automatizado siga apagado.
 - `regime: 'SIMPLIFIED_REGIME'` en `findOrCreateContact()` (para el contacto
   del turista, no de ManTur) quedó como mejor esfuerzo sin verificar contra
   una respuesta real de la API (no había `ALEGRA_TOKEN` disponible al
