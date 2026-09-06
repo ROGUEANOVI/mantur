@@ -111,6 +111,34 @@ describe('notifyPackageProvidersOfConfirmation', () => {
 
     errorSpy.mockRestore()
   })
+
+  it('still notifies the second provider when resolving the first one throws', async () => {
+    const bookingSingle = vi.fn().mockResolvedValue({ data: { package_id: 'package-1' } })
+    const businessSingle = vi.fn().mockRejectedValue(new Error('db blip'))
+    const guideSingle = vi.fn().mockResolvedValue({ data: { profile_id: 'profile-1' } })
+    const getUserById = vi.fn().mockResolvedValue({ data: { user: { email: 'guia@example.com' } } })
+    const admin = {
+      from: (table: string) => {
+        if (table === 'bookings') return { select: () => ({ eq: () => ({ single: bookingSingle }) }) }
+        if (table === 'businesses') return { select: () => ({ eq: () => ({ single: businessSingle }) }) }
+        if (table === 'tourist_guides') return { select: () => ({ eq: () => ({ single: guideSingle }) }) }
+        throw new Error(`unexpected table: ${table}`)
+      },
+      auth: { admin: { getUserById } },
+    } as unknown as Parameters<typeof notifyPackageProvidersOfConfirmation>[0]
+
+    resolvePackageProvidersMock.mockResolvedValue([
+      { recipientType: 'business', recipientId: 'biz-1', amountCents: 5000 },
+      { recipientType: 'guide', recipientId: 'guide-1', amountCents: 3000 },
+    ])
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await notifyPackageProvidersOfConfirmation(admin, PARAMS)
+
+    expect(sendConfirmedMock).toHaveBeenCalledTimes(1)
+    expect(sendConfirmedMock).toHaveBeenCalledWith('guia@example.com', expect.objectContaining({ panelUrl: 'https://mantur.co/mi-perfil-guia' }))
+    errorSpy.mockRestore()
+  })
 })
 
 describe('notifyPackageProvidersOfCancellation', () => {

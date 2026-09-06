@@ -486,6 +486,9 @@ describe('markPackageBookingPaid', () => {
       expect(result).toBeUndefined()
       expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
       expect(sendPaidMock).toHaveBeenCalled()
+      // No transaction means no payout was actually enqueued — providers must
+      // not be told "your payment is on its way" when nothing was sent.
+      expect(notifyProvidersPayoutMock).not.toHaveBeenCalled()
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         'markPackageBookingPaid: no transaction found to pay providers out from',
         { bookingId: BOOKING_ID },

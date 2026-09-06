@@ -63,8 +63,15 @@ async function forEachPackageProvider(
     const providers = await resolvePackageProviders(admin, booking.package_id)
 
     for (const provider of providers) {
-      const email = await resolveProviderEmail(admin, provider)
-      if (email) await notify(email, provider)
+      // Per-provider try/catch: a package can have multiple providers (e.g.
+      // a business + a guide) — one failing to resolve/email must not skip
+      // notifying the rest.
+      try {
+        const email = await resolveProviderEmail(admin, provider)
+        if (email) await notify(email, provider)
+      } catch (error) {
+        console.error('Unexpected error while notifying one package provider', { ...provider, error })
+      }
     }
   } catch (error) {
     console.error('Unexpected error while notifying package providers', error)

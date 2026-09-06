@@ -266,6 +266,14 @@ export async function markPackageBookingPaid(formData: FormData): Promise<{ erro
 
   if (transaction?.id) {
     await payoutPackageProviders(admin, booking.package_id, transaction.id)
+    // Only claim "tu pago ya está en camino" to providers when a payout was
+    // actually enqueued above — otherwise (no transaction found, logged
+    // below) it would misrepresent payment state to a business/guide partner.
+    await notifyPackageProvidersOfPayout(admin, {
+      bookingId: booking.id,
+      packageName: booking.packages?.name ?? '',
+      bookingDate: booking.booking_date,
+    })
   } else {
     console.error('markPackageBookingPaid: no transaction found to pay providers out from', { bookingId })
   }
@@ -279,12 +287,6 @@ export async function markPackageBookingPaid(formData: FormData): Promise<{ erro
       bookingId: booking.id,
     })
   }
-
-  await notifyPackageProvidersOfPayout(admin, {
-    bookingId: booking.id,
-    packageName: booking.packages?.name ?? '',
-    bookingDate: booking.booking_date,
-  })
 
   revalidatePath('/admin/paquetes/solicitudes')
 }
