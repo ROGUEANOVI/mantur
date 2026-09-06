@@ -7,6 +7,7 @@ import { bookingsCopy } from '@/lib/copy/bookings'
 import { cn } from '@/lib/utils'
 import { bogotaDateString } from '@/lib/refunds'
 import RequestRefundForm from '@/components/reservas/RequestRefundForm'
+import LeaveReviewForm from '@/components/guias/LeaveReviewForm'
 
 type BookingItem = {
   id: string
@@ -29,6 +30,9 @@ type BookingItem = {
   // for guide_tours.tourist_guides (also unique) elsewhere in this file's
   // sibling confirmacion/page.tsx.
   refund_requests: { status: string } | null
+  // guide_tour_reviews.booking_id is UNIQUE, same to-one embed shape as
+  // refund_requests above.
+  guide_tour_reviews: { id: string } | null
 }
 
 function formatDate(dateStr: string): string {
@@ -47,11 +51,12 @@ export default async function MisReservasPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(name), refund_requests(status)',
+      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(name), refund_requests(status), guide_tour_reviews(id)',
     )
     .order('created_at', { ascending: false })
 
   const items = (bookings ?? []) as unknown as BookingItem[]
+  const todayBogota = bogotaDateString(new Date())
 
   // Only bookings where RequestRefundForm actually renders (confirmed, no
   // existing refund_requests row) need this — everything else never shows
@@ -73,7 +78,6 @@ export default async function MisReservasPage() {
       .select('booking_id, payment_method_type, created_at')
       .in('booking_id', eligibleBookingIds)
 
-    const todayBogota = bogotaDateString(new Date())
     for (const tx of txRows ?? []) {
       const chargedToday = bogotaDateString(new Date(tx.created_at)) === todayBogota
       likelyAutoVoidByBookingId.set(tx.booking_id, tx.payment_method_type === 'CARD' && chargedToday)
@@ -201,6 +205,19 @@ export default async function MisReservasPage() {
                       />
                     </div>
                   ) : null}
+
+                  {/* Review: only for a guide-tour booking that's confirmed,
+                      already happened, and has no review yet — same
+                      eligibility createGuideTourReview itself re-checks
+                      server-side. */}
+                  {booking.guide_tours &&
+                    booking.status === 'confirmed' &&
+                    booking.booking_date < todayBogota &&
+                    !booking.guide_tour_reviews && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <LeaveReviewForm bookingId={booking.id} />
+                      </div>
+                    )}
                 </div>
               )
             })}

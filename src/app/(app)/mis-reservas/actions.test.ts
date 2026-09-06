@@ -44,6 +44,8 @@ const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
   throw new Error(`unexpected rpc: ${fn}`)
 })
 
+const reviewInsertMock = vi.fn()
+
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
     rpc: rpcMock,
@@ -51,6 +53,7 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'bookings') return { select: () => ({ eq: () => ({ single: bookingSingle }) }) }
       if (table === 'transactions') return { select: () => ({ eq: () => ({ single: transactionSingle }) }) }
       if (table === 'refund_requests') return { insert: refundInsertMock }
+      if (table === 'guide_tour_reviews') return { insert: (payload: Record<string, unknown>) => reviewInsertMock(payload) }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
   })),
@@ -77,7 +80,7 @@ vi.mock('@/lib/alegra/refundCreditNotes', () => ({
   syncAlegraCreditNoteForRefund: (...args: unknown[]) => syncAlegraCreditNoteForRefundMock(...args),
 }))
 
-const { requestRefund } = await import('./actions')
+const { requestRefund, createGuideTourReview } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -104,6 +107,7 @@ beforeEach(() => {
   // anyway — claim resolves false so nothing beyond the claim attempt runs.
   claimRpcMock.mockResolvedValue({ data: false, error: null })
   voidWompiTransactionMock.mockResolvedValue({ ok: false, error: 'not relevant to this test' })
+  reviewInsertMock.mockResolvedValue({ data: null, error: null })
 })
 
 afterEach(() => {
@@ -442,5 +446,124 @@ describe('same-day 100% refund → automatic Wompi void', () => {
     expect(revertRpcMock).toHaveBeenCalledWith({ p_refund_request_id: 'refund-1' })
     expect(cascadeRpcMock).not.toHaveBeenCalled()
     expect(sendRefundProcessedEmailMock).not.toHaveBeenCalled()
+  })
+})
+
+function reviewBookingRow(overrides: Partial<{
+  status: string
+  booking_date: string
+  tourist_id: string
+  guide_tour_id: string | null
+}> = {}) {
+  return {
+    id: BOOKING_ID,
+    tourist_id: overrides.tourist_id ?? USER_ID,
+    guide_tour_id: 'guide_tour_id' in overrides ? overrides.guide_tour_id : 'tour-1',
+    booking_date: overrides.booking_date ?? '2026-08-20', // before TODAY_ISO (2026-08-31) -> already happened
+    status: overrides.status ?? 'confirmed',
+  }
+}
+
+describe('createGuideTourReview', () => {
+  it('rejects a non-UUID booking id without querying the DB', async () => {
+    const result = await createGuideTourReview(formData({ booking_id: 'not-a-uuid', rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })
+    expect(bookingSingle).not.toHaveBeenCalled()
+  })
+
+  it.each(['0', '6', '2.5', 'abc', ''])('rejects an invalid rating value %s', async (rating) => {
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating }))
+    expect(result).toEqual({ error: 'Selecciona una calificación de 1 a 5 estrellas.' })
+    expect(bookingSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the booking does not exist', async () => {
+    bookingSingle.mockResolvedValue({ data: null })
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })
+  })
+
+  it('rejects when the booking belongs to a different tourist', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow({ tourist_id: 'someone-else' }) })
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })
+  })
+
+  it('rejects a booking with no guide_tour_id (a service or package booking)', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow({ guide_tour_id: null }) })
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })
+  })
+
+  it('rejects a booking that is not confirmed', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow({ status: 'pending_payment' }) })
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })
+    expect(reviewInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a tour whose booking_date has not happened yet', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow({ booking_date: '2026-09-10' }) })
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })
+    expect(reviewInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a tour whose booking_date is today (not yet "already happened")', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow({ booking_date: '2026-08-31' }) })
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })
+  })
+
+  it('inserts the review with a trimmed comment and revalidates on success', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow() })
+
+    const result = await createGuideTourReview(
+      formData({ booking_id: BOOKING_ID, rating: '4', comment: '  Excelente experiencia  ' }),
+    )
+
+    expect(result).toEqual({ success: true })
+    expect(reviewInsertMock).toHaveBeenCalledWith({
+      guide_tour_id: 'tour-1',
+      booking_id: BOOKING_ID,
+      tourist_id: USER_ID,
+      rating: 4,
+      comment: 'Excelente experiencia',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('stores a null comment when none is provided', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow() })
+
+    await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+
+    expect(reviewInsertMock).toHaveBeenCalledWith(expect.objectContaining({ comment: null }))
+  })
+
+  it('caps the comment at 500 characters server-side', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow() })
+
+    await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5', comment: 'a'.repeat(600) }))
+
+    expect(reviewInsertMock).toHaveBeenCalledWith(expect.objectContaining({ comment: 'a'.repeat(500) }))
+  })
+
+  it('maps a unique_violation on insert to "already reviewed" rather than a generic error', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow() })
+    reviewInsertMock.mockResolvedValue({ data: null, error: { code: '23505' } })
+
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+
+    expect(result).toEqual({ error: 'Ya dejaste una reseña para esta reserva.' })
+  })
+
+  it('returns a generic error on any other insert failure', async () => {
+    bookingSingle.mockResolvedValue({ data: reviewBookingRow() })
+    reviewInsertMock.mockResolvedValue({ data: null, error: { code: '23503' } })
+
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 })

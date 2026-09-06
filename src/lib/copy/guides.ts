@@ -21,6 +21,11 @@ export const guidesCopy = {
     bookTour: 'Reservar tour',
     duration: 'min',
     people: 'personas (máx.)',
+    previousImage: 'Foto anterior',
+    nextImage: 'Foto siguiente',
+    noReviewsYet: 'Aún no tiene reseñas.',
+    reviewCount: (n: number) => (n === 1 ? '1 reseña' : `${n} reseñas`),
+    seeReviews: 'Ver reseñas',
   },
 
   bookingForm: {
