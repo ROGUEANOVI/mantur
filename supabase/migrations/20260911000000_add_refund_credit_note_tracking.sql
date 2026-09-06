@@ -40,13 +40,27 @@ ALTER TABLE public.refund_requests
 -- claim_refund_request_for_credit_note()
 -- Claims a processed refund for a credit-note attempt and hands back the
 -- immutable data needed to place the Alegra call in one round trip — same
--- shape as claim_provider_payout_for_send(). Returns no row when: not yet
--- processed, already claimed/resolved (alegra_credit_note_status is not
--- NULL), or the transaction was never invoiced (no alegra_invoice_id —
--- nothing to credit). A computed credit of 0 cents is a legitimate outcome
--- (a 0%-tier cancellation), not a failure: marked 'not_applicable' directly
--- by this function, with no row returned, so the caller makes no external
--- call at all.
+-- shape as claim_provider_payout_for_send(). A single UPDATE ... FROM ...
+-- RETURNING, not a separate SELECT-then-UPDATE: the earlier draft of this
+-- function checked eligibility with a plain SELECT and only issued the
+-- claiming UPDATE afterward, which is NOT atomic across concurrent callers
+-- (two of this refund's three call sites racing on the same row could both
+-- pass the SELECT before either UPDATE committed, both claim, and both fire
+-- a real Alegra credit note — caught by an automated security review before
+-- this migration was ever applied). Folding the eligibility check into the
+-- UPDATE's own WHERE clause makes Postgres's row lock the actual
+-- concurrency guard, identical to how claim_provider_payout_for_send's own
+-- single UPDATE already prevents a double payout.
+--
+-- Returns no row when: not yet processed, already claimed/resolved
+-- (alegra_credit_note_status is not NULL), or the transaction was never
+-- invoiced (no alegra_invoice_id — the FROM subquery's own
+-- `t.alegra_invoice_id IS NOT NULL` filter means that case produces no
+-- joined row at all, so the UPDATE matches nothing and the row is left
+-- completely untouched, not consumed). A computed credit of 0 cents is a
+-- legitimate outcome (a 0%-tier cancellation), not a failure: the UPDATE
+-- itself sets 'not_applicable' rather than 'pending' in that case, and this
+-- function still returns no row, so the caller makes no external call.
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.claim_refund_request_for_credit_note(p_refund_request_id uuid)
 RETURNS TABLE (alegra_invoice_id text, credit_amount_cents bigint)
@@ -58,29 +72,32 @@ DECLARE
   v_invoice_id   text;
   v_credit_cents bigint;
 BEGIN
-  SELECT t.alegra_invoice_id,
-         ROUND(t.commission_amount_cents * (rr.refund_percentage / 100.0))::bigint
-    INTO v_invoice_id, v_credit_cents
-  FROM public.refund_requests rr
-  JOIN public.transactions t ON t.id = rr.transaction_id
+  UPDATE public.refund_requests rr
+  SET alegra_credit_note_status = CASE
+        WHEN computed.credit_cents <= 0 THEN 'not_applicable'
+        ELSE 'pending'
+      END
+  FROM (
+    SELECT t.alegra_invoice_id AS invoice_id,
+           ROUND(t.commission_amount_cents * (rr2.refund_percentage / 100.0))::bigint AS credit_cents
+    FROM public.refund_requests rr2
+    JOIN public.transactions t ON t.id = rr2.transaction_id
+    WHERE rr2.id = p_refund_request_id
+      AND t.alegra_invoice_id IS NOT NULL
+  ) AS computed
   WHERE rr.id = p_refund_request_id
     AND rr.status = 'processed'
-    AND rr.alegra_credit_note_status IS NULL;
+    AND rr.alegra_credit_note_status IS NULL
+  RETURNING computed.invoice_id, computed.credit_cents
+    INTO v_invoice_id, v_credit_cents;
 
   IF v_invoice_id IS NULL THEN
     RETURN; -- not eligible / already claimed / never invoiced
   END IF;
 
   IF v_credit_cents <= 0 THEN
-    UPDATE public.refund_requests
-    SET alegra_credit_note_status = 'not_applicable'
-    WHERE id = p_refund_request_id;
-    RETURN; -- nothing to credit; caller makes no Alegra call
+    RETURN; -- marked 'not_applicable' by the UPDATE above; nothing to credit
   END IF;
-
-  UPDATE public.refund_requests
-  SET alegra_credit_note_status = 'pending'
-  WHERE id = p_refund_request_id;
 
   RETURN QUERY SELECT v_invoice_id, v_credit_cents;
 END;
