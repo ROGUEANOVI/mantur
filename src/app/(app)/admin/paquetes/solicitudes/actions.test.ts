@@ -90,6 +90,16 @@ vi.mock('@/lib/email/bookingEmails', () => ({
   sendPackageBookingPaidEmail: (...args: unknown[]) => sendPaidMock(...args),
 }))
 
+const notifyProvidersConfirmedMock = vi.fn()
+const notifyProvidersCancelledMock = vi.fn()
+const notifyProvidersPayoutMock = vi.fn()
+
+vi.mock('@/lib/email/packageProviderNotifications', () => ({
+  notifyPackageProvidersOfConfirmation: (...args: unknown[]) => notifyProvidersConfirmedMock(...args),
+  notifyPackageProvidersOfCancellation: (...args: unknown[]) => notifyProvidersCancelledMock(...args),
+  notifyPackageProvidersOfPayout: (...args: unknown[]) => notifyProvidersPayoutMock(...args),
+}))
+
 const {
   setProviderAvailability,
   confirmPackagePrereserva,
@@ -270,15 +280,27 @@ describe('confirmPackagePrereserva', () => {
       bookingDate: '2026-09-10',
       bookingId: BOOKING_ID,
     })
+    expect(notifyProvidersConfirmedMock).toHaveBeenCalledWith(expect.anything(), {
+      bookingId: BOOKING_ID,
+      packageName: 'Ruta Serranía del Perijá',
+      bookingDate: '2026-09-10',
+    })
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/paquetes/solicitudes')
   })
 
-  it('skips sending an email when the tourist has no resolvable email, but still succeeds', async () => {
+  it('skips sending an email when the tourist has no resolvable email, but still succeeds and still notifies providers', async () => {
     confirmRpcMock.mockResolvedValue({ data: 'tx-1', error: null })
     getUserByIdMock.mockResolvedValue({ data: { user: null } })
     const result = await confirmPackagePrereserva(formData({ bookingId: BOOKING_ID }))
     expect(result).toBeUndefined()
     expect(sendConfirmedMock).not.toHaveBeenCalled()
+    expect(notifyProvidersConfirmedMock).toHaveBeenCalled()
+  })
+
+  it('never notifies providers when the RPC fails', async () => {
+    confirmRpcMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    await confirmPackagePrereserva(formData({ bookingId: BOOKING_ID }))
+    expect(notifyProvidersConfirmedMock).not.toHaveBeenCalled()
   })
 })
 
@@ -313,6 +335,11 @@ describe('cancelPackagePrereserva', () => {
       touristName: 'Ana Pérez',
       bookingDate: '2026-09-10',
     })
+    expect(notifyProvidersCancelledMock).toHaveBeenCalledWith(expect.anything(), {
+      bookingId: BOOKING_ID,
+      packageName: 'Ruta Serranía del Perijá',
+      bookingDate: '2026-09-10',
+    })
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/paquetes/solicitudes')
   })
 
@@ -320,6 +347,7 @@ describe('cancelPackagePrereserva', () => {
     bookingUpdateSelectMock.mockResolvedValue({ data: null, error: { message: 'db error' } })
     const result = await cancelPackagePrereserva(formData({ bookingId: BOOKING_ID }))
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(notifyProvidersCancelledMock).not.toHaveBeenCalled()
   })
 })
 
@@ -361,7 +389,18 @@ describe('markPackageBookingPaid', () => {
       bookingDate: '2026-09-10',
       bookingId: BOOKING_ID,
     })
+    expect(notifyProvidersPayoutMock).toHaveBeenCalledWith(expect.anything(), {
+      bookingId: BOOKING_ID,
+      packageName: 'Ruta Serranía del Perijá',
+      bookingDate: '2026-09-10',
+    })
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/paquetes/solicitudes')
+  })
+
+  it('never notifies providers when the RPC fails', async () => {
+    markPaidRpcMock.mockResolvedValue({ error: { message: 'boom' } })
+    await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+    expect(notifyProvidersPayoutMock).not.toHaveBeenCalled()
   })
 
   describe('provider payouts (Fase 5)', () => {
