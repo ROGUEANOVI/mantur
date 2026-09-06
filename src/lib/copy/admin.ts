@@ -396,6 +396,7 @@ export const adminCopy = {
       descriptionPlaceholder: 'Describe el paquete, qué incluye, el itinerario...',
       basePrice: 'Precio de venta al turista (COP)',
       pricingUnit: 'Se cobra',
+      pricingUnitPlaceholder: '— Selecciona cómo se cobra —',
       pricingUnitOptions: {
         per_person: 'Por persona',
         per_night: 'Por noche',

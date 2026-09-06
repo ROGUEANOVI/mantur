@@ -28,6 +28,11 @@ describe('PackageForm', () => {
     expect(screen.getByLabelText('Nombre', { exact: false })).toHaveValue('')
   })
 
+  it('shows a descriptive placeholder for the pricing unit select, never a bare dash', () => {
+    render(<PackageForm action={vi.fn()} />)
+    expect(screen.getByRole('option', { name: '— Selecciona cómo se cobra —' })).toBeInTheDocument()
+  })
+
   it('renders a hidden packageId and prefills every field in edit mode', () => {
     const { container } = render(<PackageForm action={vi.fn()} package={PACKAGE} />)
 

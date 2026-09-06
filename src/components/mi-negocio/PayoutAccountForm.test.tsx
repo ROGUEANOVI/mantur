@@ -4,6 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
 import PayoutAccountForm from './PayoutAccountForm'
 
+const refreshMock = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshMock }),
+}))
+
 const savePayoutAccountMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-negocio/actions', () => ({
@@ -38,12 +43,12 @@ beforeEach(() => {
 
 describe('PayoutAccountForm', () => {
   it('renders empty fields when there is no existing account', () => {
-    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={null} />)
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
     expect(screen.getByLabelText('Banco')).toHaveValue('')
   })
 
   it('pre-populates every field from defaultValues', () => {
-    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={DEFAULT_VALUES} />)
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     expect(screen.getByLabelText('Banco')).toHaveValue('bank-bancolombia')
     expect(screen.getByLabelText('Tipo de cuenta')).toHaveValue('ahorros')
@@ -55,7 +60,7 @@ describe('PayoutAccountForm', () => {
   })
 
   it('keeps a previously saved bank selectable even if it is missing from the current catalog', () => {
-    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={[]} defaultValues={DEFAULT_VALUES} />)
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={[]} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     expect(screen.getByLabelText('Banco')).toHaveValue('bank-bancolombia')
     expect(screen.getByRole('option', { name: 'Bancolombia' })).toBeInTheDocument()
@@ -64,7 +69,7 @@ describe('PayoutAccountForm', () => {
   it('submits the form fields, bound to the business id, including the selected bank id', async () => {
     savePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
-    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={null} />)
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
 
     await user.selectOptions(screen.getByLabelText('Banco'), 'bank-davivienda')
     await user.selectOptions(screen.getByLabelText('Tipo de cuenta'), 'corriente')
@@ -91,7 +96,7 @@ describe('PayoutAccountForm', () => {
   it('shows a success toast after a successful save', async () => {
     savePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
-    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={DEFAULT_VALUES} />)
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
@@ -108,7 +113,7 @@ describe('PayoutAccountForm', () => {
   it('keeps the selected dropdown values visible after a successful save', async () => {
     savePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
-    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={null} />)
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
 
     await user.selectOptions(screen.getByLabelText('Banco'), 'bank-davivienda')
     await user.selectOptions(screen.getByLabelText('Tipo de cuenta'), 'corriente')
@@ -125,10 +130,33 @@ describe('PayoutAccountForm', () => {
   it('shows the server-returned error message as a toast', async () => {
     savePayoutAccountMock.mockResolvedValue({ error: 'Escribe un correo electrónico válido.' })
     const user = userEvent.setup()
-    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} defaultValues={DEFAULT_VALUES} />)
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Escribe un correo electrónico válido.'))
+  })
+
+  it('shows a descriptive placeholder option for every select, never a bare dash', () => {
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
+
+    expect(screen.getByRole('option', { name: '— Selecciona un banco —' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '— Selecciona un tipo de cuenta —' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '— Selecciona un tipo de documento —' })).toBeInTheDocument()
+  })
+
+  it('shows nothing about a bank-catalog failure when banksLoadFailed is false', () => {
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
+    expect(screen.queryByText(/no pudimos cargar la lista de bancos/i)).not.toBeInTheDocument()
+  })
+
+  it('shows an inline error with a retry action when the bank catalog failed to load, and refreshes the page on click', async () => {
+    const user = userEvent.setup()
+    render(<PayoutAccountForm businessId={BUSINESS_ID} banks={[]} banksLoadFailed={true} defaultValues={null} />)
+
+    expect(screen.getByText('No pudimos cargar la lista de bancos de Wompi. Intenta de nuevo.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }))
+    expect(refreshMock).toHaveBeenCalledTimes(1)
   })
 })

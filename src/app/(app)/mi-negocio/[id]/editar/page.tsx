@@ -124,6 +124,7 @@ export default async function EditarNegocioPage({
         </div>
 
         <PayoutAccountForm
+          banksLoadFailed={!banksResult.ok}
           businessId={business.id}
           banks={banks}
           defaultValues={

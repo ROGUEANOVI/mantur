@@ -1,6 +1,8 @@
 'use client'
 
 import { useActionState, useEffect, useState, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import { RotateCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { savePayoutAccount } from '@/app/(app)/mi-negocio/actions'
 import { miNegocioCopy } from '@/lib/copy/businesses'
@@ -13,6 +15,11 @@ type FormState = { error: string | null; saved: boolean }
 type Props = {
   businessId: string
   banks: { id: string; name: string }[]
+  // true when listPayoutBanks() failed server-side (Wompi API error, missing
+  // credentials, etc.) — surfaced here instead of silently rendering a bank
+  // <select> with nothing but the placeholder to pick, which looked like a
+  // broken control with no explanation.
+  banksLoadFailed: boolean
   defaultValues: {
     bankName: string
     wompiBankId: string
@@ -25,8 +32,9 @@ type Props = {
   } | null
 }
 
-export default function PayoutAccountForm({ businessId, banks, defaultValues }: Props) {
+export default function PayoutAccountForm({ businessId, banks, banksLoadFailed, defaultValues }: Props) {
   const copy = miNegocioCopy.payout
+  const router = useRouter()
   const boundAction = savePayoutAccount.bind(null, businessId)
 
   // Plain React state, not defaultValue: a <form>'s action prop puts React
@@ -91,7 +99,7 @@ export default function PayoutAccountForm({ businessId, banks, defaultValues }: 
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
           <option value="" disabled>
-            —
+            {copy.bankSelectPlaceholder}
           </option>
           {bankOptions.map((bank) => (
             <option key={bank.id} value={bank.id}>
@@ -100,6 +108,19 @@ export default function PayoutAccountForm({ businessId, banks, defaultValues }: 
           ))}
         </select>
         <input type="hidden" name="bank_name" value={selectedBankName} />
+        {banksLoadFailed && (
+          <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <span className="flex-1">{copy.banksLoadError}</span>
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="inline-flex items-center gap-1 font-semibold hover:text-destructive/80 transition-colors cursor-pointer shrink-0"
+            >
+              <RotateCw className="size-3.5" aria-hidden="true" />
+              {copy.retry}
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -113,7 +134,7 @@ export default function PayoutAccountForm({ businessId, banks, defaultValues }: 
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
           <option value="" disabled>
-            —
+            {copy.accountTypePlaceholder}
           </option>
           {Object.entries(copy.accountTypeOptions).map(([v, label]) => (
             <option key={v} value={v}>
@@ -145,7 +166,7 @@ export default function PayoutAccountForm({ businessId, banks, defaultValues }: 
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
           <option value="" disabled>
-            —
+            {copy.holderIdTypePlaceholder}
           </option>
           {Object.entries(copy.holderIdTypeOptions).map(([v, label]) => (
             <option key={v} value={v}>
