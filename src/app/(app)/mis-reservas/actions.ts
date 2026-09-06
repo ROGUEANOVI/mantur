@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
-import { refundRequestRateLimit, guideTourReviewRateLimit, checkRateLimit } from '@/lib/rate-limit'
+import { refundRequestRateLimit, guideTourReviewRateLimit, packageReviewRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { computeHoursUntilBooking, computeRefundAmountCents, bogotaDateString } from '@/lib/refunds'
 import { voidWompiTransaction } from '@/lib/wompi/refunds'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
@@ -229,6 +229,121 @@ export async function createGuideTourReview(formData: FormData): Promise<ReviewR
     // booking already has a review.
     if (insertError.code === '23505') return { error: bookingsCopy.review.errors.alreadyReviewed }
     return { error: bookingsCopy.review.errors.generic }
+  }
+
+  revalidatePath('/mis-reservas')
+  return { success: true }
+}
+
+// Extends the review system to Paquetes (see
+// 20260916000000_create_package_reviews.sql) — deliberately separate from
+// guide_tour_reviews above: a package's reputation as ManTur's own curated
+// product is never mixed with the reputation of the individual services/
+// guide_tours bundled inside it. Same eligibility shape as
+// createGuideTourReview (status='confirmed', booking_date already passed).
+//
+// item_ratings is an optional per-item breakdown: a JSON object of
+// {package_item_id: rating} for whichever items the tourist chose to also
+// rate individually. Any id not actually belonging to this booking's
+// package is silently dropped rather than failing the whole submission —
+// a stray/stale id shouldn't block the overall review the tourist did
+// mean to leave. A failure inserting the per-item rows never rolls back
+// the global review that already saved successfully — same "don't block
+// the main thing on a secondary effect" posture already used elsewhere in
+// this codebase (see payoutPackageProviders and its callers).
+export async function createPackageReview(formData: FormData): Promise<ReviewResult> {
+  const { userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(packageReviewRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
+
+  const bookingId = formData.get('booking_id') as string
+  if (!UUID_RE.test(bookingId)) return { error: bookingsCopy.packageReview.errors.notEligible }
+
+  const ratingRaw = Number(formData.get('rating'))
+  if (!Number.isInteger(ratingRaw) || ratingRaw < 1 || ratingRaw > 5) {
+    return { error: bookingsCopy.packageReview.errors.invalidRating }
+  }
+
+  const comment = (formData.get('comment') as string | null)?.trim().slice(0, 500) || null
+
+  // Optional per-item ratings, sent as a JSON object of
+  // {package_item_id: rating}. Malformed JSON is treated the same as "no
+  // item ratings" rather than failing the submission.
+  const itemRatingsRaw = formData.get('item_ratings') as string | null
+  let requestedItemRatings: Record<string, number> = {}
+  if (itemRatingsRaw) {
+    try {
+      const parsed = JSON.parse(itemRatingsRaw) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        requestedItemRatings = parsed as Record<string, number>
+      }
+    } catch {
+      requestedItemRatings = {}
+    }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: booking } = await admin
+    .from('bookings')
+    .select('id, tourist_id, package_id, booking_date, status')
+    .eq('id', bookingId)
+    .single()
+
+  if (!booking || booking.tourist_id !== userId || !booking.package_id) {
+    return { error: bookingsCopy.packageReview.errors.notEligible }
+  }
+
+  const todayBogota = bogotaDateString(new Date())
+  if (booking.status !== 'confirmed' || booking.booking_date >= todayBogota) {
+    return { error: bookingsCopy.packageReview.errors.notEligible }
+  }
+
+  const { data: review, error: insertError } = await admin
+    .from('package_reviews')
+    .insert({
+      package_id: booking.package_id,
+      booking_id: bookingId,
+      tourist_id: userId,
+      rating: ratingRaw,
+      comment,
+    })
+    .select('id')
+    .single()
+
+  if (insertError || !review) {
+    // 23505 = unique_violation on package_reviews.booking_id — this
+    // booking already has a review.
+    if (insertError?.code === '23505') return { error: bookingsCopy.packageReview.errors.alreadyReviewed }
+    return { error: bookingsCopy.packageReview.errors.generic }
+  }
+
+  const itemRatingEntries = Object.entries(requestedItemRatings).filter(
+    ([itemId, rating]) => UUID_RE.test(itemId) && Number.isInteger(rating) && rating >= 1 && rating <= 5,
+  )
+
+  if (itemRatingEntries.length > 0) {
+    const { data: packageItems } = await admin
+      .from('package_items')
+      .select('id')
+      .eq('package_id', booking.package_id)
+
+    const validItemIds = new Set((packageItems ?? []).map((item) => item.id))
+    const rowsToInsert = itemRatingEntries
+      .filter(([itemId]) => validItemIds.has(itemId))
+      .map(([itemId, rating]) => ({
+        package_review_id: review.id,
+        package_item_id: itemId,
+        rating,
+      }))
+
+    if (rowsToInsert.length > 0) {
+      const { error: itemInsertError } = await admin.from('package_item_reviews').insert(rowsToInsert)
+      if (itemInsertError) {
+        console.error('createPackageReview: failed to save per-item ratings', { bookingId, itemInsertError })
+      }
+    }
   }
 
   revalidatePath('/mis-reservas')
