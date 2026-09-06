@@ -27,7 +27,7 @@ export const legalCopy = {
       {
         title: '5. Reservas y pagos',
         body:
-          'Los pagos de reservas se procesan a través de la pasarela de pagos Wompi. ManTur cobra una comisión sobre cada transacción, cuyo porcentaje es definido internamente y puede variar según el tipo de servicio.',
+          'Los pagos de reservas se procesan a través de la pasarela de pagos Wompi. ManTur cobra una comisión sobre cada transacción, cuyo porcentaje es definido internamente y puede variar según el tipo de servicio. Al confirmarse un pago, ManTur recauda el valor total de la reserva en su propia cuenta actuando como mandatario del negocio, guía o transportador para efectos de ese recaudo — la parte correspondiente al prestador del servicio, descontada la comisión de ManTur, se transfiere posteriormente a su cuenta bancaria registrada. Esta es una relación de mandato/comisión mercantil, no de intermediación de pagos regulada, y queda aceptada por negocios, guías y transportadores al solicitar y activar su rol en la plataforma.',
       },
       {
         title: '6. Cancelaciones',
@@ -153,7 +153,7 @@ export const legalCopy = {
       {
         title: 'Registro legal',
         body:
-          'ManTur es operado por MANTUR TURISMO S.A.S. (NIT 902098141), con Matrícula Mercantil 0000232870 ante la Cámara de Comercio de Valledupar y Registro Nacional de Turismo (RNT) #299376 como Agencia de Viajes Operadora.',
+          'ManTur es operado por MANTUR TURISMO S.A.S. (NIT 902098141), con Matrícula Mercantil 0000232870 ante la Cámara de Comercio de Valledupar. Cuenta con dos registros ante el Registro Nacional de Turismo (RNT): #299376 como Agencia de Viajes Operadora y #300054 como Plataforma Electrónica o Digital.',
       },
       {
         title: 'Contacto',
