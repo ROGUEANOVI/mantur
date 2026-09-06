@@ -1,22 +1,22 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolvePayoutAccount, sendProviderPayout } from '@/lib/wompi/payouts'
-import { STUCK_PAYOUT_HOURS } from '@/app/(app)/admin/pendingCounts'
+import { STUCK_PAYOUT_HOURS, SENDING_ORPHAN_MINUTES } from '@/app/(app)/admin/pendingCounts'
 
 // Vercel Cron (see vercel.json) hits this once a day (Hobby plan — no
 // hourly granularity). Automatically re-drives provider_payouts rows an
 // admin would otherwise have to notice and retry by hand in
 // /admin/pagos-proveedores: 'failed' rows (any age — a transient failure
-// should not wait for a human to click retry) and 'pending' rows older than
+// should not wait for a human to click retry), 'pending' rows older than
 // STUCK_PAYOUT_HOURS (48h — a fresh 'pending' row is probably just about to
 // be sent by its own webhook/payout-loop caller, so only stale ones are
-// candidates here). A payout stuck in 'sending' (the row was claimed but the
-// process crashed before recording a result) is deliberately NOT touched by
-// this job — claim_provider_payout_for_send() can only claim 'pending'/
-// 'failed' rows, and resetting a 'sending' row automatically would risk
-// racing a still-in-flight Wompi call. That case stays admin-only via
-// resolveProviderPayoutManually() in admin/pagos-proveedores/actions.ts
-// until real payout volume shows how often it actually happens.
+// candidates here), and 'sending' rows orphaned for longer than
+// SENDING_ORPHAN_MINUTES (the claiming process crashed before recording a
+// result — reset_stale_sending_provider_payouts() flips these to 'failed'
+// first, so they fall straight into the same 'failed' candidate branch
+// below; safe because sendProviderPayout()'s idempotency-key is the row's
+// own id, so a reset-then-retried row can never cause Wompi to execute the
+// same payout twice).
 //
 // Reuses exactly the claim -> resolvePayoutAccount -> sendProviderPayout ->
 // mark_provider_payout_result sequence retryProviderPayout() already runs
@@ -37,6 +37,17 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient()
+
+  const { data: resetOrphans, error: resetError } = await admin.rpc('reset_stale_sending_provider_payouts', {
+    p_orphan_minutes: SENDING_ORPHAN_MINUTES,
+  })
+
+  if (resetError) {
+    // Non-fatal: still worth attempting the pending/failed reconciliation
+    // below even if the orphan reset itself failed for some reason.
+    console.error('Failed to reset orphaned sending provider payouts', resetError)
+  }
+
   const stuckPendingCutoff = new Date(Date.now() - STUCK_PAYOUT_HOURS * 60 * 60 * 1000).toISOString()
 
   // Capped well above any realistic daily volume for this business — a
@@ -118,5 +129,11 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, candidates: candidates?.length ?? 0, retried, failed })
+  return NextResponse.json({
+    ok: true,
+    resetOrphans: resetOrphans?.length ?? 0,
+    candidates: candidates?.length ?? 0,
+    retried,
+    failed,
+  })
 }

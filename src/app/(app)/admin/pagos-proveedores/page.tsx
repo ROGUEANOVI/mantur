@@ -1,15 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
-import { STUCK_PAYOUT_HOURS } from '../pendingCounts'
+import { STUCK_PAYOUT_HOURS, SENDING_ORPHAN_MINUTES } from '../pendingCounts'
 import { retryProviderPayout } from './actions'
 import ResolvePayoutManuallyForm from './ResolvePayoutManuallyForm'
-
-// Mirrors the 10-minute floor in mark_provider_payout_resolved_manually
-// (supabase/migrations/20260901000000_add_provider_payout_manual_resolution.sql)
-// — a live Wompi call completes or times out in seconds, so a 'sending' row
-// younger than this is presumed still genuinely in flight. Kept in sync
-// manually since one runs in Postgres and the other gates the button here.
-const SENDING_ORPHAN_MINUTES = 10
 
 type PayoutRow = {
   id: string

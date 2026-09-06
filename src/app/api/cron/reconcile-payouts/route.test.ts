@@ -1,7 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const candidatesQueryMock = vi.fn()
-const rpcMock = vi.fn()
+const resetOrphansMock = vi.fn()
+const claimRpcMock = vi.fn()
+const markRpcMock = vi.fn()
+
+// Dispatches by RPC name to a dedicated mock per function, rather than one
+// shared FIFO queue — the route now calls reset_stale_sending_provider_payouts
+// once up front, before the per-candidate claim/mark calls, so a single
+// ordered queue across all three would silently misassign results.
+const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
+  if (fn === 'reset_stale_sending_provider_payouts') return resetOrphansMock(args)
+  if (fn === 'claim_provider_payout_for_send') return { single: () => claimRpcMock(args) }
+  if (fn === 'mark_provider_payout_result') return markRpcMock(args)
+  throw new Error(`unexpected rpc: ${fn}`)
+})
 
 function makeFromChain() {
   return {
@@ -34,7 +47,7 @@ const SECRET = 'test-cron-secret'
 const ORIGINAL_ENV = { ...process.env }
 
 function makeRpc(result: { data: unknown; error: unknown }) {
-  return { single: () => Promise.resolve(result) }
+  return Promise.resolve(result)
 }
 
 function cronRequest(bearer: string | null = SECRET) {
@@ -57,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   process.env.CRON_SECRET = SECRET
   candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [], error: null }))
+  resetOrphansMock.mockReturnValue(makeRpc({ data: [], error: null }))
   resolvePayoutAccountMock.mockResolvedValue(RECIPIENT)
   sendProviderPayoutMock.mockResolvedValue({ ok: true, wompiPayoutId: 'wompi-payout-1' })
 })
@@ -89,41 +103,64 @@ describe('GET /api/cron/reconcile-payouts', () => {
     expect(response.status).toBe(500)
   })
 
-  it('is a no-op when there are no stale candidates', async () => {
+  it('is a no-op when there are no stale candidates and no orphaned sending rows', async () => {
     const response = await GET(cronRequest())
     const body = await response.json()
     expect(response.status).toBe(200)
-    expect(body).toEqual({ ok: true, candidates: 0, retried: 0, failed: 0 })
-    expect(rpcMock).not.toHaveBeenCalled()
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 0, retried: 0, failed: 0 })
+    expect(resetOrphansMock).toHaveBeenCalledWith({ p_orphan_minutes: 10 })
+    expect(claimRpcMock).not.toHaveBeenCalled()
   })
 
-  it('skips a candidate that a concurrent process already claimed (no row, no error)', async () => {
-    candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [{ id: 'payout-1' }], error: null }))
-    rpcMock.mockReturnValueOnce(makeRpc({ data: null, error: null }))
+  it('resets orphaned sending rows before querying candidates, and reports the count', async () => {
+    resetOrphansMock.mockReturnValue(makeRpc({ data: [{ id: 'payout-9' }, { id: 'payout-10' }], error: null }))
 
     const response = await GET(cronRequest())
     const body = await response.json()
 
-    expect(body).toEqual({ ok: true, candidates: 1, retried: 0, failed: 0 })
-    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
+    expect(body).toEqual({ ok: true, resetOrphans: 2, candidates: 0, retried: 0, failed: 0 })
   })
 
-  it('logs and continues past a claim RPC error without marking anything', async () => {
-    candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [{ id: 'payout-1' }], error: null }))
-    rpcMock.mockReturnValueOnce(makeRpc({ data: null, error: { message: 'claim failed' } }))
+  it('logs but still proceeds to the candidates query when the orphan reset RPC itself errors', async () => {
+    resetOrphansMock.mockReturnValue(makeRpc({ data: null, error: { message: 'db down' } }))
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const response = await GET(cronRequest())
     const body = await response.json()
 
-    expect(body).toEqual({ ok: true, candidates: 1, retried: 0, failed: 0 })
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 0, retried: 0, failed: 0 })
+    expect(candidatesQueryMock).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('skips a candidate that a concurrent process already claimed (no row, no error)', async () => {
+    candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [{ id: 'payout-1' }], error: null }))
+    claimRpcMock.mockReturnValueOnce(makeRpc({ data: null, error: null }))
+
+    const response = await GET(cronRequest())
+    const body = await response.json()
+
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 1, retried: 0, failed: 0 })
+    expect(sendProviderPayoutMock).not.toHaveBeenCalled()
+  })
+
+  it('logs and continues past a claim RPC error without marking anything', async () => {
+    candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [{ id: 'payout-1' }], error: null }))
+    claimRpcMock.mockReturnValueOnce(makeRpc({ data: null, error: { message: 'claim failed' } }))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const response = await GET(cronRequest())
+    const body = await response.json()
+
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 1, retried: 0, failed: 0 })
     expect(sendProviderPayoutMock).not.toHaveBeenCalled()
     errorSpy.mockRestore()
   })
 
   it('marks a claimed payout failed when the recipient has no payout account configured', async () => {
     candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [{ id: 'payout-1' }], error: null }))
-    rpcMock.mockReturnValueOnce(
+    claimRpcMock.mockReturnValueOnce(
       makeRpc({ data: { transaction_id: 'tx-1', recipient_type: 'business', recipient_id: 'biz-1', amount_cents: 5000 }, error: null }),
     )
     resolvePayoutAccountMock.mockResolvedValueOnce(null)
@@ -131,7 +168,7 @@ describe('GET /api/cron/reconcile-payouts', () => {
     const response = await GET(cronRequest())
     const body = await response.json()
 
-    expect(body).toEqual({ ok: true, candidates: 1, retried: 0, failed: 1 })
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 1, retried: 0, failed: 1 })
     expect(rpcMock).toHaveBeenCalledWith('mark_provider_payout_result', {
       p_payout_id: 'payout-1',
       p_status: 'failed',
@@ -142,7 +179,7 @@ describe('GET /api/cron/reconcile-payouts', () => {
 
   it('retries and marks a payout sent on a successful Wompi call', async () => {
     candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [{ id: 'payout-1' }], error: null }))
-    rpcMock.mockReturnValueOnce(
+    claimRpcMock.mockReturnValueOnce(
       makeRpc({ data: { transaction_id: 'tx-1', recipient_type: 'business', recipient_id: 'biz-1', amount_cents: 5000 }, error: null }),
     )
 
@@ -159,12 +196,12 @@ describe('GET /api/cron/reconcile-payouts', () => {
       p_status: 'sent',
       p_wompi_payout_id: 'wompi-payout-1',
     })
-    expect(body).toEqual({ ok: true, candidates: 1, retried: 1, failed: 0 })
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 1, retried: 1, failed: 0 })
   })
 
   it('marks a payout failed when the Wompi API call itself fails', async () => {
     candidatesQueryMock.mockReturnValue(Promise.resolve({ data: [{ id: 'payout-1' }], error: null }))
-    rpcMock.mockReturnValueOnce(
+    claimRpcMock.mockReturnValueOnce(
       makeRpc({ data: { transaction_id: 'tx-1', recipient_type: 'guide', recipient_id: 'guide-1', amount_cents: 3000 }, error: null }),
     )
     sendProviderPayoutMock.mockResolvedValueOnce({ ok: false, error: 'declined' })
@@ -178,7 +215,7 @@ describe('GET /api/cron/reconcile-payouts', () => {
       p_status: 'failed',
       p_error_message: 'declined',
     })
-    expect(body).toEqual({ ok: true, candidates: 1, retried: 0, failed: 1 })
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 1, retried: 0, failed: 1 })
     errorSpy.mockRestore()
   })
 
@@ -186,15 +223,13 @@ describe('GET /api/cron/reconcile-payouts', () => {
     candidatesQueryMock.mockReturnValue(
       Promise.resolve({ data: [{ id: 'payout-1' }, { id: 'payout-2' }], error: null }),
     )
-    rpcMock
+    claimRpcMock
       .mockReturnValueOnce(
         makeRpc({ data: { transaction_id: 'tx-1', recipient_type: 'business', recipient_id: 'biz-1', amount_cents: 1000 }, error: null }),
       )
-      .mockReturnValueOnce(Promise.resolve({ data: null, error: null })) // mark_provider_payout_result for payout-1's failure
       .mockReturnValueOnce(
         makeRpc({ data: { transaction_id: 'tx-2', recipient_type: 'guide', recipient_id: 'guide-1', amount_cents: 2000 }, error: null }),
       )
-      .mockReturnValueOnce(Promise.resolve({ data: null, error: null })) // mark_provider_payout_result for payout-2's success
 
     resolvePayoutAccountMock
       .mockRejectedValueOnce(new Error('unexpected supabase error'))
@@ -204,7 +239,7 @@ describe('GET /api/cron/reconcile-payouts', () => {
     const response = await GET(cronRequest())
     const body = await response.json()
 
-    expect(body).toEqual({ ok: true, candidates: 2, retried: 1, failed: 1 })
+    expect(body).toEqual({ ok: true, resetOrphans: 0, candidates: 2, retried: 1, failed: 1 })
     expect(rpcMock).toHaveBeenCalledWith('mark_provider_payout_result', {
       p_payout_id: 'payout-1',
       p_status: 'failed',
