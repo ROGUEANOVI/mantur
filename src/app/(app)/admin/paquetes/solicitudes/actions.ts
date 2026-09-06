@@ -12,6 +12,12 @@ import {
 } from '@/lib/email/bookingEmails'
 import { enqueueAndSendProviderPayout } from '@/lib/wompi/payouts'
 import { AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES } from '@/lib/validation'
+import { resolvePackageProviders } from '@/lib/packages/providers'
+import {
+  notifyPackageProvidersOfConfirmation,
+  notifyPackageProvidersOfCancellation,
+  notifyPackageProvidersOfPayout,
+} from '@/lib/email/packageProviderNotifications'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // Only 'business'/'guide' are actually producible by a package_item today
@@ -169,6 +175,12 @@ export async function confirmPackagePrereserva(formData: FormData): Promise<{ er
     })
   }
 
+  await notifyPackageProvidersOfConfirmation(admin, {
+    bookingId: booking.id,
+    packageName: booking.packages?.name ?? '',
+    bookingDate: booking.booking_date,
+  })
+
   revalidatePath('/admin/paquetes/solicitudes')
 }
 
@@ -201,53 +213,30 @@ export async function cancelPackagePrereserva(formData: FormData): Promise<{ err
     })
   }
 
+  await notifyPackageProvidersOfCancellation(admin, {
+    bookingId: booking.id,
+    packageName: booking.packages?.name ?? '',
+    bookingDate: booking.booking_date,
+  })
+
   revalidatePath('/admin/paquetes/solicitudes')
 }
 
 // Fase 5: una fila de provider_payouts por cada proveedor ÚNICO de
 // package_items del paquete, pagando la suma de sus internal_cost_cents —
 // no un split de comisión (packages no usan commission_config; el margen de
-// ManTur ya vive en base_price - Σinternal_cost_cents). package_items no
-// tiene ninguna restricción que impida dos filas del mismo proveedor en un
-// mismo paquete (ej. "desayuno" + "almuerzo" del mismo negocio) — la
-// constraint UNIQUE(transaction_id, recipient_type, recipient_id) de
-// provider_payouts encolaría la segunda como conflicto y la perdería en
-// silencio si se llamara una vez por item, así que se agrupa y suma ANTES
-// de encolar: como máximo una llamada por proveedor. Nunca falla la acción
-// de "marcar pagada" — errores solo se loguean, misma postura que el envío
-// de correo justo al lado (enqueueAndSendProviderPayout ya no lanza
+// ManTur ya vive en base_price - Σinternal_cost_cents). Nunca falla la
+// acción de "marcar pagada" — errores solo se loguean, misma postura que el
+// envío de correo justo al lado (enqueueAndSendProviderPayout ya no lanza
 // excepciones).
 async function payoutPackageProviders(
   admin: ReturnType<typeof createAdminClient>,
   packageId: string,
   transactionId: string,
 ): Promise<void> {
-  const { data: items } = await admin
-    .from('package_items')
-    .select('internal_cost_cents, services(business_id), guide_tours(guide_id)')
-    .eq('package_id', packageId)
+  const providers = await resolvePackageProviders(admin, packageId)
 
-  const amountByProvider = new Map<string, { recipientType: 'business' | 'guide'; recipientId: string; amountCents: number }>()
-
-  for (const item of (items ?? []) as unknown as {
-    internal_cost_cents: number
-    services: { business_id: string } | null
-    guide_tours: { guide_id: string } | null
-  }[]) {
-    const recipientType = item.services ? 'business' : 'guide'
-    const recipientId = item.services ? item.services.business_id : item.guide_tours?.guide_id
-    if (!recipientId) continue
-
-    const key = `${recipientType}:${recipientId}`
-    const existing = amountByProvider.get(key)
-    amountByProvider.set(key, {
-      recipientType,
-      recipientId,
-      amountCents: (existing?.amountCents ?? 0) + item.internal_cost_cents,
-    })
-  }
-
-  for (const provider of amountByProvider.values()) {
+  for (const provider of providers) {
     await enqueueAndSendProviderPayout(admin, { transactionId, ...provider })
   }
 }
@@ -277,6 +266,14 @@ export async function markPackageBookingPaid(formData: FormData): Promise<{ erro
 
   if (transaction?.id) {
     await payoutPackageProviders(admin, booking.package_id, transaction.id)
+    // Only claim "tu pago ya está en camino" to providers when a payout was
+    // actually enqueued above — otherwise (no transaction found, logged
+    // below) it would misrepresent payment state to a business/guide partner.
+    await notifyPackageProvidersOfPayout(admin, {
+      bookingId: booking.id,
+      packageName: booking.packages?.name ?? '',
+      bookingDate: booking.booking_date,
+    })
   } else {
     console.error('markPackageBookingPaid: no transaction found to pay providers out from', { bookingId })
   }

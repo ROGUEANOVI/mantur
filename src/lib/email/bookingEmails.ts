@@ -319,3 +319,113 @@ export async function sendPackageBookingPaidEmail(
     console.error('Failed to send package booking paid email', error)
   }
 }
+
+// ── Package provider emails ──────────────────────────────────────────────
+// Provider-facing (business owner or tourist guide behind a package_item) —
+// the pre-reserva flow above only ever emailed the tourist; a provider had
+// no signal at any stage short of a WhatsApp call from an admin. `panelUrl`
+// is resolved by the caller (src/lib/email/packageProviderNotifications.ts)
+// since it depends on whether the recipient is a business or a guide
+// (/mi-negocio vs /mi-perfil-guia), same split already used above for the
+// direct-booking confirmation emails.
+
+export type PackageProvidersConfirmedParams = {
+  packageName: string
+  bookingDate: string
+  panelUrl: string
+}
+
+export function packageProvidersConfirmedEmail(
+  params: PackageProvidersConfirmedParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      Confirmamos tu disponibilidad para el paquete <strong>${escapeHtml(params.packageName)}</strong>
+      el ${formatBookingDate(params.bookingDate)}. Guarda la fecha — te contactaremos para coordinar los detalles.
+    </p>
+    ${button('Ver mi panel', params.panelUrl)}
+  `)
+
+  return { subject: `Disponibilidad confirmada: ${params.packageName}`, html }
+}
+
+export async function sendPackageProvidersConfirmedEmail(
+  to: string,
+  params: PackageProvidersConfirmedParams,
+): Promise<void> {
+  const { subject, html } = packageProvidersConfirmedEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send package providers confirmed email', error)
+  }
+}
+
+export type PackageProvidersCancelledParams = {
+  packageName: string
+  bookingDate: string
+  panelUrl: string
+}
+
+export function packageProvidersCancelledEmail(
+  params: PackageProvidersCancelledParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      La solicitud del paquete <strong>${escapeHtml(params.packageName)}</strong> para el
+      ${formatBookingDate(params.bookingDate)} fue cancelada — puedes liberar esa fecha.
+    </p>
+    ${button('Ver mi panel', params.panelUrl)}
+  `)
+
+  return { subject: `Solicitud cancelada: ${params.packageName}`, html }
+}
+
+export async function sendPackageProvidersCancelledEmail(
+  to: string,
+  params: PackageProvidersCancelledParams,
+): Promise<void> {
+  const { subject, html } = packageProvidersCancelledEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send package providers cancelled email', error)
+  }
+}
+
+export type PackageProvidersPayoutSentParams = {
+  packageName: string
+  bookingDate: string
+  amountCents: number
+  panelUrl: string
+}
+
+export function packageProvidersPayoutSentEmail(
+  params: PackageProvidersPayoutSentParams,
+): { subject: string; html: string } {
+  const amountCop = Math.round(params.amountCents / 100).toLocaleString('es-CO')
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      El paquete <strong>${escapeHtml(params.packageName)}</strong> del ${formatBookingDate(params.bookingDate)}
+      fue pagado por el turista. Tu pago de <strong>$${amountCop} COP</strong> ya está en camino.
+    </p>
+    ${button('Ver mi panel', params.panelUrl)}
+  `)
+
+  return { subject: `Pago en camino: ${params.packageName}`, html }
+}
+
+export async function sendPackageProvidersPayoutSentEmail(
+  to: string,
+  params: PackageProvidersPayoutSentParams,
+): Promise<void> {
+  const { subject, html } = packageProvidersPayoutSentEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send package providers payout-sent email', error)
+  }
+}

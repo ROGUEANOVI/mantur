@@ -20,6 +20,12 @@ const {
   sendPackagePrereservaCancelledEmail,
   packageBookingPaidEmail,
   sendPackageBookingPaidEmail,
+  packageProvidersConfirmedEmail,
+  sendPackageProvidersConfirmedEmail,
+  packageProvidersCancelledEmail,
+  sendPackageProvidersCancelledEmail,
+  packageProvidersPayoutSentEmail,
+  sendPackageProvidersPayoutSentEmail,
 } = await import('./bookingEmails')
 
 const PARAMS = {
@@ -278,5 +284,92 @@ describe('sendPackageBookingPaidEmail', () => {
   it('does not throw when Resend rejects the send', async () => {
     sendMock.mockRejectedValue(new Error('network error'))
     await expect(sendPackageBookingPaidEmail('turista@example.com', PACKAGE_PAID_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const PACKAGE_PROVIDER_PARAMS = {
+  packageName: 'Ruta Serranía del Perijá',
+  bookingDate: '2026-09-05',
+  panelUrl: 'https://mantur.co/mi-negocio',
+}
+
+describe('packageProvidersConfirmedEmail', () => {
+  it('includes the package name, date, and the given panel link', () => {
+    const { subject, html } = packageProvidersConfirmedEmail(PACKAGE_PROVIDER_PARAMS)
+    expect(subject).toBe('Disponibilidad confirmada: Ruta Serranía del Perijá')
+    expect(html).toContain('Ruta Serranía del Perijá')
+    expect(html).toContain('https://mantur.co/mi-negocio')
+  })
+
+  it('uses whichever panelUrl is passed in (guide vs business)', () => {
+    const { html } = packageProvidersConfirmedEmail({ ...PACKAGE_PROVIDER_PARAMS, panelUrl: 'https://mantur.co/mi-perfil-guia' })
+    expect(html).toContain('https://mantur.co/mi-perfil-guia')
+  })
+})
+
+describe('sendPackageProvidersConfirmedEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendPackageProvidersConfirmedEmail('negocio@example.com', PACKAGE_PROVIDER_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'negocio@example.com', subject: 'Disponibilidad confirmada: Ruta Serranía del Perijá' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendPackageProvidersConfirmedEmail('negocio@example.com', PACKAGE_PROVIDER_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+describe('packageProvidersCancelledEmail', () => {
+  it('includes the package name and panel link', () => {
+    const { subject, html } = packageProvidersCancelledEmail(PACKAGE_PROVIDER_PARAMS)
+    expect(subject).toBe('Solicitud cancelada: Ruta Serranía del Perijá')
+    expect(html).toContain('https://mantur.co/mi-negocio')
+  })
+})
+
+describe('sendPackageProvidersCancelledEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendPackageProvidersCancelledEmail('negocio@example.com', PACKAGE_PROVIDER_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'negocio@example.com', subject: 'Solicitud cancelada: Ruta Serranía del Perijá' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendPackageProvidersCancelledEmail('negocio@example.com', PACKAGE_PROVIDER_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const PACKAGE_PROVIDER_PAYOUT_PARAMS = {
+  ...PACKAGE_PROVIDER_PARAMS,
+  amountCents: 175000,
+}
+
+describe('packageProvidersPayoutSentEmail', () => {
+  it('includes the formatted COP amount and panel link', () => {
+    const { subject, html } = packageProvidersPayoutSentEmail(PACKAGE_PROVIDER_PAYOUT_PARAMS)
+    expect(subject).toBe('Pago en camino: Ruta Serranía del Perijá')
+    expect(html).toContain('$1.750')
+    expect(html).toContain('https://mantur.co/mi-negocio')
+  })
+})
+
+describe('sendPackageProvidersPayoutSentEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendPackageProvidersPayoutSentEmail('negocio@example.com', PACKAGE_PROVIDER_PAYOUT_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'negocio@example.com', subject: 'Pago en camino: Ruta Serranía del Perijá' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendPackageProvidersPayoutSentEmail('negocio@example.com', PACKAGE_PROVIDER_PAYOUT_PARAMS)).resolves.toBeUndefined()
   })
 })
