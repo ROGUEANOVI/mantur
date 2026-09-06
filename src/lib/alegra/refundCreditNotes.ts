@@ -16,9 +16,16 @@ type ClaimedCreditNote = { alegra_invoice_id: string; credit_amount_cents: numbe
 // = 'failed'), not a reason to fail whatever refund flow triggered it.
 export async function syncAlegraCreditNoteForRefund(admin: AdminClient, refundRequestId: string): Promise<void> {
   try {
+    // maybeSingle(), not single(): 0 rows is the expected, routine shape for
+    // "ineligible/already claimed/not_applicable" (see below) — single()
+    // would surface that as a PGRST116 error via PostgREST, burying genuine
+    // RPC failures in noise from completely normal refunds. (The sibling
+    // provider_payouts claim call has this same single()-vs-0-rows mismatch
+    // pre-existing elsewhere in the codebase — out of scope here, flagged
+    // as a separate follow-up.)
     const { data: claimed, error: claimError } = await admin
       .rpc('claim_refund_request_for_credit_note', { p_refund_request_id: refundRequestId })
-      .single<ClaimedCreditNote>()
+      .maybeSingle<ClaimedCreditNote>()
 
     if (claimError) {
       console.error('Failed to claim a refund for an Alegra credit note', claimError)

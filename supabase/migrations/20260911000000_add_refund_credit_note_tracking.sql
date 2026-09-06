@@ -31,6 +31,13 @@
 --   20260831200000_create_alegra_invoicing_links (transactions.alegra_invoice_id)
 -- =============================================================
 
+-- No dedicated RLS policy needed: refund_requests_select is row-level (not
+-- column-level), so the refund's own tourist and the counterpart business
+-- owner/guide can read these two columns alongside the refund amount they
+-- already see — deliberately harmless bookkeeping metadata (an Alegra
+-- credit note id/status), not sensitive in the way internal_cost_cents-style
+-- data is elsewhere in this schema. Writes are still admin/service-role only
+-- via refund_requests_update and the two SECURITY DEFINER RPCs below.
 ALTER TABLE public.refund_requests
   ADD COLUMN alegra_credit_note_id     text,
   ADD COLUMN alegra_credit_note_status text

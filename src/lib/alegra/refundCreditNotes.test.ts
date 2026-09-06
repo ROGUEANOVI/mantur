@@ -8,7 +8,7 @@ vi.mock('./creditNotes', () => ({
 const { syncAlegraCreditNoteForRefund } = await import('./refundCreditNotes')
 
 function makeRpc(result: { data: unknown; error: unknown }) {
-  return { single: () => Promise.resolve(result) }
+  return { maybeSingle: () => Promise.resolve(result) }
 }
 
 function makeAdmin() {
