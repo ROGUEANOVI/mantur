@@ -158,7 +158,7 @@ export default function EditServiceForm({
                     )}
                   >
                     <option value="" disabled>
-                      —
+                      {`— Selecciona ${field.label} —`}
                     </option>
                     {field.options.map((opt) => (
                       <option key={opt.value} value={opt.value}>

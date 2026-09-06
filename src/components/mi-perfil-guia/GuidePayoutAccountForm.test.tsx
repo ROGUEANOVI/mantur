@@ -4,6 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
 import GuidePayoutAccountForm from './GuidePayoutAccountForm'
 
+const refreshMock = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshMock }),
+}))
+
 const saveGuidePayoutAccountMock = vi.fn()
 
 vi.mock('@/app/(app)/mi-perfil-guia/actions', () => ({
@@ -36,12 +41,12 @@ beforeEach(() => {
 
 describe('GuidePayoutAccountForm', () => {
   it('renders empty fields when there is no existing account', () => {
-    render(<GuidePayoutAccountForm banks={BANKS} defaultValues={null} />)
+    render(<GuidePayoutAccountForm banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
     expect(screen.getByLabelText('Banco')).toHaveValue('')
   })
 
   it('pre-populates every field from defaultValues', () => {
-    render(<GuidePayoutAccountForm banks={BANKS} defaultValues={DEFAULT_VALUES} />)
+    render(<GuidePayoutAccountForm banks={BANKS} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     expect(screen.getByLabelText('Banco')).toHaveValue('bank-bancolombia')
     expect(screen.getByLabelText('Tipo de cuenta')).toHaveValue('ahorros')
@@ -53,7 +58,7 @@ describe('GuidePayoutAccountForm', () => {
   })
 
   it('keeps a previously saved bank selectable even if it is missing from the current catalog', () => {
-    render(<GuidePayoutAccountForm banks={[]} defaultValues={DEFAULT_VALUES} />)
+    render(<GuidePayoutAccountForm banks={[]} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     expect(screen.getByLabelText('Banco')).toHaveValue('bank-bancolombia')
     expect(screen.getByRole('option', { name: 'Bancolombia' })).toBeInTheDocument()
@@ -62,7 +67,7 @@ describe('GuidePayoutAccountForm', () => {
   it('submits the typed values including the selected bank id', async () => {
     saveGuidePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
-    render(<GuidePayoutAccountForm banks={BANKS} defaultValues={null} />)
+    render(<GuidePayoutAccountForm banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
 
     await user.selectOptions(screen.getByLabelText('Banco'), 'bank-nequi')
     await user.selectOptions(screen.getByLabelText('Tipo de cuenta'), 'corriente')
@@ -84,7 +89,7 @@ describe('GuidePayoutAccountForm', () => {
   it('shows a success toast after a successful save', async () => {
     saveGuidePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
-    render(<GuidePayoutAccountForm banks={BANKS} defaultValues={DEFAULT_VALUES} />)
+    render(<GuidePayoutAccountForm banks={BANKS} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
@@ -101,7 +106,7 @@ describe('GuidePayoutAccountForm', () => {
   it('keeps the selected dropdown values visible after a successful save', async () => {
     saveGuidePayoutAccountMock.mockResolvedValue({ success: true })
     const user = userEvent.setup()
-    render(<GuidePayoutAccountForm banks={BANKS} defaultValues={null} />)
+    render(<GuidePayoutAccountForm banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
 
     await user.selectOptions(screen.getByLabelText('Banco'), 'bank-nequi')
     await user.selectOptions(screen.getByLabelText('Tipo de cuenta'), 'corriente')
@@ -122,10 +127,28 @@ describe('GuidePayoutAccountForm', () => {
   it('shows the server-returned error message as a toast', async () => {
     saveGuidePayoutAccountMock.mockResolvedValue({ error: 'Selecciona un tipo de cuenta válido.' })
     const user = userEvent.setup()
-    render(<GuidePayoutAccountForm banks={BANKS} defaultValues={DEFAULT_VALUES} />)
+    render(<GuidePayoutAccountForm banks={BANKS} banksLoadFailed={false} defaultValues={DEFAULT_VALUES} />)
 
     await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }))
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Selecciona un tipo de cuenta válido.'))
+  })
+
+  it('shows a descriptive placeholder option for every select, never a bare dash', () => {
+    render(<GuidePayoutAccountForm banks={BANKS} banksLoadFailed={false} defaultValues={null} />)
+
+    expect(screen.getByRole('option', { name: '— Selecciona un banco —' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '— Selecciona un tipo de cuenta —' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '— Selecciona un tipo de documento —' })).toBeInTheDocument()
+  })
+
+  it('shows an inline error with a retry action when the bank catalog failed to load, and refreshes the page on click', async () => {
+    const user = userEvent.setup()
+    render(<GuidePayoutAccountForm banks={[]} banksLoadFailed={true} defaultValues={null} />)
+
+    expect(screen.getByText('No pudimos cargar la lista de bancos de Wompi. Intenta de nuevo.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }))
+    expect(refreshMock).toHaveBeenCalledTimes(1)
   })
 })

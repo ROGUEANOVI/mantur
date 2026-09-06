@@ -55,6 +55,7 @@ export default async function EditGuideProfilePage() {
         </div>
 
         <GuidePayoutAccountForm
+          banksLoadFailed={!banksResult.ok}
           banks={banks}
           defaultValues={
             payoutAccount

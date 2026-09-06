@@ -132,8 +132,9 @@ export const miNegocioCopy = {
     title: 'Cuenta para pagos',
     subtitle: 'A esta cuenta se transfiere tu parte de cada reserva pagada (el monto menos la comisión de ManTur).',
     bankName: 'Banco',
-    bankNamePlaceholder: 'Ej: Bancolombia',
+    bankSelectPlaceholder: '— Selecciona un banco —',
     accountType: 'Tipo de cuenta',
+    accountTypePlaceholder: '— Selecciona un tipo de cuenta —',
     accountTypeOptions: {
       ahorros: 'Ahorros',
       corriente: 'Corriente',
@@ -141,6 +142,7 @@ export const miNegocioCopy = {
     accountNumber: 'Número de cuenta',
     accountNumberPlaceholder: 'Ej: 00011122233',
     holderIdType: 'Tipo de documento del titular',
+    holderIdTypePlaceholder: '— Selecciona un tipo de documento —',
     holderIdTypeOptions: {
       CC: 'Cédula de ciudadanía',
       CE: 'Cédula de extranjería',
@@ -154,6 +156,8 @@ export const miNegocioCopy = {
     save: 'Guardar cuenta',
     saving: 'Guardando...',
     saved: 'Cuenta de pagos guardada.',
+    banksLoadError: 'No pudimos cargar la lista de bancos de Wompi. Intenta de nuevo.',
+    retry: 'Reintentar',
   },
 }
 

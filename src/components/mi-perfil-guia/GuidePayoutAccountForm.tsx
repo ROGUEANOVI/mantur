@@ -1,6 +1,8 @@
 'use client'
 
 import { useActionState, useEffect, useState, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import { RotateCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveGuidePayoutAccount } from '@/app/(app)/mi-perfil-guia/actions'
 import { guidesCopy } from '@/lib/copy/guides'
@@ -9,6 +11,10 @@ type FormState = { error: string | null; saved: boolean }
 
 type Props = {
   banks: { id: string; name: string }[]
+  // true when listPayoutBanks() failed server-side — surfaced here instead
+  // of silently rendering a bank <select> with nothing but the placeholder
+  // to pick, which looked like a broken control with no explanation.
+  banksLoadFailed: boolean
   defaultValues: {
     bankName: string
     wompiBankId: string
@@ -23,7 +29,8 @@ type Props = {
 
 const copy = guidesCopy.payout
 
-export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) {
+export default function GuidePayoutAccountForm({ banks, banksLoadFailed, defaultValues }: Props) {
+  const router = useRouter()
   // Plain React state, not defaultValue: a <form>'s action prop puts React
   // in charge of the DOM node (React 19 resets its fields after a successful
   // action, the same way a native form does after a real submission), so a
@@ -88,12 +95,25 @@ export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) 
           onChange={(e) => setWompiBankId(e.target.value)}
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
-          <option value="" disabled>—</option>
+          <option value="" disabled>{copy.bankSelectPlaceholder}</option>
           {bankOptions.map((bank) => (
             <option key={bank.id} value={bank.id}>{bank.name}</option>
           ))}
         </select>
         <input type="hidden" name="bank_name" value={selectedBankName} />
+        {banksLoadFailed && (
+          <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <span className="flex-1">{copy.banksLoadError}</span>
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="inline-flex items-center gap-1 font-semibold hover:text-destructive/80 transition-colors cursor-pointer shrink-0"
+            >
+              <RotateCw className="size-3.5" aria-hidden="true" />
+              {copy.retry}
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -106,7 +126,7 @@ export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) 
           onChange={(e) => setAccountType(e.target.value)}
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
-          <option value="" disabled>—</option>
+          <option value="" disabled>{copy.accountTypePlaceholder}</option>
           {Object.entries(copy.accountTypeOptions).map(([v, label]) => (
             <option key={v} value={v}>{label}</option>
           ))}
@@ -136,7 +156,7 @@ export default function GuidePayoutAccountForm({ banks, defaultValues }: Props) 
           onChange={(e) => setHolderIdType(e.target.value)}
           className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
         >
-          <option value="" disabled>—</option>
+          <option value="" disabled>{copy.holderIdTypePlaceholder}</option>
           {Object.entries(copy.holderIdTypeOptions).map(([v, label]) => (
             <option key={v} value={v}>{label}</option>
           ))}

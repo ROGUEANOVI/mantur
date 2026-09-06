@@ -38,3 +38,20 @@ paths:
   next to its own input (e.g. `onBlur` phone/name checks) stays inline — this
   rule is about the result of submitting/running an action, not per-field
   validation.
+- A `<select>`'s default/placeholder `<option value="" disabled>` must be
+  descriptive — e.g. `— Selecciona un banco —` — never a bare dash/line
+  (`—`, `----`) with no words. State what the field is for, matching the
+  house style `— Selecciona [un/una + lo que se elige] —` already used
+  throughout (`AdminBusinessForm`, `LugarForm`, `PayoutAccountForm`,
+  `GuidePayoutAccountForm`). For a dynamically-labeled field (e.g. a
+  per-service-type attribute select), interpolate the field's own label:
+  `` `— Selecciona ${field.label} —` ``. This applies to every `<select>` in
+  the app, not just forms that happen to load external data.
+- When a `<select>`'s options come from an external API call that can fail
+  server-side (e.g. `listPayoutBanks()`), never let a failure silently
+  render an empty, unusable dropdown with only the placeholder — pass a
+  `xLoadFailed: boolean` prop down from the page (`!result.ok`) and render an
+  inline `bg-destructive/10 text-destructive` message next to the field
+  naming the problem, with a "Reintentar" action (`router.refresh()` from
+  `next/navigation` re-runs the failed server fetch without a full reload).
+  See `PayoutAccountForm`/`GuidePayoutAccountForm` for the pattern.
