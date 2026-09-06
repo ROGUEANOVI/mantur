@@ -62,6 +62,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 const checkRateLimitMock = vi.fn()
 vi.mock('@/lib/rate-limit', () => ({
   refundRequestRateLimit: {},
+  guideTourReviewRateLimit: {},
   checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
 }))
 
@@ -465,6 +466,13 @@ function reviewBookingRow(overrides: Partial<{
 }
 
 describe('createGuideTourReview', () => {
+  it('returns a rate-limit error and never queries the DB when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const result = await createGuideTourReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(bookingSingle).not.toHaveBeenCalled()
+  })
+
   it('rejects a non-UUID booking id without querying the DB', async () => {
     const result = await createGuideTourReview(formData({ booking_id: 'not-a-uuid', rating: '5' }))
     expect(result).toEqual({ error: 'Solo puedes reseñar tours ya realizados de reservas confirmadas.' })

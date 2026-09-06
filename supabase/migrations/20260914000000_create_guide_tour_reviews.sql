@@ -61,6 +61,18 @@ CREATE POLICY "guide_tour_reviews_select"
 -- meet the real eligibility: the caller owns the booking, the booking is for
 -- this exact guide_tour, it's 'confirmed' (never a pending/cancelled one),
 -- and the tour date has actually passed.
+--
+-- Uses (now() AT TIME ZONE 'America/Bogota')::date, NOT the bare CURRENT_DATE
+-- — a security review caught that CURRENT_DATE resolves in the database
+-- session's timezone (UTC by default on Supabase, never set to Bogotá by
+-- any migration), while the Server Action's own re-check uses
+-- bogotaDateString() (src/lib/refunds.ts). Bogotá is UTC-5 with no DST, so
+-- bare CURRENT_DATE would disagree with the app's "today" for the last ~5
+-- hours of every Bogotá day — during that window a same-day tour booking
+-- would incorrectly satisfy `booking_date < CURRENT_DATE` here even though
+-- createGuideTourReview() correctly still rejects it, a real (if narrow)
+-- gap in this defense-in-depth policy for a caller hitting PostgREST
+-- directly with their own session.
 CREATE POLICY "guide_tour_reviews_insert"
   ON public.guide_tour_reviews FOR INSERT
   WITH CHECK (
@@ -71,7 +83,7 @@ CREATE POLICY "guide_tour_reviews_insert"
         AND tourist_id = auth.uid()
         AND guide_tour_id = guide_tour_reviews.guide_tour_id
         AND status = 'confirmed'
-        AND booking_date < CURRENT_DATE
+        AND booking_date < (now() AT TIME ZONE 'America/Bogota')::date
     )
   );
 

@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
-import { refundRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
+import { refundRequestRateLimit, guideTourReviewRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { computeHoursUntilBooking, computeRefundAmountCents, bogotaDateString } from '@/lib/refunds'
 import { voidWompiTransaction } from '@/lib/wompi/refunds'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
@@ -182,6 +182,9 @@ type ReviewResult = { error: string } | { success: true }
 // rather than inventing that machinery just for this feature.
 export async function createGuideTourReview(formData: FormData): Promise<ReviewResult> {
   const { userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(guideTourReviewRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
 
   const bookingId = formData.get('booking_id') as string
   if (!UUID_RE.test(bookingId)) return { error: bookingsCopy.review.errors.notEligible }
