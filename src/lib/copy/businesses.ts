@@ -1,3 +1,5 @@
+import { CALENDAR_WEEKDAYS, CALENDAR_MONTHS, calendarActionLabels, calendarGenericErrors } from './calendar'
+
 export const miNegocioCopy = {
   nav: {
     overview: 'Mi negocio',
@@ -28,6 +30,7 @@ export const miNegocioCopy = {
     newTitle: 'Nuevo servicio',
     editTitle: 'Editar servicio',
     editButton: 'Editar',
+    availabilityButton: 'Disponibilidad',
     editDetails: 'Detalles',
     editImages: 'Fotos y videos',
     editImagesHint: 'La primera foto es la portada. Máximo 10 fotos y videos.',
@@ -108,8 +111,8 @@ export const miNegocioCopy = {
     } as Record<string, string>,
   },
   availability: {
-    title: 'Disponibilidad para paquetes',
-    subtitle: 'Marca los días en que tu negocio no puede atender turistas de un paquete. Los días sin marcar se asumen disponibles.',
+    title: 'Disponibilidad general del negocio',
+    subtitle: 'Marca los días en que tu negocio no puede atender turistas. Los días sin marcar se asumen disponibles, y esto se hereda automáticamente a todos tus servicios.',
     backToBusiness: 'Volver al negocio',
     legendAvailable: 'Disponible',
     legendUnavailable: 'No disponible',
@@ -122,10 +125,25 @@ export const miNegocioCopy = {
     markAvailable: 'Marcar disponible',
     prevMonth: 'Mes anterior',
     nextMonth: 'Mes siguiente',
+    weeklyPatternTitle: 'Patrón semanal',
+    weeklyPatternSubtitle: 'Si normalmente no atiendes turistas ciertos días de la semana, márcalos aquí una sola vez. Las marcas puntuales del calendario de abajo siempre tienen prioridad sobre este patrón.',
     errors: {
       notFound: 'Negocio no encontrado.',
       generic: 'Ocurrió un error. Intenta de nuevo.',
       pastDate: 'No puedes marcar una fecha pasada.',
+    },
+  },
+
+  serviceAvailability: {
+    title: 'Disponibilidad del servicio',
+    subtitle: 'Marca los días en que este servicio en particular no está disponible. Los días sin marcar se asumen disponibles, salvo que tu negocio esté marcado como no disponible ese día en su calendario general.',
+    backToServices: 'Volver a servicios',
+    ...calendarActionLabels,
+    weekdays: CALENDAR_WEEKDAYS,
+    months: CALENDAR_MONTHS,
+    errors: {
+      notFound: 'Servicio no encontrado.',
+      ...calendarGenericErrors,
     },
   },
   payout: {

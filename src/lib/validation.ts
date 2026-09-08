@@ -9,3 +9,7 @@ export const DESCRIPTION_MAX_LENGTH = 1200
 // the table's own CHECK constraints (20260903000000_create_packages.sql).
 export const AVAILABILITY_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 export const AVAILABILITY_STATUSES = new Set(['available', 'unavailable'])
+
+// provider_weekly_availability's own weekday convention: 0=Sunday..6=Saturday,
+// matching JS Date.getDay() (see 20260920000000_add_item_availability_and_transporter_routes.sql).
+export const WEEKDAYS = new Set([0, 1, 2, 3, 4, 5, 6])

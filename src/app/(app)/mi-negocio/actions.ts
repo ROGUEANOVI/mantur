@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePrice, parsePositiveInt } from './parsers'
 import { normalizeColombianPhone } from '@/lib/phone'
 import { getAttributeFields, parseAttributes } from '@/lib/services/attributeConfig'
-import { DESCRIPTION_MAX_LENGTH, AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES } from '@/lib/validation'
+import { DESCRIPTION_MAX_LENGTH, AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES, WEEKDAYS } from '@/lib/validation'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 
 type ActionResult = { error: string } | void
@@ -407,6 +407,97 @@ export async function setBusinessAvailability(formData: FormData): Promise<Actio
   if (error) return { error: copy.generic }
 
   revalidatePath(`/mi-negocio/${businessId}/disponibilidad`)
+}
+
+// Weekly recurring counterpart to setBusinessAvailability: writes to
+// provider_weekly_availability instead of provider_availability, same
+// upsert-only posture. See is_item_available()
+// (20260920000000_add_item_availability_and_transporter_routes.sql) for how
+// this feeds into a service's effective availability alongside the per-date
+// table above.
+export async function setBusinessWeeklyAvailability(formData: FormData): Promise<ActionResult> {
+  const copy = miNegocioCopy.availability.errors
+  const businessId = formData.get('businessId') as string
+  if (!UUID_RE.test(businessId)) return { error: copy.notFound }
+
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const rawWeekday = formData.get('weekday') as string
+  const weekday = parseInt(rawWeekday, 10)
+  const status = formData.get('status') as string
+  if (!WEEKDAYS.has(weekday)) return { error: copy.generic }
+  if (!AVAILABILITY_STATUSES.has(status)) return { error: copy.generic }
+
+  const { data: business } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', businessId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (!business) return { error: copy.notFound }
+
+  const { error } = await supabase.from('provider_weekly_availability').upsert(
+    {
+      provider_type: 'business',
+      provider_id: businessId,
+      weekday,
+      status,
+      source: 'provider_self_service',
+    },
+    { onConflict: 'provider_type,provider_id,weekday' },
+  )
+
+  if (error) return { error: copy.generic }
+
+  revalidatePath(`/mi-negocio/${businessId}/disponibilidad`)
+}
+
+// Item-level counterpart to setBusinessAvailability, for a single service
+// rather than the whole business. Ownership is verified through the
+// service→business→owner_id chain — provider_availability_insert_own/
+// _update_own (20260920000000) enforce the same chain at the RLS level, so
+// this check is belt-and-suspenders, same posture as every other ownership
+// check in this file.
+export async function setServiceAvailability(formData: FormData): Promise<ActionResult> {
+  const copy = miNegocioCopy.serviceAvailability.errors
+  const serviceId = formData.get('providerId') as string
+  if (!UUID_RE.test(serviceId)) return { error: copy.notFound }
+
+  const { supabase, userId } = await getAuthenticatedOwner()
+
+  const date = formData.get('date') as string
+  const status = formData.get('status') as string
+  if (!AVAILABILITY_DATE_RE.test(date)) return { error: copy.generic }
+  if (!AVAILABILITY_STATUSES.has(status)) return { error: copy.generic }
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (date < today) return { error: copy.pastDate }
+
+  const { data: service } = await supabase
+    .from('services')
+    .select('id, business_id, businesses!inner(owner_id)')
+    .eq('id', serviceId)
+    .eq('businesses.owner_id', userId)
+    .maybeSingle()
+
+  if (!service) return { error: copy.notFound }
+
+  const { error } = await supabase.from('provider_availability').upsert(
+    {
+      provider_type: 'service',
+      provider_id: serviceId,
+      date,
+      status,
+      source: 'provider_self_service',
+      resolved_by: userId,
+    },
+    { onConflict: 'provider_type,provider_id,date' },
+  )
+
+  if (error) return { error: copy.generic }
+
+  revalidatePath(`/mi-negocio/${service.business_id}/servicios/${serviceId}/disponibilidad`)
 }
 
 export async function createService(formData: FormData): Promise<ActionResult> {

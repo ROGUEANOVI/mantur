@@ -21,7 +21,7 @@ type Copy = {
 }
 
 type Props = {
-  providerType: 'business' | 'guide'
+  providerType: 'business' | 'guide' | 'transporter' | 'service' | 'guide_tour' | 'transporter_route'
   providerId: string
   action: AvailabilityAction
   unavailableDates: string[]
@@ -124,7 +124,7 @@ export default function AvailabilityCalendar({ providerType, providerId, action,
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground pt-3 border-t border-border">
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-muted-foreground/30" aria-hidden="true" />
+          <span className="size-2.5 rounded-full bg-green-500" aria-hidden="true" />
           {copy.legendAvailable}
         </span>
         <span className="flex items-center gap-1.5">

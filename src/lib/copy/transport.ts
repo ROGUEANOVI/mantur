@@ -1,3 +1,5 @@
+import { CALENDAR_WEEKDAYS, CALENDAR_MONTHS, calendarActionLabels, calendarGenericErrors } from './calendar'
+
 export const transportCopy = {
   publicPage: {
     pageTitle: 'Transportadores disponibles',
@@ -207,5 +209,79 @@ export const transportCopy = {
     unauthorized: 'Debes iniciar sesión como turista para solicitar transporte.',
     requestNotFound: 'Solicitud no encontrada.',
     rateLimited: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
+  },
+
+  availability: {
+    title: 'Disponibilidad general',
+    subtitle: 'Marca los días en que no puedes atender traslados. Los días sin marcar se asumen disponibles, y esto se hereda automáticamente a todas tus rutas.',
+    backToPanel: 'Volver a mi panel',
+    ...calendarActionLabels,
+    weekdays: CALENDAR_WEEKDAYS,
+    months: CALENDAR_MONTHS,
+    weeklyPatternTitle: 'Patrón semanal',
+    weeklyPatternSubtitle: 'Si normalmente no atiendes traslados ciertos días de la semana, márcalos aquí una sola vez. Las marcas puntuales del calendario de abajo siempre tienen prioridad sobre este patrón.',
+    errors: {
+      notFound: 'Transportador no encontrado.',
+      ...calendarGenericErrors,
+    },
+  },
+
+  routeAvailability: {
+    title: 'Disponibilidad de la ruta',
+    subtitle: 'Marca los días en que esta ruta en particular no está disponible. Los días sin marcar se asumen disponibles, salvo que tu calendario general te marque como no disponible ese día.',
+    backToRoutes: 'Volver a mis rutas',
+    ...calendarActionLabels,
+    weekdays: CALENDAR_WEEKDAYS,
+    months: CALENDAR_MONTHS,
+    errors: {
+      notFound: 'Ruta no encontrada.',
+      ...calendarGenericErrors,
+    },
+  },
+
+  routes: {
+    title: 'Mis rutas',
+    addButton: 'Nueva ruta',
+    newTitle: 'Nueva ruta',
+    editTitle: 'Editar ruta',
+    editButton: 'Editar',
+    availabilityButton: 'Disponibilidad',
+    empty: 'Aún no tienes rutas publicadas. Agrega una para que los turistas la vean.',
+    activate: 'Activar',
+    deactivate: 'Desactivar',
+    toggling: 'Actualizando...',
+    statusActive: 'Activa',
+    statusInactive: 'Inactiva',
+    saved: 'Cambios guardados.',
+    backToPanel: 'Volver a mi panel',
+    form: {
+      origin: 'Origen',
+      originPlaceholder: 'Ej: Casco urbano de Manaure',
+      destination: 'Destino',
+      destinationPlaceholder: 'Ej: Balneario El Edén, vereda Los Colorados',
+      modalitiesLabel: '¿Qué modalidades ofreces en esta ruta?',
+      allowOneWay: 'Solo ida',
+      allowRoundTrip: 'Ida y vuelta',
+      priceOneWay: 'Precio ida (COP, opcional)',
+      priceOneWayPlaceholder: 'Ej: 15000',
+      priceRoundTrip: 'Precio ida y vuelta (COP, opcional)',
+      priceRoundTripPlaceholder: 'Ej: 25000',
+      pricingHint: 'Deja el precio en blanco si prefieres cotizarlo al aceptar cada solicitud.',
+      duration: 'Duración estimada (minutos, opcional)',
+      durationPlaceholder: 'Ej: 20',
+      notes: 'Notas (opcional)',
+      notesPlaceholder: 'Ej: solo en temporada seca, requiere reserva con un día de anticipación...',
+      submit: 'Guardar ruta',
+      submitting: 'Guardando...',
+      cancel: 'Cancelar',
+    },
+    errors: {
+      notFound: 'Ruta no encontrada.',
+      missingFields: 'El origen y el destino son obligatorios.',
+      noModality: 'Selecciona al menos una modalidad (ida o ida y vuelta).',
+      invalidPrice: 'El precio debe ser un número positivo.',
+      invalidDuration: 'La duración debe ser un número positivo.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
+    },
   },
 } as const

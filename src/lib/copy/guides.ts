@@ -1,3 +1,5 @@
+import { CALENDAR_WEEKDAYS, CALENDAR_MONTHS, calendarActionLabels, calendarGenericErrors } from './calendar'
+
 export const guidesCopy = {
   publicPage: {
     pageTitle: 'Guías turísticos locales',
@@ -46,6 +48,7 @@ export const guidesCopy = {
     statusActive: 'Activo',
     statusInactive: 'Inactivo',
     editTour: 'Editar',
+    tourAvailabilityButton: 'Disponibilidad',
     toggleActive: 'Activar',
     toggleInactive: 'Desactivar',
     available: 'Disponible',
@@ -80,8 +83,8 @@ export const guidesCopy = {
   },
 
   availability: {
-    title: 'Disponibilidad para paquetes',
-    subtitle: 'Marca los días en que no puedes atender turistas de un paquete. Los días sin marcar se asumen disponibles.',
+    title: 'Disponibilidad general',
+    subtitle: 'Marca los días en que no puedes atender turistas. Los días sin marcar se asumen disponibles, y esto se hereda automáticamente a todos tus tours.',
     backToPanel: 'Volver a mi panel',
     legendAvailable: 'Disponible',
     legendUnavailable: 'No disponible',
@@ -94,10 +97,25 @@ export const guidesCopy = {
     markAvailable: 'Marcar disponible',
     prevMonth: 'Mes anterior',
     nextMonth: 'Mes siguiente',
+    weeklyPatternTitle: 'Patrón semanal',
+    weeklyPatternSubtitle: 'Si normalmente no atiendes turistas ciertos días de la semana, márcalos aquí una sola vez. Las marcas puntuales del calendario de abajo siempre tienen prioridad sobre este patrón.',
     errors: {
       notFound: 'Guía no encontrado.',
       generic: 'Ocurrió un error. Intenta de nuevo.',
       pastDate: 'No puedes marcar una fecha pasada.',
+    },
+  },
+
+  tourAvailability: {
+    title: 'Disponibilidad del tour',
+    subtitle: 'Marca los días en que este tour en particular no está disponible. Los días sin marcar se asumen disponibles, salvo que tu calendario general te marque como no disponible ese día.',
+    backToPanel: 'Volver a mi panel',
+    ...calendarActionLabels,
+    weekdays: CALENDAR_WEEKDAYS,
+    months: CALENDAR_MONTHS,
+    errors: {
+      notFound: 'Tour no encontrado.',
+      ...calendarGenericErrors,
     },
   },
 
