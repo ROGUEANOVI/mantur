@@ -3,6 +3,7 @@ import { Car, MapPin, Calendar, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
 import { cancelTransportRequest } from '@/app/(app)/transporte/actions'
+import LeaveTransporterReviewForm from '@/components/transporte/LeaveTransporterReviewForm'
 import { cn } from '@/lib/utils'
 
 type TransportRequest = {
@@ -19,6 +20,10 @@ type TransportRequest = {
     phone: string
     profiles: { full_name: string | null } | null
   } | null
+  // transporter_reviews.transport_request_id is UNIQUE, so PostgREST embeds
+  // this as a to-one relation (an object, not an array) — same pattern
+  // already used for guide_tour_reviews/package_reviews in mis-reservas.
+  transporter_reviews: { id: string } | null
 }
 
 function formatDatetime(iso: string): string {
@@ -42,7 +47,7 @@ export default async function MisViajesPage() {
   const { data } = await supabase
     .from('transport_requests')
     .select(
-      'id, origin, destination, requested_datetime, people_count, status, created_at, transporters(license_plate, vehicle_type, phone, profiles!profile_id(full_name))',
+      'id, origin, destination, requested_datetime, people_count, status, created_at, transporters(license_plate, vehicle_type, phone, profiles!profile_id(full_name)), transporter_reviews(id)',
     )
     .eq('tourist_id', user!.id)
     .order('created_at', { ascending: false })
@@ -142,6 +147,15 @@ export default async function MisViajesPage() {
                         {copy.cancel}
                       </button>
                     </form>
+                  )}
+
+                  {/* Review: only for a completed ride with no review yet —
+                      same eligibility createTransporterReview itself
+                      re-checks server-side. */}
+                  {req.status === 'completed' && !req.transporter_reviews && (
+                    <div className="pt-1">
+                      <LeaveTransporterReviewForm transportRequestId={req.id} />
+                    </div>
                   )}
                 </div>
               )

@@ -3,10 +3,12 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { transportCopy } from '@/lib/copy/transport'
-import { transportRequestRateLimit, checkRateLimit } from '@/lib/rate-limit'
+import { transportRequestRateLimit, transporterReviewRateLimit, checkRateLimit } from '@/lib/rate-limit'
 
 type ActionResult = { error: string } | void
+type ReviewResult = { error: string } | { success: true }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -86,4 +88,60 @@ export async function cancelTransportRequest(formData: FormData): Promise<void> 
     .eq('status', 'pending')
 
   revalidatePath('/mis-viajes')
+}
+
+// Extends the review system to transporters (see
+// 20260918000000_create_transporter_reviews.sql). Deliberately gated on
+// transport_requests.status = 'completed', not on bookings — transport
+// payment (createTransportBooking in reservas/actions.ts) is dormant, so
+// no transport_requests row ever gets a paid bookings.status='confirmed'
+// counterpart today. completed is the real, live signal a ride happened,
+// set by markCompleted() in mi-perfil-transporte/actions.ts regardless of
+// how the ride was paid for.
+export async function createTransporterReview(formData: FormData): Promise<ReviewResult> {
+  const { userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(transporterReviewRateLimit, userId)
+  if (!allowed) return { error: transportCopy.review.errors.rateLimited }
+
+  const transportRequestId = formData.get('transport_request_id') as string
+  if (!UUID_RE.test(transportRequestId)) return { error: transportCopy.review.errors.notEligible }
+
+  const ratingRaw = Number(formData.get('rating'))
+  if (!Number.isInteger(ratingRaw) || ratingRaw < 1 || ratingRaw > 5) {
+    return { error: transportCopy.review.errors.invalidRating }
+  }
+
+  const comment = (formData.get('comment') as string | null)?.trim().slice(0, 500) || null
+
+  const admin = createAdminClient()
+
+  const { data: request } = await admin
+    .from('transport_requests')
+    .select('id, tourist_id, transporter_id, status')
+    .eq('id', transportRequestId)
+    .single()
+
+  if (!request || request.tourist_id !== userId || !request.transporter_id) {
+    return { error: transportCopy.review.errors.notEligible }
+  }
+  if (request.status !== 'completed') return { error: transportCopy.review.errors.notEligible }
+
+  const { error: insertError } = await admin.from('transporter_reviews').insert({
+    transporter_id: request.transporter_id,
+    transport_request_id: transportRequestId,
+    tourist_id: userId,
+    rating: ratingRaw,
+    comment,
+  })
+
+  if (insertError) {
+    // 23505 = unique_violation on transporter_reviews.transport_request_id
+    // — this ride already has a review.
+    if (insertError.code === '23505') return { error: transportCopy.review.errors.alreadyReviewed }
+    return { error: transportCopy.review.errors.generic }
+  }
+
+  revalidatePath('/mis-viajes')
+  return { success: true }
 }

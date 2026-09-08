@@ -65,6 +65,29 @@ export const transportCopy = {
     } as Record<string, string>,
   },
 
+  review: {
+    leaveReview: 'Dejar reseña',
+    ratingLabel: '¿Cómo calificarías este traslado?',
+    commentLabel: 'Comentario (opcional)',
+    commentPlaceholder: 'Cuéntale a otros turistas cómo fue tu experiencia...',
+    submit: 'Enviar reseña',
+    submitting: 'Enviando...',
+    cancel: 'Cancelar',
+    submitted: '¡Gracias por tu reseña!',
+    errors: {
+      invalidRating: 'Selecciona una calificación de 1 a 5 estrellas.',
+      notEligible: 'Solo puedes reseñar traslados ya completados.',
+      alreadyReviewed: 'Ya dejaste una reseña para este traslado.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
+      rateLimited: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
+    },
+  },
+
+  reviews: {
+    noReviewsYet: 'Aún no tiene reseñas.',
+    reviewCount: (n: number) => (n === 1 ? '1 reseña' : `${n} reseñas`),
+  },
+
   transporterPanel: {
     pageTitle: 'Mi panel de transporte',
     profileCard: {

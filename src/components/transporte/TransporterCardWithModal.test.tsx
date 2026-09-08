@@ -17,51 +17,53 @@ const TRANSPORTER = {
   is_available: true,
 }
 
+const NO_REVIEWS = { avgRating: null, count: 0 }
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
 describe('TransporterCardWithModal', () => {
   it('renders the transporter name, vehicle type label, and plate', () => {
-    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" />)
+    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
     expect(screen.getByText('Carlos Ruiz')).toBeInTheDocument()
     expect(screen.getByText('Motocarro · ABC-123')).toBeInTheDocument()
   })
 
   it('falls back to "Transportador" when full_name is null', () => {
-    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, full_name: null }} access="tourist" />)
+    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, full_name: null }} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
     expect(screen.getAllByText('Transportador').length).toBeGreaterThan(0)
   })
 
   it('falls back to the raw vehicle_type string when it is not in the known map', () => {
-    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, vehicle_type: 'lancha' }} access="tourist" />)
+    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, vehicle_type: 'lancha' }} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
     expect(screen.getByText('lancha · ABC-123')).toBeInTheDocument()
   })
 
   it('renders the bio when present', () => {
-    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" />)
+    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
     expect(screen.getByText('Conozco todos los rincones de Manaure')).toBeInTheDocument()
   })
 
   it('renders no bio paragraph when bio is null', () => {
-    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, bio: null }} access="tourist" />)
+    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, bio: null }} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
     expect(screen.queryByText('Conozco todos los rincones de Manaure')).not.toBeInTheDocument()
   })
 
   it('shows a "Disponible" badge when is_available is true', () => {
-    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" />)
+    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
     expect(screen.getByText('Disponible')).toBeInTheDocument()
   })
 
   it('shows a "No disponible" badge when is_available is false', () => {
-    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" />)
+    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
     expect(screen.getByText('No disponible')).toBeInTheDocument()
     expect(screen.queryByText('Disponible')).not.toBeInTheDocument()
   })
 
   it('opens the request modal when a tourist clicks "Solicitar traslado"', async () => {
     const user = userEvent.setup()
-    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" />)
+    render(<TransporterCardWithModal transporter={TRANSPORTER} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
 
     await user.click(screen.getByRole('button', { name: 'Solicitar traslado' }))
 
@@ -75,7 +77,7 @@ describe('TransporterCardWithModal', () => {
     window.location = { ...originalLocation, href: '' } as Location
 
     const user = userEvent.setup()
-    render(<TransporterCardWithModal transporter={TRANSPORTER} access="guest" />)
+    render(<TransporterCardWithModal transporter={TRANSPORTER} access="guest" ratingSummary={NO_REVIEWS} reviews={[]} />)
 
     await user.click(screen.getByRole('button', { name: 'Solicitar traslado' }))
 
@@ -86,7 +88,7 @@ describe('TransporterCardWithModal', () => {
   })
 
   it('hides the "Solicitar traslado" button for an authenticated non-tourist role', () => {
-    render(<TransporterCardWithModal transporter={TRANSPORTER} access="other_role" />)
+    render(<TransporterCardWithModal transporter={TRANSPORTER} access="other_role" ratingSummary={NO_REVIEWS} reviews={[]} />)
 
     expect(screen.queryByRole('button', { name: 'Solicitar traslado' })).not.toBeInTheDocument()
     // The rest of the card still renders.
@@ -94,7 +96,7 @@ describe('TransporterCardWithModal', () => {
   })
 
   it('hides the "Solicitar traslado" button when the driver is not available, even for a tourist', () => {
-    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" />)
+    render(<TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />)
 
     expect(screen.queryByRole('button', { name: 'Solicitar traslado' })).not.toBeInTheDocument()
     expect(screen.getByText('Carlos Ruiz')).toBeInTheDocument()
@@ -103,12 +105,48 @@ describe('TransporterCardWithModal', () => {
   it('does not open the modal when clicking an unavailable driver\'s card', async () => {
     const user = userEvent.setup()
     const { container } = render(
-      <TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" />,
+      <TransporterCardWithModal transporter={{ ...TRANSPORTER, is_available: false }} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />,
     )
 
     await user.click(screen.getByText('Carlos Ruiz'))
 
     expect(screen.queryByTestId('transport-request-form')).not.toBeInTheDocument()
     expect(container.querySelector('.cursor-pointer')).not.toBeInTheDocument()
+  })
+
+  it('shows "no reviews yet" copy on the card when there are none', () => {
+    render(
+      <TransporterCardWithModal transporter={TRANSPORTER} access="tourist" ratingSummary={NO_REVIEWS} reviews={[]} />,
+    )
+    expect(screen.getByText('Aún no tiene reseñas.')).toBeInTheDocument()
+  })
+
+  it('shows the average rating and review count on the card when reviews exist', () => {
+    render(
+      <TransporterCardWithModal
+        transporter={TRANSPORTER}
+        access="tourist"
+        ratingSummary={{ avgRating: 4.5, count: 2 }}
+        reviews={[]}
+      />,
+    )
+    expect(screen.getByText('4.5')).toBeInTheDocument()
+    expect(screen.getByText('(2 reseñas)')).toBeInTheDocument()
+  })
+
+  it('shows the review comments inside the modal', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransporterCardWithModal
+        transporter={TRANSPORTER}
+        access="tourist"
+        ratingSummary={{ avgRating: 5, count: 1 }}
+        reviews={[{ rating: 5, comment: 'Excelente conductor', created_at: '2026-09-01T00:00:00.000Z' }]}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Solicitar traslado' }))
+
+    expect(await screen.findByText('Excelente conductor')).toBeInTheDocument()
   })
 })
