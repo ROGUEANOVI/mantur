@@ -138,7 +138,7 @@ export const legalCopy = {
       {
         title: 'Nuestra misión',
         body:
-          '«Turismo con alma local»: creemos que la mejor forma de conocer Manaure es a través de quienes viven allí — restaurantes y fincas familiares, mototaxistas del pueblo y guías que conocen cada sendero.',
+          '«Turismo con alma local»: creemos que la mejor forma de conocer Manaure es a través de quienes viven allí — restaurantes y fincas familiares, mototaxistas del pueblo y guías que conocen cada sendero. Y creemos que este modelo — turismo con alma local, operado por su propia gente — puede replicarse en cualquier municipio de Colombia con la misma historia por contar.',
       },
       {
         title: 'Cómo funciona',
