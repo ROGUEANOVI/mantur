@@ -133,7 +133,7 @@ export const legalCopy = {
       {
         title: 'Quiénes somos',
         body:
-          'ManTur es un mercado turístico digital que conecta a turistas con negocios, transportadores y guías locales de Manaure Balcón del Cesar, en un solo lugar.',
+          'ManTur es un mercado turístico digital que conecta a turistas con negocios, transportadores y guías locales de Manaure Balcón del Cesar, y además ofrece sus propios paquetes turísticos curados como operador.',
       },
       {
         title: 'Nuestra misión',
@@ -143,7 +143,17 @@ export const legalCopy = {
       {
         title: 'Cómo funciona',
         body:
-          'Los turistas exploran negocios, lugares, guías y transportadores, y reservan servicios directamente desde la plataforma. Los negocios y guías publican sus servicios; los transportadores locales facilitan moverse dentro del municipio.',
+          'Los turistas exploran negocios, lugares, guías y transportadores en la plataforma y coordinan cada servicio directamente por WhatsApp con quien lo ofrece — así garantizamos que lo que ves disponible, de verdad lo esté. Los paquetes de ManTur son la excepción: se reservan y se pagan completos aquí mismo, con disponibilidad confirmada de cada proveedor antes de cobrar.',
+      },
+      {
+        title: 'Nuestros paquetes',
+        body:
+          'Como operador turístico, ManTur arma experiencias completas en Manaure — combinando hospedaje, tours y traslados en un solo paquete de precio fijo — y las opera directamente, de principio a fin.',
+      },
+      {
+        title: 'Calificaciones y confianza',
+        body:
+          'Tours de guía, paquetes y traslados pueden calificarse después de vividos — así cada reseña ayuda al siguiente turista a elegir con confianza.',
       },
       {
         title: 'Nuestro compromiso',
