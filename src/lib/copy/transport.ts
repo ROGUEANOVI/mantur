@@ -101,6 +101,43 @@ export const transportCopy = {
     },
   },
 
+  payout: {
+    title: 'Cuenta para pagos',
+    subtitle: 'A esta cuenta se transfiere tu parte de cada traslado pagado (el monto menos la comisión de ManTur).',
+    bankName: 'Banco',
+    bankSelectPlaceholder: '— Selecciona un banco —',
+    banksLoadError: 'No pudimos cargar la lista de bancos de Wompi. Intenta de nuevo.',
+    retry: 'Reintentar',
+    accountType: 'Tipo de cuenta',
+    accountTypePlaceholder: '— Selecciona un tipo de cuenta —',
+    accountTypeOptions: {
+      ahorros: 'Ahorros',
+      corriente: 'Corriente',
+    } as Record<string, string>,
+    accountNumber: 'Número de cuenta',
+    accountNumberPlaceholder: 'Ej: 00011122233',
+    holderIdType: 'Tipo de documento del titular',
+    holderIdTypePlaceholder: '— Selecciona un tipo de documento —',
+    holderIdTypeOptions: {
+      CC: 'Cédula de ciudadanía',
+      CE: 'Cédula de extranjería',
+      NIT: 'NIT',
+    } as Record<string, string>,
+    holderIdNumber: 'Número de documento del titular',
+    holderName: 'Nombre del titular',
+    holderNamePlaceholder: 'Nombre completo',
+    holderEmail: 'Correo del titular',
+    holderEmailPlaceholder: 'correo@ejemplo.com',
+    save: 'Guardar cuenta',
+    saving: 'Guardando...',
+    saved: 'Cuenta de pagos guardada.',
+  },
+
+  acceptForm: {
+    priceLabel: 'Precio del traslado (COP, opcional)',
+    pricePlaceholder: 'Ej: 25000',
+  },
+
   editProfile: {
     pageTitle: 'Actualizar mis documentos',
     back: 'Volver a mi panel',

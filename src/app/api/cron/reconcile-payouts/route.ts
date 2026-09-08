@@ -71,7 +71,7 @@ export async function GET(request: Request) {
   for (const row of candidates ?? []) {
     const { data: claimed, error: claimError } = await admin
       .rpc('claim_provider_payout_for_send', { p_payout_id: row.id })
-      .single<{ transaction_id: string; recipient_type: 'business' | 'guide'; recipient_id: string; amount_cents: number }>()
+      .single<{ transaction_id: string; recipient_type: 'business' | 'guide' | 'transporter'; recipient_id: string; amount_cents: number }>()
 
     if (claimError) {
       console.error('Failed to claim provider payout during reconciliation', claimError)

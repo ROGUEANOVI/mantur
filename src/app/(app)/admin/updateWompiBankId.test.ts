@@ -39,7 +39,11 @@ vi.mock('@/lib/supabase/server', () => ({
 const updateSelect = vi.fn()
 const updateMock = vi.fn(() => ({ eq: () => ({ select: updateSelect }) }))
 const fromMock = vi.fn((table: string) => {
-  if (table === 'business_payout_accounts' || table === 'tourist_guide_payout_accounts') {
+  if (
+    table === 'business_payout_accounts' ||
+    table === 'tourist_guide_payout_accounts' ||
+    table === 'transporter_payout_accounts'
+  ) {
     return { update: updateMock }
   }
   throw new Error(`unexpected table on admin client: ${table}`)
@@ -100,6 +104,15 @@ describe('updateWompiBankId', () => {
     const result = await updateWompiBankId(formData({ recipientType: 'guide', recipientId: RECIPIENT_ID, wompiBankId: 'bank-uuid-2' }))
 
     expect(fromMock).toHaveBeenCalledWith('tourist_guide_payout_accounts')
+    expect(result).toEqual({ success: true })
+  })
+
+  it('updates transporter_payout_accounts by transporter_id for recipientType=transporter', async () => {
+    updateSelect.mockResolvedValue({ data: [{ transporter_id: RECIPIENT_ID }], error: null })
+
+    const result = await updateWompiBankId(formData({ recipientType: 'transporter', recipientId: RECIPIENT_ID, wompiBankId: 'bank-uuid-3' }))
+
+    expect(fromMock).toHaveBeenCalledWith('transporter_payout_accounts')
     expect(result).toEqual({ success: true })
   })
 

@@ -35,8 +35,10 @@ completos, solo quede *ejecutar* — no *diseñar* — la implementación.
 payouts automatizados vía Wompi Payouts desde el día uno; política de
 cancelación con ventanas fijas definidas por ManTur, inspirada en operadores
 turísticos de referencia (Civitatis, Airbnb, GetYourGuide); los paquetes son
-inventario propio de ManTur como operador (no de negocios individuales);
-monetizar transporte queda fuera de alcance de este plan.
+inventario propio de ManTur como operador (no de negocios individuales).
+La decisión original de no monetizar transporte se revirtió el 2026-09-06
+(ver la actualización correspondiente más abajo) — la infraestructura ya
+está construida, apagada junto con negocios y guías.
 
 **Actualización 2026-09-02 — pivote a operación manual**: dado que ManTur aún
 no ha empezado a operar y la demanda inicial es incierta, se decidió validar
@@ -70,6 +72,21 @@ sigue apagado (decisión de negocio, no técnica) — todo lo de este documento
 queda como infraestructura lista, no como comportamiento visible al usuario
 hoy.
 
+**Actualización 2026-09-06 (misma fecha, más tarde) — transporte se suma al
+apagón, no queda afuera.** Corrección de contexto: revisando
+`TourBookingForm.tsx` se confirmó que la reserva de tours de guía sí se
+desactivó en el mismo PR #110 que desactivó servicios de negocio — el
+founder había asumido esto correctamente, una nota desactualizada en
+`CLAUDE.md` decía lo contrario (ya corregida). El founder confirmó que la
+razón de fondo (no poder confirmar disponibilidad real de negocios,
+guías **ni transportistas**) aplica igual a los tres actores, y pidió
+construir la infraestructura de pago de transporte que nunca existió —
+`transport_requests.price_cents` (cotizado por el transportista al
+aceptar), `transporter_payout_accounts`, `bookings.transport_request_id`/
+`transporter_id`, `createTransportBooking()` — replicando exactamente el
+patrón de negocios/guías, y dejándola igual de apagada (ningún CTA público
+la dispara). Ver `feat/transport-payments`.
+
 ---
 
 ## 1. Estado actual del código (línea base)
@@ -94,8 +111,9 @@ Confirmado por exploración directa del repo (`supabase/migrations/`,
 - **`commission_config`** + RPC `get_commission_rate()` (SECURITY DEFINER,
   solo `service_role`): filas actuales `tour_activity, lodging, event_rental,
   pasadia, transport, business, guide_tour`, todas al 10% hoy, editable en
-  `/admin/comisiones`. `transport` existe pero **ningún código la usa** —
-  `transport_requests` no tiene columna de precio ni fila en `transactions`.
+  `/admin/comisiones`. `transport` ya la usa `createTransportBooking`
+  (2026-09-06, apagado — ver actualización más abajo), que lee el precio
+  cotizado en `transport_requests.price_cents`.
 - **Flujo actual (`src/app/(app)/reservas/actions.ts`):** `createBooking` y
   `createGuideTourBooking` insertan la reserva directamente con
   `status: 'confirmed'` y la transacción con `status: 'paid'` — el pago está
@@ -225,7 +243,7 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
 | ¿Fuente de verdad del estado de pago? | El **webhook** de Wompi, nunca el redirect del navegador | Confirmado como decisión de arquitectura ya documentada en `docs/roadmap-aprendizaje.md`; Wompi mismo lo advierte explícitamente en su doc de checkout ("Do not use the redirection as a validation method"). |
 | ¿Política de cancelación? | **Ventanas fijas definidas por ManTur**, ver §5 | Elegido por el founder, inspirado en Civitatis/Airbnb/GetYourGuide. |
 | ¿De quién es el inventario de paquetes? | **ManTur como operador** | Elegido por el founder — es justamente lo que habilita el RNT de operador que están tramitando. |
-| ¿Se monetiza transporte en este plan? | **No, fuera de alcance** | Elegido por el founder — `transport_requests` sigue siendo logística pura, pago en efectivo fuera de la plataforma. |
+| ¿Se monetiza transporte en este plan? | **Sí, infraestructura construida (2026-09-06), pero apagada** | Reversión de la decisión original — ver la actualización 2026-09-06 más abajo. `transport_requests` gana un precio cotizado por el transportista + `bookings`/`transactions`/Wompi Payouts equivalentes a negocios/guías; ningún CTA público lo dispara todavía. |
 | ¿Atomicidad booking+transaction? | RPC Postgres única (`create_booking_with_transaction`) | Necesario antes de introducir un webhook que escribe concurrentemente en ambas tablas; resuelve además la deuda técnica M-1 ya registrada. |
 
 ---
@@ -675,8 +693,10 @@ puede automatizar después sin fricción:
 - **Fase 2 — construida (2026-09-04, PR #119, endurecida en PR #120)**:
   negocios y guías ya pueden marcar su propia disponibilidad general en su
   panel (`/mi-negocio/[id]/disponibilidad`, `/mi-perfil-guia/disponibilidad`
-  — el de transportadores no se construyó, ya que el transporte sigue fuera
-  de alcance de este plan, §8) escribiendo en la **misma tabla**, para su
+  — el de transportadores no se construyó, ya que transporte sigue fuera de
+  alcance de **paquetes** específicamente, aunque desde 2026-09-06 sí tiene
+  su propia infraestructura de pago independiente, ver actualización de §3)
+  escribiendo en la **misma tabla**, para su
   propio `provider_id`, vía la política RLS `provider_availability_insert_own`/
   `_update_own`. `source` pasa a `provider_self_service` cuando el propio
   proveedor escribe. Una revisión de seguridad encontró que la política
@@ -695,8 +715,8 @@ puede automatizar después sin fricción:
   inventario de ManTur, gestionado desde `/admin/paquetes` (nueva página,
   mismo patrón que `/admin/lugares`/`/admin/categorias`).
 - **`package_items`**: junction — `package_id`, tipo de componente
-  (`service_id` o `guide_tour_id`, incluso transporte queda excluido por
-  ahora), `internal_cost_cents` (lo que ManTur le paga al proveedor por su
+  (`service_id` o `guide_tour_id` — transporte queda excluido de paquetes
+  por ahora, ver análisis de factibilidad pendiente en §3), `internal_cost_cents` (lo que ManTur le paga al proveedor por su
   parte, negociado aparte — **no** es un porcentaje de comisión, es costo
   directo), `quantity_included`. Esto es la pieza central del modelo
   "operador": el margen de ManTur en un paquete es
@@ -762,10 +782,14 @@ puede automatizar después sin fricción:
 
 ## 8. Fuera de alcance de este plan (explícito)
 
-- **Transporte monetizado**: `transport_requests` sigue sin pago en la
-  plataforma — decisión explícita del founder. `commission_config.transport`
-  queda como está (sembrada pero sin código que la use); revisar en un plan
-  futuro si se decide cobrar por la plataforma.
+- **Transporte dentro de paquetes**: `package_items` sigue sin admitir un
+  ítem de transporte — ver el análisis de factibilidad pendiente (§3,
+  actualización 2026-09-06). El pago de transporte fuera de paquetes (una
+  solicitud de traslado suelta) sí tiene infraestructura completa desde
+  2026-09-06, apagada junto con negocios/guías.
+- **Reseñas/calificación de transportistas**: no construidas — análisis de
+  factibilidad pendiente, mismo patrón que `guide_tour_reviews`/
+  `package_reviews` si se decide construirlas.
 - **Wompi real production keys**: este documento asume que se implementa y
   prueba todo contra **sandbox** de Wompi y Alegra primero; el corte a
   producción es el último paso, después de que CCV/DIAN/RNT estén listos.

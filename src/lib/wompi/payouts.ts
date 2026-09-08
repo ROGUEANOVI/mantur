@@ -35,11 +35,16 @@ type PayoutAccountRow = {
 // and the admin retry Server Action — both need the exact same lookup.
 export async function resolvePayoutAccount(
   admin: AdminClient,
-  recipientType: 'business' | 'guide',
+  recipientType: 'business' | 'guide' | 'transporter',
   recipientId: string,
 ): Promise<PayoutRecipient | null> {
-  const table = recipientType === 'business' ? 'business_payout_accounts' : 'tourist_guide_payout_accounts'
-  const idColumn = recipientType === 'business' ? 'business_id' : 'guide_id'
+  const table =
+    recipientType === 'business'
+      ? 'business_payout_accounts'
+      : recipientType === 'guide'
+        ? 'tourist_guide_payout_accounts'
+        : 'transporter_payout_accounts'
+  const idColumn = recipientType === 'business' ? 'business_id' : recipientType === 'guide' ? 'guide_id' : 'transporter_id'
 
   const { data: account } = await admin
     .from(table)
@@ -170,7 +175,7 @@ export async function enqueueAndSendProviderPayout(
   admin: AdminClient,
   params: {
     transactionId: string
-    recipientType: 'business' | 'guide'
+    recipientType: 'business' | 'guide' | 'transporter'
     recipientId: string
     amountCents: number
   },

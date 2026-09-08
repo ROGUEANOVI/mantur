@@ -540,14 +540,19 @@ export async function updateWompiBankId(formData: FormData): Promise<ActionResul
   const recipientId = formData.get('recipientId') as string
   const wompiBankId = (formData.get('wompiBankId') as string | null)?.trim() || ''
 
-  if (recipientType !== 'business' && recipientType !== 'guide') {
+  if (recipientType !== 'business' && recipientType !== 'guide' && recipientType !== 'transporter') {
     return { error: adminCopy.payoutAccounts.errors.generic }
   }
   if (!UUID_RE.test(recipientId)) return { error: adminCopy.payoutAccounts.errors.notFound }
   if (!wompiBankId) return { error: adminCopy.payoutAccounts.errors.invalidValue }
 
-  const table = recipientType === 'business' ? 'business_payout_accounts' : 'tourist_guide_payout_accounts'
-  const idColumn = recipientType === 'business' ? 'business_id' : 'guide_id'
+  const table =
+    recipientType === 'business'
+      ? 'business_payout_accounts'
+      : recipientType === 'guide'
+        ? 'tourist_guide_payout_accounts'
+        : 'transporter_payout_accounts'
+  const idColumn = recipientType === 'business' ? 'business_id' : recipientType === 'guide' ? 'guide_id' : 'transporter_id'
 
   const { data, error } = await admin
     .from(table)
@@ -560,6 +565,7 @@ export async function updateWompiBankId(formData: FormData): Promise<ActionResul
 
   revalidatePath('/admin/negocios')
   revalidatePath('/admin/guias')
+  revalidatePath('/admin/transportistas')
   return { success: true }
 }
 

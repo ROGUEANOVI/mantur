@@ -15,7 +15,7 @@ async function wompiBankIdFormAction(
 }
 
 type Props = {
-  recipientType: 'business' | 'guide'
+  recipientType: 'business' | 'guide' | 'transporter'
   recipientId: string
   currentWompiBankId: string | null
 }

@@ -226,6 +226,17 @@ export async function acceptTransportRequest(formData: FormData): Promise<void> 
   const requestId = formData.get('requestId') as string
   if (!UUID_RE.test(requestId)) return
 
+  // Optional quoted price (pesos, converted to cents) — lets
+  // createTransportBooking charge for this ride once in-platform transport
+  // payment gets wired in (see that Server Action's own comment; it stays
+  // dormant regardless of whether a price is quoted here). Absent/invalid
+  // input is silently treated as "not quoted yet", same as the existing
+  // cash-only flow when this field didn't exist at all.
+  const pricePesosRaw = formData.get('price_pesos') as string | null
+  const pricePesos = pricePesosRaw ? Number(pricePesosRaw) : null
+  const priceCents =
+    pricePesos !== null && Number.isFinite(pricePesos) && pricePesos > 0 ? Math.round(pricePesos * 100) : null
+
   const admin = createAdminClient()
 
   // Atomic claim: only succeeds if the request is still pending.
@@ -234,7 +245,7 @@ export async function acceptTransportRequest(formData: FormData): Promise<void> 
   // so the transporter sees the updated list without the claimed request.
   await admin
     .from('transport_requests')
-    .update({ transporter_id: transporterId, status: 'accepted' })
+    .update({ transporter_id: transporterId, status: 'accepted', price_cents: priceCents })
     .eq('id', requestId)
     .eq('status', 'pending')
 
@@ -257,4 +268,60 @@ export async function markCompleted(formData: FormData): Promise<void> {
     .eq('status', 'accepted')
 
   revalidatePath('/mi-perfil-transporte')
+}
+
+// ── Payout account ────────────────────────────────────────────────────────
+// Calco de saveGuidePayoutAccount (mi-perfil-guia/actions.ts) — mismas
+// validaciones, mismo patrón wompi_bank_id vía listPayoutBanks(), mismo
+// upsert por PK (transporter_id).
+
+const VALID_ACCOUNT_TYPES = new Set(['ahorros', 'corriente'])
+const VALID_HOLDER_ID_TYPES = new Set(['CC', 'CE', 'NIT'])
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const ACCOUNT_NUMBER_RE = /^(?!0+$)\d+$/
+const HOLDER_ID_NUMBER_RE = /^[\d-]{5,20}$/
+
+type PayoutActionResult = { error: string } | { success: true }
+
+export async function saveTransporterPayoutAccount(formData: FormData): Promise<PayoutActionResult> {
+  const { supabase, transporterId } = await getAuthenticatedTransporter()
+
+  const bankName = (formData.get('bank_name') as string | null)?.trim() || ''
+  const wompiBankId = (formData.get('wompi_bank_id') as string | null)?.trim() || ''
+  const accountType = formData.get('account_type') as string
+  const accountNumber = (formData.get('account_number') as string | null)?.trim() || ''
+  const holderIdType = formData.get('holder_id_type') as string
+  const holderIdNumber = (formData.get('holder_id_number') as string | null)?.trim() || ''
+  const holderName = (formData.get('holder_name') as string | null)?.trim() || ''
+  const holderEmail = (formData.get('holder_email') as string | null)?.trim() || ''
+
+  if (!bankName || !accountNumber || !holderIdNumber || !holderName || !holderEmail) {
+    return { error: 'Completa todos los campos obligatorios.' }
+  }
+  if (!wompiBankId) return { error: 'Selecciona un banco válido.' }
+  if (!VALID_ACCOUNT_TYPES.has(accountType)) return { error: 'Selecciona un tipo de cuenta válido.' }
+  if (!VALID_HOLDER_ID_TYPES.has(holderIdType)) return { error: 'Selecciona un tipo de documento válido.' }
+  if (!EMAIL_RE.test(holderEmail)) return { error: 'Escribe un correo electrónico válido.' }
+  if (!ACCOUNT_NUMBER_RE.test(accountNumber)) return { error: 'El número de cuenta debe contener solo dígitos.' }
+  if (!HOLDER_ID_NUMBER_RE.test(holderIdNumber)) return { error: 'Escribe un número de documento válido.' }
+
+  const { error } = await supabase.from('transporter_payout_accounts').upsert(
+    {
+      transporter_id: transporterId,
+      bank_name: bankName,
+      wompi_bank_id: wompiBankId,
+      account_type: accountType,
+      account_number: accountNumber,
+      holder_id_type: holderIdType,
+      holder_id_number: holderIdNumber,
+      holder_name: holderName,
+      holder_email: holderEmail,
+    },
+    { onConflict: 'transporter_id' },
+  )
+
+  if (error) return { error: 'No se pudo guardar la cuenta de pagos. Intenta de nuevo.' }
+
+  revalidatePath('/mi-perfil-transporte/editar')
+  return { success: true }
 }
