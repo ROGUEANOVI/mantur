@@ -62,6 +62,14 @@ export const packageReviewRateLimit = new Ratelimit({
   prefix: 'ratelimit:package-review',
 })
 
+// Transporter reviews: same reasoning as guideTourReviewRateLimit, separate
+// bucket since it's a different table/eligibility check.
+export const transporterReviewRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
+  prefix: 'ratelimit:transporter-review',
+})
+
 // Change-password current-password verification: keyed by user id. A
 // compromised-but-authenticated session (stolen cookie, shared device)
 // could otherwise throw unlimited current-password guesses at

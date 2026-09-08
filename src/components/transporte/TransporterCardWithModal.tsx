@@ -11,6 +11,8 @@ import TransportRequestForm from '@/components/transporte/TransportRequestForm'
 import { transportCopy } from '@/lib/copy/transport'
 import { cn } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
+import RatingSummary from '@/components/shared/RatingSummary'
+import ReviewsList, { type Review } from '@/components/shared/ReviewsList'
 
 type Access = 'tourist' | 'guest' | 'other_role'
 
@@ -25,9 +27,11 @@ type Props = {
     is_available: boolean
   }
   access: Access
+  ratingSummary: { avgRating: number | null; count: number }
+  reviews: Review[]
 }
 
-export default function TransporterCardWithModal({ transporter, access }: Props) {
+export default function TransporterCardWithModal({ transporter, access, ratingSummary, reviews }: Props) {
   const [open, setOpen] = useState(false)
   const copy = transportCopy.publicPage
 
@@ -71,6 +75,12 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
               <p className="text-xs text-muted-foreground mt-0.5">
                 {vehicleLabel} · {transporter.license_plate}
               </p>
+              <RatingSummary
+                avgRating={ratingSummary.avgRating}
+                count={ratingSummary.count}
+                noReviewsText={transportCopy.reviews.noReviewsYet}
+                reviewCountText={transportCopy.reviews.reviewCount}
+              />
             </div>
           </div>
           <span
@@ -128,6 +138,8 @@ export default function TransporterCardWithModal({ transporter, access }: Props)
               {copy.modalNote}
             </p>
           </div>
+
+          {reviews.length > 0 && <ReviewsList reviews={reviews} />}
 
           <TransportRequestForm />
         </DialogContent>

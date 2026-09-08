@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// The tourist-side counterpart to mi-perfil-transporte/actions.ts. Notably
-// this file only ever uses the RLS-scoped `supabase` client (never
-// createAdminClient) — ownership on cancelTransportRequest is meant to be
-// enforced by RLS policy, not an application-level tourist_id filter. These
-// tests can't verify RLS itself, but they do verify the code never reaches
-// for the admin client to bypass it.
+// The tourist-side counterpart to mi-perfil-transporte/actions.ts.
+// createTransportRequest/cancelTransportRequest only ever use the
+// RLS-scoped `supabase` client (never createAdminClient) — ownership there
+// is meant to be enforced by RLS policy, not an application-level
+// tourist_id filter; a few tests below assert the admin client mock was
+// never invoked to guard that. createTransporterReview is the exception —
+// like createGuideTourReview/createPackageReview elsewhere in this
+// codebase, it uses the admin client with its own explicit re-validation,
+// RLS staying only as defense-in-depth.
 
 class RedirectSignal extends Error {
   constructor(public url: string) {
@@ -61,22 +64,34 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }))
 
-// The action must never reach for the admin client — ownership on cancel is
-// meant to be enforced by RLS on the user-scoped client, not bypassed.
+const transportRequestReviewSingleMock = vi.fn()
+const transporterReviewInsertMock = vi.fn()
+
+const createAdminClientMock = vi.fn(() => ({
+  from: (table: string) => {
+    if (table === 'transport_requests') {
+      return { select: () => ({ eq: () => ({ single: transportRequestReviewSingleMock }) }) }
+    }
+    if (table === 'transporter_reviews') {
+      return { insert: (payload: Record<string, unknown>) => transporterReviewInsertMock(payload) }
+    }
+    throw new Error(`unexpected table on admin client: ${table}`)
+  },
+}))
+
 vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(() => {
-    throw new Error('createTransportRequest/cancelTransportRequest must not use the admin client')
-  }),
+  createAdminClient: (...args: unknown[]) => createAdminClientMock(...args),
 }))
 
 const checkRateLimitMock = vi.fn()
 
 vi.mock('@/lib/rate-limit', () => ({
   transportRequestRateLimit: {},
+  transporterReviewRateLimit: {},
   checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
 }))
 
-const { createTransportRequest, cancelTransportRequest } = await import('./actions')
+const { createTransportRequest, cancelTransportRequest, createTransporterReview } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -200,6 +215,7 @@ describe('createTransportRequest success path', () => {
       notes: null,
     })
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-viajes')
+    expect(createAdminClientMock).not.toHaveBeenCalled()
   })
 
   it('ignores a client-supplied tourist_id and always uses the session user id', async () => {
@@ -264,6 +280,7 @@ describe('cancelTransportRequest', () => {
     expect(transportRequestsEqMock).toHaveBeenCalledWith('status', 'pending')
     expect(transportRequestsEqMock).toHaveBeenCalledTimes(2)
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-viajes')
+    expect(createAdminClientMock).not.toHaveBeenCalled()
   })
 
   it('redirects to / when a non-tourist tries to cancel a request', async () => {
@@ -278,5 +295,123 @@ describe('cancelTransportRequest', () => {
     const fd = formData({ requestId: REQUEST_ID })
     await expect(cancelTransportRequest(fd)).rejects.toThrow('redirect:/login')
     expect(transportRequestsEqMock).not.toHaveBeenCalled()
+  })
+})
+
+function completedRequestRow(overrides: Partial<{
+  tourist_id: string
+  transporter_id: string | null
+  status: string
+}> = {}) {
+  return {
+    id: REQUEST_ID,
+    tourist_id: overrides.tourist_id ?? 'user-1',
+    transporter_id: 'transporter_id' in overrides ? overrides.transporter_id : 'transporter-1',
+    status: overrides.status ?? 'completed',
+  }
+}
+
+// Deliberately gated on transport_requests.status='completed', not on
+// bookings — see this action's own comment in actions.ts for why.
+describe('createTransporterReview', () => {
+  it('returns a rate-limit error and never queries the DB when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(transportRequestReviewSingleMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-UUID transport_request_id without querying the DB', async () => {
+    const result = await createTransporterReview(formData({ transport_request_id: 'not-a-uuid', rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar traslados ya completados.' })
+    expect(transportRequestReviewSingleMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['0', '6', '2.5', 'abc', ''])('rejects an invalid rating value %s', async (rating) => {
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating }))
+    expect(result).toEqual({ error: 'Selecciona una calificación de 1 a 5 estrellas.' })
+    expect(transportRequestReviewSingleMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the request does not exist', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: null })
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar traslados ya completados.' })
+  })
+
+  it('rejects when the request belongs to a different tourist', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow({ tourist_id: 'someone-else' }) })
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar traslados ya completados.' })
+  })
+
+  it('rejects a request with no transporter_id (defensive — should never happen)', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow({ transporter_id: null }) })
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar traslados ya completados.' })
+  })
+
+  it('rejects a request that is not completed', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow({ status: 'accepted' }) })
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar traslados ya completados.' })
+    expect(transporterReviewInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('inserts the review with a trimmed comment and revalidates on success', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow() })
+    transporterReviewInsertMock.mockResolvedValue({ error: null })
+
+    const result = await createTransporterReview(
+      formData({ transport_request_id: REQUEST_ID, rating: '4', comment: '  Excelente conductor  ' }),
+    )
+
+    expect(result).toEqual({ success: true })
+    expect(transporterReviewInsertMock).toHaveBeenCalledWith({
+      transporter_id: 'transporter-1',
+      transport_request_id: REQUEST_ID,
+      tourist_id: 'user-1',
+      rating: 4,
+      comment: 'Excelente conductor',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mis-viajes')
+  })
+
+  it('stores a null comment when none is provided', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow() })
+    transporterReviewInsertMock.mockResolvedValue({ error: null })
+
+    await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+
+    expect(transporterReviewInsertMock).toHaveBeenCalledWith(expect.objectContaining({ comment: null }))
+  })
+
+  it('caps the comment at 500 characters server-side', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow() })
+    transporterReviewInsertMock.mockResolvedValue({ error: null })
+
+    await createTransporterReview(
+      formData({ transport_request_id: REQUEST_ID, rating: '5', comment: 'a'.repeat(600) }),
+    )
+
+    expect(transporterReviewInsertMock).toHaveBeenCalledWith(expect.objectContaining({ comment: 'a'.repeat(500) }))
+  })
+
+  it('maps a unique_violation on insert to "already reviewed" rather than a generic error', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow() })
+    transporterReviewInsertMock.mockResolvedValue({ error: { code: '23505' } })
+
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+
+    expect(result).toEqual({ error: 'Ya dejaste una reseña para este traslado.' })
+  })
+
+  it('returns a generic error on any other insert failure', async () => {
+    transportRequestReviewSingleMock.mockResolvedValue({ data: completedRequestRow() })
+    transporterReviewInsertMock.mockResolvedValue({ error: { code: '23503' } })
+
+    const result = await createTransporterReview(formData({ transport_request_id: REQUEST_ID, rating: '5' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 })

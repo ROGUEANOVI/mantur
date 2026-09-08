@@ -67,6 +67,33 @@ export default async function TransportistasPage({
     supabase.auth.getUser(),
   ])
 
+  const transporterIds = (data ?? []).map((t) => (t as { id: string }).id)
+
+  // transporter_reviews is public-select (see
+  // 20260918000000_create_transporter_reviews.sql) — read via the
+  // RLS-respecting client, not the admin one used for `transporters` above.
+  const { data: reviewsData } = transporterIds.length
+    ? await supabase
+        .from('transporter_reviews')
+        .select('transporter_id, rating, comment, created_at')
+        .in('transporter_id', transporterIds)
+        .order('created_at', { ascending: false })
+    : { data: [] as { transporter_id: string; rating: number; comment: string | null; created_at: string }[] }
+
+  const reviewsByTransporter = new Map<string, { rating: number; comment: string | null; created_at: string }[]>()
+  for (const row of reviewsData ?? []) {
+    const list = reviewsByTransporter.get(row.transporter_id) ?? []
+    list.push({ rating: row.rating, comment: row.comment, created_at: row.created_at })
+    reviewsByTransporter.set(row.transporter_id, list)
+  }
+
+  function ratingSummaryFor(transporterId: string): { avgRating: number | null; count: number } {
+    const reviews = reviewsByTransporter.get(transporterId) ?? []
+    if (reviews.length === 0) return { avgRating: null, count: 0 }
+    const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    return { avgRating: avg, count: reviews.length }
+  }
+
   // Three-state access, matching the guide-booking pattern: a tourist gets
   // the request modal, a guest gets a login redirect, and any other
   // authenticated role (admin, transporter, etc.) never sees the button.
@@ -171,6 +198,8 @@ export default async function TransportistasPage({
                     is_available: t.is_available,
                   }}
                   access={access}
+                  ratingSummary={ratingSummaryFor(t.id)}
+                  reviews={reviewsByTransporter.get(t.id) ?? []}
                 />
               </Reveal>
             ))}
