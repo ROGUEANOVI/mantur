@@ -48,6 +48,7 @@ const reviewInsertMock = vi.fn()
 const packageReviewInsertSingle = vi.fn()
 const packageItemsEqMock = vi.fn()
 const packageItemReviewsInsertMock = vi.fn()
+const serviceReviewInsertMock = vi.fn()
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
@@ -64,6 +65,9 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'package_item_reviews') {
         return { insert: (payload: Record<string, unknown>[]) => packageItemReviewsInsertMock(payload) }
       }
+      if (table === 'service_reviews') {
+        return { insert: (payload: Record<string, unknown>) => serviceReviewInsertMock(payload) }
+      }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
   })),
@@ -74,6 +78,7 @@ vi.mock('@/lib/rate-limit', () => ({
   refundRequestRateLimit: {},
   guideTourReviewRateLimit: {},
   packageReviewRateLimit: {},
+  serviceReviewRateLimit: {},
   checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
 }))
 
@@ -92,7 +97,7 @@ vi.mock('@/lib/alegra/refundCreditNotes', () => ({
   syncAlegraCreditNoteForRefund: (...args: unknown[]) => syncAlegraCreditNoteForRefundMock(...args),
 }))
 
-const { requestRefund, createGuideTourReview, createPackageReview } = await import('./actions')
+const { requestRefund, createGuideTourReview, createPackageReview, createServiceReview } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -123,6 +128,7 @@ beforeEach(() => {
   packageReviewInsertSingle.mockResolvedValue({ data: { id: 'review-1' }, error: null })
   packageItemsEqMock.mockResolvedValue({ data: [] })
   packageItemReviewsInsertMock.mockResolvedValue({ data: null, error: null })
+  serviceReviewInsertMock.mockResolvedValue({ data: null, error: null })
 })
 
 afterEach(() => {
@@ -749,5 +755,133 @@ describe('createPackageReview', () => {
 
     expect(result).toEqual({ success: true })
     expect(packageItemReviewsInsertMock).not.toHaveBeenCalled()
+  })
+})
+
+function serviceReviewBookingRow(overrides: Partial<{
+  status: string
+  booking_date: string
+  tourist_id: string
+  service_id: string | null
+}> = {}) {
+  return {
+    id: BOOKING_ID,
+    tourist_id: overrides.tourist_id ?? USER_ID,
+    service_id: 'service_id' in overrides ? overrides.service_id : 'service-1',
+    booking_date: overrides.booking_date ?? '2026-08-20', // before TODAY_ISO (2026-08-31) -> already happened
+    status: overrides.status ?? 'confirmed',
+  }
+}
+
+// Calco de createGuideTourReview — closes the last parity gap (guide
+// tours/packages/transporters all had reviews already).
+describe('createServiceReview', () => {
+  it('returns a rate-limit error and never queries the DB when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(bookingSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-UUID booking id without querying the DB', async () => {
+    const result = await createServiceReview(formData({ booking_id: 'not-a-uuid', rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.' })
+    expect(bookingSingle).not.toHaveBeenCalled()
+  })
+
+  it.each(['0', '6', '2.5', 'abc', ''])('rejects an invalid rating value %s', async (rating) => {
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating }))
+    expect(result).toEqual({ error: 'Selecciona una calificación de 1 a 5 estrellas.' })
+    expect(bookingSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the booking does not exist', async () => {
+    bookingSingle.mockResolvedValue({ data: null })
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.' })
+  })
+
+  it('rejects when the booking belongs to a different tourist', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow({ tourist_id: 'someone-else' }) })
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.' })
+  })
+
+  it('rejects a booking with no service_id (a guide-tour or package booking)', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow({ service_id: null }) })
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.' })
+  })
+
+  it('rejects a booking that is not confirmed', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow({ status: 'pending_payment' }) })
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.' })
+    expect(serviceReviewInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a service whose booking_date has not happened yet', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow({ booking_date: '2026-09-10' }) })
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.' })
+    expect(serviceReviewInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a service whose booking_date is today (not yet "already happened")', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow({ booking_date: '2026-08-31' }) })
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+    expect(result).toEqual({ error: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.' })
+  })
+
+  it('inserts the review with a trimmed comment and revalidates on success', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow() })
+
+    const result = await createServiceReview(
+      formData({ booking_id: BOOKING_ID, rating: '4', comment: '  Excelente experiencia  ' }),
+    )
+
+    expect(result).toEqual({ success: true })
+    expect(serviceReviewInsertMock).toHaveBeenCalledWith({
+      service_id: 'service-1',
+      booking_id: BOOKING_ID,
+      tourist_id: USER_ID,
+      rating: 4,
+      comment: 'Excelente experiencia',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('stores a null comment when none is provided', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow() })
+
+    await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+
+    expect(serviceReviewInsertMock).toHaveBeenCalledWith(expect.objectContaining({ comment: null }))
+  })
+
+  it('caps the comment at 500 characters server-side', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow() })
+
+    await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5', comment: 'a'.repeat(600) }))
+
+    expect(serviceReviewInsertMock).toHaveBeenCalledWith(expect.objectContaining({ comment: 'a'.repeat(500) }))
+  })
+
+  it('maps a unique_violation on insert to "already reviewed" rather than a generic error', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow() })
+    serviceReviewInsertMock.mockResolvedValue({ data: null, error: { code: '23505' } })
+
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+
+    expect(result).toEqual({ error: 'Ya dejaste una reseña para esta reserva.' })
+  })
+
+  it('returns a generic error on any other insert failure', async () => {
+    bookingSingle.mockResolvedValue({ data: serviceReviewBookingRow() })
+    serviceReviewInsertMock.mockResolvedValue({ data: null, error: { code: '23503' } })
+
+    const result = await createServiceReview(formData({ booking_id: BOOKING_ID, rating: '5' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 })

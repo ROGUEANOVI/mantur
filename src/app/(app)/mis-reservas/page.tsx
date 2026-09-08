@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { bogotaDateString } from '@/lib/refunds'
 import RequestRefundForm from '@/components/reservas/RequestRefundForm'
 import LeaveReviewForm from '@/components/guias/LeaveReviewForm'
+import LeaveServiceReviewForm from '@/components/mi-negocio/LeaveServiceReviewForm'
 import PackageLeaveReviewForm from '@/components/paquetes/PackageLeaveReviewForm'
 import { resolvePackageItemLabel, type PackageIncludedItemRow } from '@/lib/packages/labels'
 
@@ -32,10 +33,12 @@ type BookingItem = {
   // for guide_tours.tourist_guides (also unique) elsewhere in this file's
   // sibling confirmacion/page.tsx.
   refund_requests: { status: string } | null
-  // guide_tour_reviews.booking_id / package_reviews.booking_id are both
-  // UNIQUE, same to-one embed shape as refund_requests above.
+  // guide_tour_reviews.booking_id / package_reviews.booking_id /
+  // service_reviews.booking_id are all UNIQUE, same to-one embed shape as
+  // refund_requests above.
   guide_tour_reviews: { id: string } | null
   package_reviews: { id: string } | null
+  service_reviews: { id: string } | null
 }
 
 function formatDate(dateStr: string): string {
@@ -54,7 +57,7 @@ export default async function MisReservasPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(id, name), refund_requests(status), guide_tour_reviews(id), package_reviews(id)',
+      'id, booking_date, quantity, total_amount, status, created_at, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(id, name), refund_requests(status), guide_tour_reviews(id), package_reviews(id), service_reviews(id)',
     )
     .order('created_at', { ascending: false })
 
@@ -253,6 +256,18 @@ export default async function MisReservasPage() {
                     !booking.guide_tour_reviews && (
                       <div className="mt-3 pt-3 border-t border-border">
                         <LeaveReviewForm bookingId={booking.id} />
+                      </div>
+                    )}
+
+                  {/* Review: same eligibility, applied to a business
+                      service booking — its own review system
+                      (service_reviews), same shape as guide tours. */}
+                  {booking.services &&
+                    booking.status === 'confirmed' &&
+                    booking.booking_date < todayBogota &&
+                    !booking.service_reviews && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <LeaveServiceReviewForm bookingId={booking.id} />
                       </div>
                     )}
 

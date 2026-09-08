@@ -149,4 +149,21 @@ export const bookingsCopy = {
       generic: 'Ocurrió un error. Intenta de nuevo.',
     },
   },
+
+  serviceReview: {
+    leaveReview: 'Dejar reseña',
+    ratingLabel: '¿Cómo calificarías este servicio?',
+    commentLabel: 'Comentario (opcional)',
+    commentPlaceholder: 'Cuéntale a otros turistas cómo fue tu experiencia...',
+    submit: 'Enviar reseña',
+    submitting: 'Enviando...',
+    cancel: 'Cancelar',
+    submitted: '¡Gracias por tu reseña!',
+    errors: {
+      invalidRating: 'Selecciona una calificación de 1 a 5 estrellas.',
+      notEligible: 'Solo puedes reseñar servicios ya realizados de reservas confirmadas.',
+      alreadyReviewed: 'Ya dejaste una reseña para esta reserva.',
+      generic: 'Ocurrió un error. Intenta de nuevo.',
+    },
+  },
 }
