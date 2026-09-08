@@ -51,7 +51,7 @@ export async function retryProviderPayout(formData: FormData): Promise<void> {
 
   const { data: claimed, error: claimError } = await admin
     .rpc('claim_provider_payout_for_send', { p_payout_id: payoutId, p_admin_id: adminId })
-    .single<{ transaction_id: string; recipient_type: 'business' | 'guide'; recipient_id: string; amount_cents: number }>()
+    .single<{ transaction_id: string; recipient_type: 'business' | 'guide' | 'transporter'; recipient_id: string; amount_cents: number }>()
 
   if (claimError) {
     console.error('Failed to claim provider payout for retry', claimError)

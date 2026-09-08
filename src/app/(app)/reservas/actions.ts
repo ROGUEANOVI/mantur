@@ -321,3 +321,67 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
   revalidatePath('/mis-reservas')
   redirect(buildWompiCheckoutUrl({ bookingId, amountInCents, currency: 'COP' }))
 }
+
+// Builds the in-platform payment flow for a transport ride — kept dormant
+// like createBooking/createGuideTourBooking above (see CLAUDE.md Phase 13
+// and project memory manual_operation_pivot): no public UI calls this yet,
+// it exists fully working so it can be wired in later. Unlike services/
+// guide tours, transport has no catalog price — the transporter quotes one
+// when accepting the request (see acceptTransportRequest in
+// mi-perfil-transporte/actions.ts), so this reads that quote instead of a
+// price × quantity calculation.
+export async function createTransportBooking(formData: FormData): Promise<BookingResult> {
+  const { supabase, userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(bookingRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
+
+  const transportRequestId = formData.get('transport_request_id') as string
+  if (!UUID_RE.test(transportRequestId)) return { error: bookingsCopy.errors.notFound }
+
+  const { data: request } = await supabase
+    .from('transport_requests')
+    .select('id, tourist_id, transporter_id, status, people_count, price_cents, requested_datetime')
+    .eq('id', transportRequestId)
+    .single()
+
+  if (!request || request.tourist_id !== userId) return { error: bookingsCopy.errors.notFound }
+  if (request.status !== 'accepted' || !request.transporter_id) return { error: bookingsCopy.errors.unavailable }
+  // The transporter accepted the ride but hasn't quoted a price yet —
+  // nothing to charge.
+  if (!request.price_cents) return { error: bookingsCopy.errors.unavailable }
+
+  const amountInCents = request.price_cents
+  const totalAmount = amountInCents / 100
+
+  const admin = createAdminClient()
+
+  const { data: commissionRate, error: rateError } = await admin.rpc('get_commission_rate', {
+    p_service_type: 'transport',
+  })
+  if (rateError || commissionRate === null) return { error: bookingsCopy.errors.generic }
+
+  const commissionAmountCents = Math.round((amountInCents * Number(commissionRate)) / 100)
+
+  const bookingDate = new Date(request.requested_datetime).toISOString().slice(0, 10)
+
+  const { data: transportBookingId, error: transportRpcError } = await admin.rpc('create_booking_with_transaction', {
+    p_tourist_id: userId,
+    p_transport_request_id: transportRequestId,
+    p_transporter_id: request.transporter_id,
+    p_quantity: request.people_count,
+    p_booking_date: bookingDate,
+    p_total_amount: totalAmount,
+    p_booking_status: 'pending_payment',
+    p_amount_in_cents: amountInCents,
+    p_currency: 'COP',
+    p_commission_rate: commissionRate,
+    p_commission_amount_cents: commissionAmountCents,
+    p_transaction_status: 'pending',
+  })
+
+  if (transportRpcError || !transportBookingId) return { error: bookingsCopy.errors.generic }
+
+  revalidatePath('/mis-reservas')
+  redirect(buildWompiCheckoutUrl({ bookingId: transportBookingId, amountInCents, currency: 'COP' }))
+}

@@ -28,6 +28,7 @@ const profileSingle = vi.fn()
 const serviceSingle = vi.fn()
 const guideTourSingle = vi.fn()
 const packageSingle = vi.fn()
+const transportRequestSingle = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -44,6 +45,9 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       if (table === 'packages') {
         return { select: () => ({ eq: () => ({ single: packageSingle }) }) }
+      }
+      if (table === 'transport_requests') {
+        return { select: () => ({ eq: () => ({ single: transportRequestSingle }) }) }
       }
       throw new Error(`unexpected table on user client: ${table}`)
     },
@@ -109,7 +113,7 @@ vi.mock('@/lib/wompi/checkout', () => ({
     buildWompiCheckoutUrlMock(...args),
 }))
 
-const { createBooking, createGuideTourBooking, createPackagePrereserva } = await import('./actions')
+const { createBooking, createGuideTourBooking, createPackagePrereserva, createTransportBooking } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -174,6 +178,16 @@ describe('rate limiting (shared by both booking actions)', () => {
 
     expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
     expect(guideTourSingle).not.toHaveBeenCalled()
+  })
+
+  it('createTransportBooking returns a rate-limit error and never queries the request when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+
+    const result = await createTransportBooking(fd)
+
+    expect(result).toEqual({ error: 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.' })
+    expect(transportRequestSingle).not.toHaveBeenCalled()
   })
 })
 
@@ -723,5 +737,129 @@ describe('createPackagePrereserva', () => {
       )
       consoleErrorSpy.mockRestore()
     })
+  })
+})
+
+const TRANSPORT_REQUEST_ID = '44444444-4444-4444-4444-444444444444'
+
+function transportRequestRow(overrides: Partial<{
+  tourist_id: string
+  transporter_id: string | null
+  status: string
+  people_count: number
+  price_cents: number | null
+  requested_datetime: string
+}> = {}) {
+  return {
+    id: TRANSPORT_REQUEST_ID,
+    tourist_id: overrides.tourist_id ?? 'user-1',
+    transporter_id: 'transporter_id' in overrides ? overrides.transporter_id : 'transporter-1',
+    status: overrides.status ?? 'accepted',
+    people_count: overrides.people_count ?? 2,
+    price_cents: 'price_cents' in overrides ? overrides.price_cents : 25_000_00,
+    requested_datetime: overrides.requested_datetime ?? '2099-01-01T14:00:00.000Z',
+  }
+}
+
+// createTransportBooking is dormant (see its own comment in actions.ts) —
+// no public UI calls it — but it must still work correctly and be tested
+// like any other money-computing Server Action per CLAUDE.md's testing rule.
+describe('createTransportBooking', () => {
+  it('rejects a non-UUID transport_request_id before querying the DB', async () => {
+    const fd = formData({ transport_request_id: 'not-a-uuid' })
+    const result = await createTransportBooking(fd)
+    expect(result).toEqual({ error: 'No se encontró el servicio o tour seleccionado.' })
+    expect(transportRequestSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a request belonging to a different tourist', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow({ tourist_id: 'someone-else' }) })
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    const result = await createTransportBooking(fd)
+    expect(result).toEqual({ error: 'No se encontró el servicio o tour seleccionado.' })
+  })
+
+  it('rejects a request that is not yet accepted', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow({ status: 'pending' }) })
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    const result = await createTransportBooking(fd)
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+  })
+
+  it('rejects an accepted request with no transporter_id (defensive — should never happen)', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow({ transporter_id: null }) })
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    const result = await createTransportBooking(fd)
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+  })
+
+  it('rejects an accepted request that has not been quoted a price yet', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow({ price_cents: null }) })
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    const result = await createTransportBooking(fd)
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+    expect(commissionRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when the commission RPC fails', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow() })
+    commissionRpcMock.mockResolvedValue({ data: null, error: { message: 'rpc failed' } })
+
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    const result = await createTransportBooking(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(createBookingRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when create_booking_with_transaction fails', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow() })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: null, error: { message: 'db error' } })
+
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    const result = await createTransportBooking(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it('reads the commission rate for "transport" and charges the transporter-quoted price_cents directly (no quantity × price)', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow({ price_cents: 30_000_00, people_count: 3 }) })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-transport-1', error: null })
+
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    await expect(createTransportBooking(fd)).rejects.toThrow('redirect:https://checkout.wompi.co/p/?ref=booking-transport-1')
+
+    expect(commissionRpcMock).toHaveBeenCalledWith({ p_service_type: 'transport' })
+
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_transport_request_id).toBe(TRANSPORT_REQUEST_ID)
+    expect(payload.p_transporter_id).toBe('transporter-1')
+    expect(payload.p_quantity).toBe(3)
+    expect(payload.p_amount_in_cents).toBe(30_000_00)
+    expect(payload.p_total_amount).toBe(30_000)
+    expect(payload.p_commission_amount_cents).toBe(300_000) // 10% of 3,000,000
+    expect(payload.p_booking_status).toBe('pending_payment')
+    expect(payload.p_transaction_status).toBe('pending')
+
+    expect(buildWompiCheckoutUrlMock).toHaveBeenCalledWith({
+      bookingId: 'booking-transport-1',
+      amountInCents: 30_000_00,
+      currency: 'COP',
+    })
+  })
+
+  it('derives booking_date from the request\'s requested_datetime', async () => {
+    transportRequestSingle.mockResolvedValue({ data: transportRequestRow({ requested_datetime: '2099-03-15T08:30:00.000Z' }) })
+    commissionRpcMock.mockResolvedValue({ data: 10, error: null })
+    createBookingRpcMock.mockResolvedValue({ data: 'booking-transport-2', error: null })
+
+    const fd = formData({ transport_request_id: TRANSPORT_REQUEST_ID })
+    await expect(createTransportBooking(fd)).rejects.toThrow('redirect:')
+
+    const payload = createBookingRpcMock.mock.calls[0][0]
+    expect(payload.p_booking_date).toBe('2099-03-15')
   })
 })

@@ -150,6 +150,60 @@ export async function sendGuideBookingConfirmedEmail(
   }
 }
 
+// Mirrors guideBookingConfirmedEmail exactly — a route (origin → destino)
+// instead of a tour name, and links to the transporter's own panel. Dormant
+// alongside createTransportBooking (src/app/(app)/reservas/actions.ts) —
+// nothing calls sendTransporterBookingConfirmedEmail yet.
+export type TransporterBookingConfirmedParams = {
+  routeLabel: string
+  touristName: string
+  bookingDate: string
+  quantity: number
+  notes: string | null
+}
+
+export function transporterBookingConfirmedEmail(
+  params: TransporterBookingConfirmedParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      Tienes un nuevo traslado confirmado: <strong>${escapeHtml(params.routeLabel)}</strong>.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Turista:</strong> ${escapeHtml(params.touristName)}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Fecha:</strong> ${formatBookingDate(params.bookingDate)}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      <strong>Personas:</strong> ${params.quantity}
+    </p>
+    ${
+      params.notes
+        ? `<p style="font-size: 14px; line-height: 1.6; margin: 12px 0 0; padding: 12px 16px; background: #f5faf7; border-radius: 12px;">
+             <strong>Notas del turista:</strong> ${escapeHtml(params.notes)}
+           </p>`
+        : ''
+    }
+    ${button('Ver mi panel', `${APP_URL}/mi-perfil-transporte`)}
+  `)
+
+  return { subject: 'Nuevo traslado confirmado en ManTur', html }
+}
+
+export async function sendTransporterBookingConfirmedEmail(
+  to: string,
+  params: TransporterBookingConfirmedParams,
+): Promise<void> {
+  const { subject, html } = transporterBookingConfirmedEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send transporter booking confirmed email', error)
+  }
+}
+
 // ── Package pre-reserva emails (Fase 4) ──────────────────────────────────────
 // Tourist-facing — the first tourist-facing emails in the app (every other
 // booking flow is WhatsApp-only since the manual-ops pivot, PR #110).

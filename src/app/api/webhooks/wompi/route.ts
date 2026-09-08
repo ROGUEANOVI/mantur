@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { computeNetPayoutAmountCents, enqueueAndSendProviderPayout } from '@/lib/wompi/payouts'
 import { sendRefundProcessedEmail } from '@/lib/email/refundEmails'
-import { sendBusinessBookingConfirmedEmail, sendGuideBookingConfirmedEmail } from '@/lib/email/bookingEmails'
+import {
+  sendBusinessBookingConfirmedEmail,
+  sendGuideBookingConfirmedEmail,
+  sendTransporterBookingConfirmedEmail,
+} from '@/lib/email/bookingEmails'
 import { findOrCreateContact } from '@/lib/alegra/contacts'
 import { createCommissionInvoice } from '@/lib/alegra/invoices'
 import { syncAlegraCreditNoteForRefund } from '@/lib/alegra/refundCreditNotes'
@@ -14,26 +18,34 @@ type AdminClient = ReturnType<typeof createAdminClient>
 const APPLICABLE_STATUSES = new Set(['APPROVED', 'DECLINED', 'ERROR', 'VOIDED', 'PENDING'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Resolves business_id/guide_id into recipientType/recipientId and the net
-// (amount minus commission) amount owed, then delegates to the shared
-// enqueue+send helper in @/lib/wompi/payouts — also used by the package
-// "marcar como pagada" admin action, which computes its own amountCents
-// (internal_cost_cents per provider, no commission split) and calls that
-// helper directly instead of going through this wrapper.
+// Resolves business_id/guide_id/transporter_id into recipientType/
+// recipientId and the net (amount minus commission) amount owed, then
+// delegates to the shared enqueue+send helper in @/lib/wompi/payouts —
+// also used by the package "marcar como pagada" admin action, which
+// computes its own amountCents (internal_cost_cents per provider, no
+// commission split) and calls that helper directly instead of going
+// through this wrapper.
 async function enqueueAndSendPayout(
   admin: AdminClient,
   params: {
     transactionId: string
     businessId: string | null
     guideId: string | null
+    transporterId: string | null
     amountInCents: number
     commissionAmountCents: number
   },
 ): Promise<void> {
-  const recipientType = params.businessId ? 'business' : params.guideId ? 'guide' : null
-  const recipientId = params.businessId ?? params.guideId
+  const recipientType = params.businessId
+    ? 'business'
+    : params.guideId
+      ? 'guide'
+      : params.transporterId
+        ? 'transporter'
+        : null
+  const recipientId = params.businessId ?? params.guideId ?? params.transporterId
   if (!recipientType || !recipientId) {
-    console.error('Wompi webhook: paid transaction has no business_id or guide_id to pay out to', {
+    console.error('Wompi webhook: paid transaction has no business_id/guide_id/transporter_id to pay out to', {
       transactionId: params.transactionId,
     })
     return
@@ -269,11 +281,13 @@ async function notifyBusinessOfBooking(
 // Mirrors notifyBusinessOfBooking exactly, but resolves the recipient
 // through tourist_guides.profile_id instead of businesses.owner_id, since
 // a guide-tour booking has guide_id/guide_tour_id set (business_id/service_id
-// stay NULL — the two booking shapes are XOR at the DB level, so this and
-// notifyBusinessOfBooking never both fire for the same booking). The tour
-// booking form on /guias/[slug] is still directly bookable+payable today —
-// unlike business services, it was not disabled by the manual-ops pivot —
-// so this closes a real, live gap, not just a future one.
+// stay NULL — the booking shapes are XOR at the DB level, so this and
+// notifyBusinessOfBooking never both fire for the same booking). Correction
+// (2026-09-06): guide-tour booking is actually dormant, same as business
+// services — disabled by the same Phase 13 PR #110 — so this code path has
+// been unreachable since 2026-09-02, not "a real, live gap" as originally
+// described when this function was added. Left in place regardless: it's
+// correct and ready for when booking gets wired back in.
 async function notifyGuideOfBooking(
   admin: AdminClient,
   params: { bookingId: string; guideId: string },
@@ -322,6 +336,68 @@ async function notifyGuideOfBooking(
     })
   } catch (error) {
     console.error('Unexpected error while notifying guide of a new booking', error)
+  }
+}
+
+// Notifies a transporter that their ride just got booked and paid. Mirrors
+// notifyGuideOfBooking exactly, resolving the recipient through
+// transporters.profile_id and reading the route (origin/destination) off
+// the linked transport_requests row instead of a tour/service name.
+// Dormant today alongside createTransportBooking (see that function's own
+// comment) — nothing calls it yet, kept for when transport payments are
+// wired in.
+async function notifyTransporterOfBooking(
+  admin: AdminClient,
+  params: { bookingId: string; transporterId: string },
+): Promise<void> {
+  try {
+    const { data: booking } = await admin
+      .from('bookings')
+      .select('transporter_id, transport_request_id, booking_date, quantity, notes, tourist_id, transport_requests(origin, destination)')
+      .eq('id', params.bookingId)
+      .single<{
+        transporter_id: string | null
+        transport_request_id: string | null
+        booking_date: string
+        quantity: number
+        notes: string | null
+        tourist_id: string
+        transport_requests: { origin: string; destination: string } | null
+      }>()
+
+    if (!booking || !booking.transport_request_id || booking.transporter_id !== params.transporterId) return
+
+    const { data: transporter } = await admin
+      .from('transporters')
+      .select('profile_id')
+      .eq('id', params.transporterId)
+      .single<{ profile_id: string }>()
+
+    if (!transporter) return
+
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', booking.tourist_id)
+      .single<{ full_name: string | null }>()
+
+    const { data: transporterUserData } = await admin.auth.admin.getUserById(transporter.profile_id)
+    const transporterEmail = transporterUserData?.user?.email
+    if (!transporterEmail) return
+
+    const routeLabel = booking.transport_requests
+      ? `${booking.transport_requests.origin} → ${booking.transport_requests.destination}`
+      : 'Traslado'
+
+    await sendTransporterBookingConfirmedEmail(transporterEmail, {
+      routeLabel,
+      touristName: touristProfile?.full_name ?? 'Un turista',
+      bookingDate: booking.booking_date,
+      quantity: booking.quantity,
+      notes: booking.notes,
+    })
+  } catch (error) {
+    console.error('Unexpected error while notifying transporter of a new booking', error)
   }
 }
 
@@ -470,6 +546,7 @@ export async function POST(request: Request) {
       transaction_id: string | null
       business_id: string | null
       guide_id: string | null
+      transporter_id: string | null
       amount_in_cents: number | null
       commission_amount_cents: number | null
     }>()
@@ -505,6 +582,7 @@ export async function POST(request: Request) {
       transactionId: updateResult.transaction_id,
       businessId: updateResult.business_id,
       guideId: updateResult.guide_id,
+      transporterId: updateResult.transporter_id,
       amountInCents: updateResult.amount_in_cents,
       commissionAmountCents: updateResult.commission_amount_cents,
     })
@@ -536,6 +614,10 @@ export async function POST(request: Request) {
 
     if (updateResult.guide_id) {
       await notifyGuideOfBooking(admin, { bookingId, guideId: updateResult.guide_id })
+    }
+
+    if (updateResult.transporter_id) {
+      await notifyTransporterOfBooking(admin, { bookingId, transporterId: updateResult.transporter_id })
     }
   }
 

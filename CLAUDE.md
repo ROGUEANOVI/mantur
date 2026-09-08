@@ -360,14 +360,18 @@ by payment method (`#106`); payout-account dropdown/bank-id fixes (`#107`,
 webhook (`#109`).
 
 ### Phase 13 — Manual-operations pivot (PR #110 — merged)
-Direct in-platform booking+payment disabled for business services (the
-"Reservar" CTA removed from `/negocios/[slug]/servicios/[serviceId]`) —
-ManTur had no real visibility into a business's actual availability, so a
-tourist could book and pay for something ManTur couldn't confirm. See
-project memory `manual_operation_pivot` for the full business rationale
-(WhatsApp + bank transfer as the real sales channel; mantur.co as a trust
-catalog). Guide-tour booking (`/guias/[slug]`'s `TourBookingForm`) was
-deliberately **not** disabled — it's still directly bookable+payable today.
+Direct in-platform booking+payment disabled for **both** business services
+(the "Reservar" CTA removed from `/negocios/[slug]/servicios/[serviceId]`)
+**and guide tours** (`/guias/[slug]`'s `TourBookingForm` — same PR, same
+commit) — ManTur had no real visibility into a business's or guide's actual
+availability, so a tourist could book and pay for something ManTur couldn't
+confirm. Every "Reservar" entry point was replaced with a WhatsApp CTA to
+ManTur's own number; `createBooking`/`createGuideTourBooking`, the booking
+schema, Wompi checkout, and all commission/money logic were left completely
+intact, just unreferenced from any public UI — ready to be wired back in
+once availability can be trusted again. See project memory
+`manual_operation_pivot` for the full business rationale (WhatsApp + bank
+transfer as the real sales channel; mantur.co as a trust catalog).
 
 ### Phase 14 — Paquetes: ManTur as its own tour operator (PRs #111–#120 — merged)
 ManTur's own curated, fixed-price bundles — not a business/guide listing.
@@ -398,10 +402,14 @@ row (`#120`).
 Consistent `cursor-pointer` on custom clickables and toast-only (no inline
 banner) result messaging across forms (`#121` — see
 `.claude/rules/components.md`). `notifyGuideOfBooking()` added to the Wompi
-webhook, mirroring the existing `notifyBusinessOfBooking()`: a tourist guide
-now gets an email when their tour booking is confirmed, closing the one gap
-in that pair that was still live (guide-tour booking was never disabled by
-the Phase 13 manual-ops pivot) (`#122`).
+webhook, mirroring the existing `notifyBusinessOfBooking()`, for parity
+between the two notification paths — a tourist guide now gets an email
+whenever a guide-tour payment *is* confirmed (`#122`). Correction
+(2026-09-06): the PR description framed this as closing a live gap because
+guide-tour booking was believed to still be directly payable; it was
+actually already disabled by the same Phase 13 PR #110 that disabled
+business services, so this notification path has been dormant, alongside
+`createGuideTourBooking` itself, since 2026-09-02.
 
 ### Phase 16 — Wompi/Alegra automation gaps closed (PRs #123–#128 — merged)
 Admins get emailed when a package availability request arrives (`#123`).
@@ -427,6 +435,36 @@ confirmation, cancellation, and payout, not just the tourist (`#128`).
 Paquetes was "0% implemented" when Phase 14 had already shipped it, and
 `/admin/pagos-proveedores` wasn't documented as existing at all.
 
+### Phase 17 — Legal registration, guide reviews, select UX, package reviews, transport payments (PRs #129–#134 — merged)
+Legal copy updated with the mandato/comisión mercantil clause and ManTur's
+second RNT, #300054 "Plataforma electrónica" (`#129`). Automated the
+previously-manual reset of a payout stuck at `'sending'`
+(`reset_stale_sending_provider_payouts()`, daily cron) and added a request
+timeout to `sendProviderPayout()` (`#130`). Guide tours get a photo
+carousel (`TourImageCarousel`) and a review/rating system
+(`guide_tour_reviews`, one review per completed+confirmed booking,
+anonymous, admin-moderated) (`#131`). Every `<select>` in the app now uses
+a descriptive `— Selecciona X —` placeholder instead of a bare dash,
+codified as a standing rule in `.claude/rules/components.md`; the bank
+`<select>` on payout-account forms now surfaces a clear error + retry
+instead of silently rendering empty when `listPayoutBanks()` fails
+(`#132`). The same review/rating pattern extended to Paquetes
+(`package_reviews`/`package_item_reviews`) — a package's own reputation as
+ManTur's product stays separate from the reputation of the services/guide
+tours bundled inside it; `RatingSummary`/`ReviewsList` generalized into
+`components/shared` so both surfaces reuse them (`#133`). **Correction**:
+while investigating a "should transport payments be dormant like guide
+tours" question, found that guide-tour booking was already disabled by the
+same Phase 13 PR #110 that disabled business services — this file
+previously said otherwise in two places (now fixed) — so no code change
+was needed there. Built the transport-payments infrastructure that never
+existed at all (`transport_requests.price_cents` quoted by the transporter
+at accept time, `transporter_payout_accounts`,
+`bookings.transport_request_id`/`transporter_id`,
+`createTransportBooking()`), replicating the business/guide pattern
+exactly and left equally dormant — no public UI wires it to a form
+(`#134`).
+
 ## Pending / post-MVP
 
 - **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
@@ -435,16 +473,19 @@ Paquetes was "0% implemented" when Phase 14 had already shipped it, and
   ManTur is currently running sales manually over WhatsApp + bank transfer,
   with mantur.co as a trust-building catalog rather than the transaction
   channel — a deliberate, reversible business decision, not a rollback.
-  Direct in-platform booking+payment is disabled only for business services
-  (Phase 13); guide-tour booking and the whole Paquetes pre-reserva flow
-  (Phase 14) are still live today. Everything built under automated
-  payments (Wompi checkout/payouts/refunds, Alegra invoicing) stays in the
-  codebase and keeps improving — it's the "plus" to switch back on once
-  demand is validated and ManTur has real control over provider availability.
+  Direct in-platform booking+payment is disabled for both business services
+  and guide tours (Phase 13, same PR #110 for both); the whole Paquetes
+  pre-reserva flow (Phase 14) is still live today — it confirms provider
+  availability *before* charging the tourist, which is exactly the
+  visibility gap this pivot exists to avoid, so it was never in scope for
+  the pivot. Everything built under automated payments (Wompi
+  checkout/payouts/refunds, Alegra invoicing) stays in the codebase and
+  keeps improving — it's the "plus" to switch back on once demand is
+  validated and ManTur has real control over provider availability.
 - **Tourist guide enhancements**: tour image carousels and a review/rating
-  system are still not built. (A general availability calendar for guides
-  now exists — `/mi-perfil-guia/disponibilidad`, Phase 14 — so that part of
-  this item is done.)
+  system now exist (Phase 16 follow-up, PR #131 — `TourImageCarousel`,
+  `guide_tour_reviews`). A general availability calendar for guides also
+  exists (`/mi-perfil-guia/disponibilidad`, Phase 14).
 - **Wompi Payouts**: code-complete and deployed, including async
   confirmation via Wompi's own Payouts webhook (Phase 12, PR #109) and a
   daily reconciliation cron for stuck rows (Phase 16, PR #125), but still
@@ -474,20 +515,24 @@ Paquetes was "0% implemented" when Phase 14 had already shipped it, and
 - `service_types` / `business_category_service_type_suggestions` — the
   per-type attribute config behind `services` and category → type defaults
 - `transporters` — motocarro drivers; vehicle info, availability status
-- `transport_requests` — a tourist requests a ride; a transporter accepts/rejects
+- `transport_requests` — a tourist requests a ride; a transporter
+  accepts/rejects and, on accepting, may quote `price_cents` (Phase 17) —
+  in-platform payment for that quote exists but is dormant, same posture as
+  business services/guide tours
 - `tourist_guides` — approved tourist guides; bio, specialties, languages,
   availability toggle
 - `guide_tours` — bookable tours offered by a `tourist_guide`
 - `bookings` — a tourist books a `service` (`service_id`), a `guide_tours`
-  tour (`guide_tour_id`), or a `packages` bundle (`package_id`) — exactly one
-  of the three; links to a `transaction`
+  tour (`guide_tour_id`), a `packages` bundle (`package_id`), or a
+  `transport_requests` ride (`transport_request_id`) — exactly one of the
+  four; links to a `transaction`
 - `transactions` — payment records (Wompi reference, status, amount)
 - `commission_config` — commission percentage per service type, editable by admin
 - `role_requests` — a tourist applies for `business_owner`/`transporter`/
   `tourist_guide`; reviewed by an admin in `/admin/solicitudes`
 - `favorites` — a tourist's saved businesses/places/guides
-- `business_payout_accounts` / `tourist_guide_payout_accounts` — a
-  provider's bank account for Wompi Payouts
+- `business_payout_accounts` / `tourist_guide_payout_accounts` /
+  `transporter_payout_accounts` — a provider's bank account for Wompi Payouts
 - `provider_payouts` — the payout ledger (queued/sent/confirmed) paid out to
   a business or guide after a booking is marked paid
 - `refund_policy_config` / `refund_requests` — refund rules + the refund
@@ -498,6 +543,12 @@ Paquetes was "0% implemented" when Phase 14 had already shipped it, and
 - `provider_availability` — the two-phase pre-reserva calendar (per
   provider, per date) used to confirm a package_item's provider before a
   tourist is charged; also self-service-writable by the provider themselves
+- `guide_tour_reviews` — a tourist's rating/comment for a completed,
+  confirmed guide tour booking, one per booking (Phase 17)
+- `package_reviews` / `package_item_reviews` — a tourist's overall rating
+  for a completed package booking, plus an optional per-included-item
+  breakdown, kept deliberately separate from `guide_tour_reviews`/services'
+  own reputation (Phase 17)
 
 ## Out of scope for the MVP
 

@@ -259,6 +259,13 @@ describe('resolvePayoutAccount', () => {
     expect(admin.from).toHaveBeenCalledWith('tourist_guide_payout_accounts')
   })
 
+  it('reads transporter_payout_accounts by transporter_id for a transporter recipient', async () => {
+    const admin = fakeAdminClient(ACCOUNT_ROW)
+    await resolvePayoutAccount(admin, 'transporter', 'transporter-1')
+
+    expect(admin.from).toHaveBeenCalledWith('transporter_payout_accounts')
+  })
+
   it('returns null when no payout account row exists', async () => {
     const admin = fakeAdminClient(null)
     const result = await resolvePayoutAccount(admin, 'business', 'biz-1')

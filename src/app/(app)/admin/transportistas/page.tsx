@@ -7,6 +7,7 @@ import { deactivateTransporter, activateTransporter, deleteTransporter } from '.
 import Avatar from '@/components/shared/Avatar'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
 import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
+import WompiBankIdForm from '@/components/admin/WompiBankIdForm'
 import { cn } from '@/lib/utils'
 
 const VALID_STATUSES = ['active', 'inactive'] as const
@@ -27,6 +28,7 @@ type TransporterRow = {
   soat_expiry_date: string | null
   verification_status: string
   profiles: { id: string; full_name: string | null; avatar_url: string | null; role: string } | null
+  transporter_payout_accounts: { bank_name: string; wompi_bank_id: string | null } | null
 }
 
 function isExpired(dateStr: string | null): boolean {
@@ -48,7 +50,7 @@ export default async function AdminTransportistasPage({
 
   let query = admin
     .from('transporters')
-    .select('id, vehicle_type, license_plate, phone, is_available, transport_tier, cooperative_name, cooperative_document_path, driver_license_document_path, driver_license_expiry, soat_document_path, soat_expiry_date, verification_status, profiles!profile_id!inner(id, full_name, avatar_url, role)')
+    .select('id, vehicle_type, license_plate, phone, is_available, transport_tier, cooperative_name, cooperative_document_path, driver_license_document_path, driver_license_expiry, soat_document_path, soat_expiry_date, verification_status, profiles!profile_id!inner(id, full_name, avatar_url, role), transporter_payout_accounts(bank_name, wompi_bank_id)')
     .order('created_at', { ascending: true })
 
   query = query.filter('profiles.role', statusFilter === 'active' ? 'eq' : 'neq', 'transporter')
@@ -177,6 +179,26 @@ export default async function AdminTransportistasPage({
                       <p className="text-xs text-muted-foreground">{adminCopy.transportistas.verification.noDocuments}</p>
                     )}
                   </div>
+
+                  {/* Payout account — only meaningful once the transporter is active */}
+                  {statusFilter === 'active' && (
+                    <div className="space-y-2 rounded-xl bg-muted/30 px-3 py-2">
+                      {t.transporter_payout_accounts ? (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            {t.transporter_payout_accounts.bank_name}
+                          </p>
+                          <WompiBankIdForm
+                            recipientType="transporter"
+                            recipientId={t.id}
+                            currentWompiBankId={t.transporter_payout_accounts.wompi_bank_id}
+                          />
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{adminCopy.payoutAccounts.noAccount}</p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex gap-2 pt-1">
                     {statusFilter === 'active' ? (

@@ -34,6 +34,7 @@ const currentAvailabilitySingle = vi.fn()
 const toggleUpdateMock = vi.fn()
 const userStorageUpload = vi.fn()
 const userStorageRemove = vi.fn()
+const payoutAccountUpsertMock = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -49,6 +50,9 @@ vi.mock('@/lib/supabase/server', () => ({
           }),
           update: (payload: unknown) => ({ eq: (col: string, val: string) => toggleUpdateMock(payload, col, val) }),
         }
+      }
+      if (table === 'transporter_payout_accounts') {
+        return { upsert: (payload: unknown, opts: unknown) => payoutAccountUpsertMock(payload, opts) }
       }
       throw new Error(`unexpected table on user client: ${table}`)
     },
@@ -87,7 +91,8 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
-const { toggleAvailability, acceptTransportRequest, markCompleted, updateTransporterProfile } = await import('./actions')
+const { toggleAvailability, acceptTransportRequest, markCompleted, updateTransporterProfile, saveTransporterPayoutAccount } =
+  await import('./actions')
 
 function formData(fields: Record<string, string | File>) {
   const fd = new FormData()
@@ -181,13 +186,41 @@ describe('acceptTransportRequest', () => {
     const fd = formData({ requestId: REQUEST_ID })
     await acceptTransportRequest(fd)
 
-    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({ transporter_id: TRANSPORTER_ID, status: 'accepted' })
+    // No price quoted — price_cents stays null, same as the original
+    // cash-only flow before this field existed.
+    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({
+      transporter_id: TRANSPORTER_ID,
+      status: 'accepted',
+      price_cents: null,
+    })
     // Both filters must be present — dropping the status='pending' filter
     // would let a transporter "steal" an already-accepted request.
     expect(transportRequestsEqMock).toHaveBeenCalledWith('id', REQUEST_ID)
     expect(transportRequestsEqMock).toHaveBeenCalledWith('status', 'pending')
     expect(transportRequestsEqMock).toHaveBeenCalledTimes(2)
     expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte')
+  })
+
+  it('converts a quoted price in pesos to price_cents', async () => {
+    const fd = formData({ requestId: REQUEST_ID, price_pesos: '25000' })
+    await acceptTransportRequest(fd)
+
+    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({
+      transporter_id: TRANSPORTER_ID,
+      status: 'accepted',
+      price_cents: 2_500_000,
+    })
+  })
+
+  it.each(['0', '-100', 'abc', ''])('treats an invalid quoted price %s as not quoted (null)', async (pricePesos) => {
+    const fd = formData({ requestId: REQUEST_ID, price_pesos: pricePesos })
+    await acceptTransportRequest(fd)
+
+    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({
+      transporter_id: TRANSPORTER_ID,
+      status: 'accepted',
+      price_cents: null,
+    })
   })
 
   it('redirects to / when the caller is not a registered transporter', async () => {
@@ -386,5 +419,90 @@ describe('updateTransporterProfile', () => {
     })
     const result = await updateTransporterProfile(fd)
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('saveTransporterPayoutAccount', () => {
+  const VALID_FIELDS = {
+    bank_name: 'Bancolombia',
+    wompi_bank_id: 'bank-bancolombia',
+    account_type: 'ahorros',
+    account_number: '00011122233',
+    holder_id_type: 'CC',
+    holder_id_number: '1002003000',
+    holder_name: 'Pedro Transportista',
+    holder_email: 'pedro@example.com',
+  }
+
+  it('rejects when any required field is missing', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, bank_name: '' }))
+    expect(result).toEqual({ error: 'Completa todos los campos obligatorios.' })
+    expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing wompi_bank_id', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, wompi_bank_id: '' }))
+    expect(result).toEqual({ error: 'Selecciona un banco válido.' })
+    expect(payoutAccountUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid account_type', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, account_type: 'checking' }))
+    expect(result).toEqual({ error: 'Selecciona un tipo de cuenta válido.' })
+  })
+
+  it('rejects an invalid holder_id_type', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, holder_id_type: 'PASSPORT' }))
+    expect(result).toEqual({ error: 'Selecciona un tipo de documento válido.' })
+  })
+
+  it('rejects an invalid email', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, holder_email: 'not-an-email' }))
+    expect(result).toEqual({ error: 'Escribe un correo electrónico válido.' })
+  })
+
+  it('rejects a non-numeric account_number', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, account_number: '123-abc' }))
+    expect(result).toEqual({ error: 'El número de cuenta debe contener solo dígitos.' })
+  })
+
+  it('rejects an all-zero account_number', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, account_number: '0000' }))
+    expect(result).toEqual({ error: 'El número de cuenta debe contener solo dígitos.' })
+  })
+
+  it('rejects a too-short holder_id_number', async () => {
+    const result = await saveTransporterPayoutAccount(formData({ ...VALID_FIELDS, holder_id_number: '12' }))
+    expect(result).toEqual({ error: 'Escribe un número de documento válido.' })
+  })
+
+  it('upserts on transporter_id (resolved server-side, never from client input) with the validated fields, including wompi_bank_id', async () => {
+    payoutAccountUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await saveTransporterPayoutAccount(formData(VALID_FIELDS))
+
+    expect(result).toEqual({ success: true })
+    const [payload, opts] = payoutAccountUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      transporter_id: TRANSPORTER_ID,
+      bank_name: 'Bancolombia',
+      wompi_bank_id: 'bank-bancolombia',
+      account_type: 'ahorros',
+      account_number: '00011122233',
+      holder_id_type: 'CC',
+      holder_id_number: '1002003000',
+      holder_name: 'Pedro Transportista',
+      holder_email: 'pedro@example.com',
+    })
+    expect(opts).toEqual({ onConflict: 'transporter_id' })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte/editar')
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    payoutAccountUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await saveTransporterPayoutAccount(formData(VALID_FIELDS))
+
+    expect(result).toEqual({ error: 'No se pudo guardar la cuenta de pagos. Intenta de nuevo.' })
   })
 })

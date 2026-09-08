@@ -226,8 +226,26 @@ export default async function MiPerfilTransportePage() {
                       &ldquo;{req.notes}&rdquo;
                     </p>
                   )}
-                  <form action={acceptTransportRequest} className="mt-3">
+                  <form action={acceptTransportRequest} className="mt-3 space-y-2">
                     <input type="hidden" name="requestId" value={req.id} />
+                    <div className="space-y-1">
+                      <label
+                        htmlFor={`price-${req.id}`}
+                        className="text-xs font-medium text-muted-foreground"
+                      >
+                        {transportCopy.acceptForm.priceLabel}
+                      </label>
+                      <input
+                        id={`price-${req.id}`}
+                        type="number"
+                        name="price_pesos"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        placeholder={transportCopy.acceptForm.pricePlaceholder}
+                        className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
+                      />
+                    </div>
                     <button
                       type="submit"
                       className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-10 px-4 hover:bg-primary/90 transition-colors"

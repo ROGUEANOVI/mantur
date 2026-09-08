@@ -7,14 +7,17 @@ const getUserByIdMock = vi.fn()
 const bookingSingleMock = vi.fn()
 const bookingDetailsSingleMock = vi.fn()
 const guideBookingDetailsSingleMock = vi.fn()
+const transporterBookingDetailsSingleMock = vi.fn()
 const profileSingleMock = vi.fn()
 const contactDetailsMaybeSingleMock = vi.fn()
 const contactDetailsUpsertMock = vi.fn()
 const transactionsUpdateEqMock = vi.fn()
 const businessOwnerSingleMock = vi.fn()
 const guideOwnerSingleMock = vi.fn()
+const transporterOwnerSingleMock = vi.fn()
 const sendBusinessBookingConfirmedEmailMock = vi.fn()
 const sendGuideBookingConfirmedEmailMock = vi.fn()
+const sendTransporterBookingConfirmedEmailMock = vi.fn()
 
 function makeRpcResult(result: { data: unknown; error: unknown }) {
   const promise = Promise.resolve(result)
@@ -29,11 +32,13 @@ const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
 
 const fromMock = vi.fn((table: string) => {
   if (table === 'bookings') {
-    // Three different queries hit `bookings` in the same webhook delivery:
+    // Four different queries hit `bookings` in the same webhook delivery:
     // syncAlegraInvoice's `.select('tourist_id')`,
-    // notifyBusinessOfBooking's fuller `.select('service_id, ...')`, and
-    // notifyGuideOfBooking's `.select('guide_id, guide_tour_id, ...')` —
-    // routed by columns since all three share the same eq().single() shape.
+    // notifyBusinessOfBooking's fuller `.select('service_id, ...')`,
+    // notifyGuideOfBooking's `.select('guide_id, guide_tour_id, ...')`, and
+    // notifyTransporterOfBooking's `.select('transporter_id,
+    // transport_request_id, ...')` — routed by columns since all four share
+    // the same eq().single() shape.
     return {
       select: (columns: string) => ({
         eq: () => ({
@@ -42,7 +47,9 @@ const fromMock = vi.fn((table: string) => {
               ? bookingDetailsSingleMock()
               : columns.includes('guide_tour_id')
                 ? guideBookingDetailsSingleMock()
-                : bookingSingleMock(),
+                : columns.includes('transport_request_id')
+                  ? transporterBookingDetailsSingleMock()
+                  : bookingSingleMock(),
         }),
       }),
     }
@@ -55,6 +62,9 @@ const fromMock = vi.fn((table: string) => {
   }
   if (table === 'tourist_guides') {
     return { select: () => ({ eq: () => ({ single: guideOwnerSingleMock }) }) }
+  }
+  if (table === 'transporters') {
+    return { select: () => ({ eq: () => ({ single: transporterOwnerSingleMock }) }) }
   }
   if (table === 'profile_contact_details') {
     return {
@@ -99,6 +109,7 @@ vi.mock('@/lib/email/refundEmails', () => ({
 vi.mock('@/lib/email/bookingEmails', () => ({
   sendBusinessBookingConfirmedEmail: (...args: unknown[]) => sendBusinessBookingConfirmedEmailMock(...args),
   sendGuideBookingConfirmedEmail: (...args: unknown[]) => sendGuideBookingConfirmedEmailMock(...args),
+  sendTransporterBookingConfirmedEmail: (...args: unknown[]) => sendTransporterBookingConfirmedEmailMock(...args),
 }))
 
 const findOrCreateContactMock = vi.fn()
@@ -172,6 +183,21 @@ beforeEach(() => {
     },
   })
   guideOwnerSingleMock.mockResolvedValue({ data: { profile_id: 'guide-profile-1' } })
+  // Defaults for the transporter booking-confirmation email path — mirrors
+  // the guide defaults above; only exercised when a test sets transporterId
+  // on approvedUpdateResult, since the default there is null.
+  transporterBookingDetailsSingleMock.mockResolvedValue({
+    data: {
+      transporter_id: 'transporter-1',
+      transport_request_id: 'request-1',
+      booking_date: '2026-09-05',
+      quantity: 2,
+      notes: null,
+      tourist_id: 'tourist-1',
+      transport_requests: { origin: 'Parque principal', destination: 'Pozo Azul' },
+    },
+  })
+  transporterOwnerSingleMock.mockResolvedValue({ data: { profile_id: 'transporter-profile-1' } })
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'negocio@example.com' } } })
 })
 
@@ -251,6 +277,7 @@ function postRequest(body: unknown) {
 function approvedUpdateResult(overrides: Partial<{
   businessId: string | null
   guideId: string | null
+  transporterId: string | null
   amountInCents: number
   commissionAmountCents: number
 }> = {}) {
@@ -260,6 +287,7 @@ function approvedUpdateResult(overrides: Partial<{
       transaction_id: 'tx-1',
       business_id: 'businessId' in overrides ? overrides.businessId : 'biz-1',
       guide_id: overrides.guideId ?? null,
+      transporter_id: overrides.transporterId ?? null,
       amount_in_cents: overrides.amountInCents ?? 50000,
       commission_amount_cents: overrides.commissionAmountCents ?? 5000,
     },
@@ -422,6 +450,17 @@ describe('POST /api/webhooks/wompi — provider payout on a freshly-confirmed AP
     expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ recipientType: 'guide', recipientId: 'guide-1' }),
+    )
+  })
+
+  it('resolves a transporter recipient when business_id and guide_id are both null and transporter_id is set', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, transporterId: 'transporter-1' }))
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ recipientType: 'transporter', recipientId: 'transporter-1' }),
     )
   })
 
@@ -870,6 +909,79 @@ describe('POST /api/webhooks/wompi — guide booking-confirmation email on a fre
   it('still returns 200 and does not throw when an unexpected error is thrown mid-notify', async () => {
     applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, guideId: 'guide-1' }))
     guideBookingDetailsSingleMock.mockRejectedValue(new Error('db down'))
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+  })
+})
+
+// Dormant in production today (see createTransportBooking's own comment —
+// no public UI calls it yet), but the webhook-side plumbing must still work
+// correctly for whenever it's wired in. Mirrors the guide describe block
+// above exactly, one level down (a representative subset, not every guide
+// case repeated) since the underlying code is a straight clone.
+describe('POST /api/webhooks/wompi — transporter booking-confirmation email on a freshly-confirmed APPROVED payment', () => {
+  it('emails the transporter with the route, tourist name, date, and quantity', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, transporterId: 'transporter-1' }))
+    getUserByIdMock.mockResolvedValue({ data: { user: { email: 'transportista@example.com' } } })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(transporterOwnerSingleMock).toHaveBeenCalled()
+    expect(getUserByIdMock).toHaveBeenCalledWith('transporter-profile-1')
+    expect(sendTransporterBookingConfirmedEmailMock).toHaveBeenCalledWith('transportista@example.com', {
+      routeLabel: 'Parque principal → Pozo Azul',
+      touristName: 'Prueba Wompi Sandbox',
+      bookingDate: '2026-09-05',
+      quantity: 2,
+      notes: null,
+    })
+  })
+
+  it('never emails when the booking row itself belongs to a different transporter_id (defense-in-depth mismatch guard)', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, transporterId: 'transporter-1' }))
+    transporterBookingDetailsSingleMock.mockResolvedValue({
+      data: {
+        transporter_id: 'some-other-transporter',
+        transport_request_id: 'request-1',
+        booking_date: '2026-09-05',
+        quantity: 2,
+        notes: null,
+        tourist_id: 'tourist-1',
+        transport_requests: { origin: 'Parque principal', destination: 'Pozo Azul' },
+      },
+    })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendTransporterBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('never attempts to email when transporter_id is absent from the update result', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: 'biz-1', transporterId: null }))
+
+    await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(transporterOwnerSingleMock).not.toHaveBeenCalled()
+    expect(sendTransporterBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 without emailing when the transporter has no resolvable profile', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, transporterId: 'transporter-1' }))
+    transporterOwnerSingleMock.mockResolvedValue({ data: null })
+
+    const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
+
+    expect(res.status).toBe(200)
+    expect(sendTransporterBookingConfirmedEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 and does not throw when an unexpected error is thrown mid-notify', async () => {
+    applyUpdateMock.mockReturnValue(approvedUpdateResult({ businessId: null, transporterId: 'transporter-1' }))
+    transporterBookingDetailsSingleMock.mockRejectedValue(new Error('db down'))
 
     const res = await POST(postRequest(buildEvent({ status: 'APPROVED' })))
 
