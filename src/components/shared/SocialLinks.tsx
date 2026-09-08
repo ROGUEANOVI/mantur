@@ -5,7 +5,7 @@ const SOCIAL_LINKS = [
   { name: 'Instagram', href: 'https://instagram.com/mantur.oficial', Icon: FaInstagram },
   { name: 'Facebook', href: 'https://www.facebook.com/share/196SHnZWw5/', Icon: FaFacebook },
   { name: 'WhatsApp', href: `https://wa.me/${MANTUR_WHATSAPP_NUMBER}`, Icon: FaWhatsapp },
-  { name: 'TikTok', href: 'https://www.tiktok.com/@mantur432', Icon: FaTiktok },
+  { name: 'TikTok', href: 'https://www.tiktok.com/@mantur.oficial', Icon: FaTiktok },
 ]
 
 export default function SocialLinks({ className = '' }: { className?: string }) {

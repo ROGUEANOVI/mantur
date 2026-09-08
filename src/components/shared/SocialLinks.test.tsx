@@ -20,7 +20,7 @@ describe('SocialLinks', () => {
     )
     expect(screen.getByRole('link', { name: /tiktok/i })).toHaveAttribute(
       'href',
-      'https://www.tiktok.com/@mantur432',
+      'https://www.tiktok.com/@mantur.oficial',
     )
   })
 
