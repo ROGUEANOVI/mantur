@@ -12,6 +12,8 @@ import DetailSplitLayout from '@/components/shared/DetailSplitLayout'
 import ExpandableText from '@/components/shared/ExpandableText'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import WhatsappButton from '@/components/shared/WhatsappButton'
+import RatingSummary from '@/components/shared/RatingSummary'
+import ReviewsList from '@/components/shared/ReviewsList'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
 
@@ -106,6 +108,18 @@ export default async function ServicioDetailPage({
   const durationMinutes = svc.attributes?.duration_minutes as number | undefined
   const pricingUnit = svc.service_types?.pricing_unit ?? 'per_person'
 
+  // service_reviews is public-select (see
+  // 20260919000000_create_service_reviews.sql) — read via the
+  // RLS-respecting client, not the admin one used for `services` above.
+  const { data: reviewsData } = await supabase
+    .from('service_reviews')
+    .select('rating, comment, created_at')
+    .eq('service_id', svc.id)
+    .order('created_at', { ascending: false })
+
+  const reviews = (reviewsData ?? []) as { rating: number; comment: string | null; created_at: string }[]
+  const avgRating = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : null
+
   const serviceJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'TouristTrip',
@@ -150,9 +164,19 @@ export default async function ServicioDetailPage({
                 >
                   {svc.businesses.name}
                 </Link>
-                <h1 className="text-2xl font-bold text-foreground leading-tight">{svc.name}</h1>
+                <div className="flex items-start justify-between gap-3">
+                  <h1 className="text-2xl font-bold text-foreground leading-tight">{svc.name}</h1>
+                  <RatingSummary
+                    avgRating={avgRating}
+                    count={reviews.length}
+                    noReviewsText={copy.reviews.noReviewsYet}
+                    reviewCountText={copy.reviews.reviewCount}
+                  />
+                </div>
 
                 {svc.description && <ExpandableText text={svc.description} className="mt-4" />}
+
+                {reviews.length > 0 && <ReviewsList reviews={reviews} />}
               </div>
             </>
           }

@@ -215,6 +215,10 @@ export const businessesCopy = {
     minutes: 'min',
     people: 'personas',
     price: 'Precio',
+    reviews: {
+      noReviewsYet: 'Aún no tiene reseñas.',
+      reviewCount: (n: number) => (n === 1 ? '1 reseña' : `${n} reseñas`),
+    },
   },
 
   detail: {

@@ -465,6 +465,21 @@ at accept time, `transporter_payout_accounts`,
 exactly and left equally dormant — no public UI wires it to a form
 (`#134`).
 
+### Phase 18 — Transporter/service reviews, About page refresh (PRs #135–#139 — merged)
+TikTok handle fix in the footer's `SocialLinks` (`#135`). Transporters get
+a review/rating system (`transporter_reviews`) — deliberately gated on
+`transport_requests.status = 'completed'` rather than a paid `bookings`
+row, since transport payment is dormant (Phase 17) and has no live path to
+a confirmed booking; `completed` is the real signal a ride happened,
+reused from the existing cash-based accept/complete flow (`#136`).
+`/acerca-de-nosotros` copy refreshed to match what ManTur actually offers
+today — "Cómo funciona" no longer claims tourists book services directly
+on the platform (`#137`), plus a vision statement folded into "Nuestra
+misión" rather than added as its own section (`#138`). Business services
+get the last review-parity gap closed (`service_reviews`, calco exacto of
+`guide_tour_reviews` — same caveat: dormant since Phase 13, so few new
+eligible reviews until service payment is reactivated) (`#139`).
+
 ## Pending / post-MVP
 
 - **Domain `mantur.co`**: already connected to Vercel via Cloudflare; Supabase
@@ -549,6 +564,13 @@ exactly and left equally dormant — no public UI wires it to a form
   for a completed package booking, plus an optional per-included-item
   breakdown, kept deliberately separate from `guide_tour_reviews`/services'
   own reputation (Phase 17)
+- `transporter_reviews` — a tourist's rating/comment for a completed ride,
+  gated on `transport_requests.status = 'completed'` rather than a paid
+  `bookings` row (transport payment is dormant, so there's no live path to
+  a confirmed booking for a ride) (Phase 18)
+- `service_reviews` — a tourist's rating/comment for a completed, confirmed
+  business-service booking, one per booking — closes the last review-parity
+  gap across all four actor types (Phase 18)
 
 ## Out of scope for the MVP
 
