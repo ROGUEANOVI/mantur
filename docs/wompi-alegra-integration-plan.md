@@ -168,9 +168,9 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
       `user-principal-id`) cuando se implemente §5.
 - [x] RUT en estado ACTIVO — el comercio ya fue aprobado por Wompi
       (2026-09-06), condición implícita de esa aprobación.
-- [ ] Repetir/confirmar credenciales de **sandbox** de Wompi (llaves
-      distintas a las de producción) para poder desarrollar y probar sin
-      tocar el comercio real ya vinculado a dinero real.
+- [x] Credenciales de **sandbox** de Wompi confirmadas y probadas
+      (2026-09-08) — flujo completo verificado con datos de prueba: reserva
+      de un servicio → checkout Wompi (sandbox) → webhook → confirmación.
 - [x] RNT de ManTur como **agencia de viajes operadora** — RNT #299376,
       subcategoría "AGENCIA DE VIAJES OPERADORAS", estado **ACTIVO**
       (inscripción aprobada 27/ago/2026, Cámara de Comercio de Valledupar).
@@ -225,9 +225,10 @@ todo esto contra el **sandbox** de Wompi y Alegra ya mismo.
       activar cualquier rol de proveedor, vía la aceptación general de
       términos ya existente en el signup — no se agregó un checkbox nuevo
       por rol. Esto reduce el riesgo pero **no reemplaza una revisión legal
-      formal**; recomendable confirmarlo con un abogado antes del corte a
-      producción real (ítem 9 del roadmap, §9), especialmente si el volumen
-      de transacciones crece.
+      formal** — el founder la consultará directamente con un abogado
+      comercial cuando lo considere oportuno (2026-09-08: sacado del
+      seguimiento de pendientes de este documento por decisión explícita;
+      no bloquea nada técnico).
 - [x] Actualizar `src/lib/copy/legal.ts` — ya refleja MANTUR TURISMO S.A.S.,
       NIT, Matrícula Mercantil y ambos RNT (#299376 y #300054); la nota de
       "aún no constituida" ya no existe en el archivo.
