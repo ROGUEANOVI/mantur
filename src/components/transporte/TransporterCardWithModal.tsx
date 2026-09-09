@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import TransportRequestForm from '@/components/transporte/TransportRequestForm'
+import TransportRequestForm, { type TransporterRouteOption } from '@/components/transporte/TransportRequestForm'
 import { transportCopy } from '@/lib/copy/transport'
 import { cn } from '@/lib/utils'
 import Avatar from '@/components/shared/Avatar'
@@ -29,9 +29,10 @@ type Props = {
   access: Access
   ratingSummary: { avgRating: number | null; count: number }
   reviews: Review[]
+  routes?: TransporterRouteOption[]
 }
 
-export default function TransporterCardWithModal({ transporter, access, ratingSummary, reviews }: Props) {
+export default function TransporterCardWithModal({ transporter, access, ratingSummary, reviews, routes = [] }: Props) {
   const [open, setOpen] = useState(false)
   const copy = transportCopy.publicPage
 
@@ -141,7 +142,7 @@ export default function TransporterCardWithModal({ transporter, access, ratingSu
 
           {reviews.length > 0 && <ReviewsList reviews={reviews} />}
 
-          <TransportRequestForm />
+          <TransportRequestForm routes={routes} />
         </DialogContent>
       </Dialog>
     </>

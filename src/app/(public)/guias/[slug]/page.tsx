@@ -8,6 +8,7 @@ import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
 import TourBookingForm from '@/components/guias/TourBookingForm'
 import TourImageCarousel from '@/components/guias/TourImageCarousel'
+import { getBlockedDates } from '@/lib/availability'
 import RatingSummary from '@/components/shared/RatingSummary'
 import ReviewsList, { type Review } from '@/components/shared/ReviewsList'
 import Breadcrumbs from '@/components/shared/Breadcrumbs'
@@ -119,6 +120,15 @@ export default async function GuideProfilePage({
         .in('guide_tour_id', tourIds)
         .order('created_at', { ascending: false })
     : { data: [] as { guide_tour_id: string; rating: number; comment: string | null; created_at: string }[] }
+
+  // One item-level calendar per tour, all sharing the same parent guide
+  // calendar for inheritance — see getBlockedDates
+  // (src/lib/availability.ts) for the 3-step resolution this projects.
+  const blockedDatesByTour = new Map<string, string[]>(
+    await Promise.all(
+      tours.map(async (t) => [t.id, await getBlockedDates(admin, 'guide_tour', t.id, 'guide', guide.id)] as const),
+    ),
+  )
 
   const reviewsByTour = new Map<string, Review[]>()
   for (const row of reviewsData ?? []) {
@@ -283,9 +293,12 @@ export default async function GuideProfilePage({
                     </div>
 
                     <TourBookingForm
+                      tourId={tour.id}
                       tourName={tour.name}
                       guideName={name}
                       price={Number(tour.price)}
+                      capacity={tour.capacity}
+                      blockedDates={blockedDatesByTour.get(tour.id) ?? []}
                       access={bookingAccess}
                     />
 

@@ -5,6 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
 import TransporterCardWithModal from '@/components/transporte/TransporterCardWithModal'
+import type { TransporterRouteOption } from '@/components/transporte/TransportRequestForm'
+import { getBlockedDates } from '@/lib/availability'
 import Reveal from '@/components/shared/Reveal'
 import SearchInput from '@/components/shared/SearchInput'
 import HeroControlCard from '@/components/shared/HeroControlCard'
@@ -85,6 +87,37 @@ export default async function TransportistasPage({
     const list = reviewsByTransporter.get(row.transporter_id) ?? []
     list.push({ rating: row.rating, comment: row.comment, created_at: row.created_at })
     reviewsByTransporter.set(row.transporter_id, list)
+  }
+
+  // transporter_routes is public-select for active routes (see
+  // 20260920000000_add_item_availability_and_transporter_routes.sql) — read
+  // via the RLS-respecting client, not the admin one used for `transporters`
+  // above.
+  const { data: routesData } = transporterIds.length
+    ? await supabase
+        .from('transporter_routes')
+        .select(
+          'id, transporter_id, origin, destination, allows_one_way, allows_round_trip, price_one_way_cents, price_round_trip_cents',
+        )
+        .in('transporter_id', transporterIds)
+        .eq('status', 'active')
+    : { data: [] as { id: string; transporter_id: string; origin: string; destination: string; allows_one_way: boolean; allows_round_trip: boolean; price_one_way_cents: number | null; price_round_trip_cents: number | null }[] }
+
+  const routesByTransporter = new Map<string, TransporterRouteOption[]>()
+  for (const route of routesData ?? []) {
+    const blockedDates = await getBlockedDates(admin, 'transporter_route', route.id, 'transporter', route.transporter_id)
+    const list = routesByTransporter.get(route.transporter_id) ?? []
+    list.push({
+      id: route.id,
+      origin: route.origin,
+      destination: route.destination,
+      allowsOneWay: route.allows_one_way,
+      allowsRoundTrip: route.allows_round_trip,
+      priceOneWayCents: route.price_one_way_cents,
+      priceRoundTripCents: route.price_round_trip_cents,
+      blockedDates,
+    })
+    routesByTransporter.set(route.transporter_id, list)
   }
 
   function ratingSummaryFor(transporterId: string): { avgRating: number | null; count: number } {
@@ -200,6 +233,7 @@ export default async function TransportistasPage({
                   access={access}
                   ratingSummary={ratingSummaryFor(t.id)}
                   reviews={reviewsByTransporter.get(t.id) ?? []}
+                  routes={routesByTransporter.get(t.id) ?? []}
                 />
               </Reveal>
             ))}

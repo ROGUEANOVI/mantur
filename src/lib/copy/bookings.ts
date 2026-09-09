@@ -15,6 +15,15 @@ export const bookingsCopy = {
     packageSubmit: 'Solicitar disponibilidad',
     packageSubmitting: 'Enviando solicitud...',
     loginToRequest: 'Inicia sesión para solicitar este paquete',
+    selectDatePrompt: 'Elige una fecha disponible en el calendario.',
+    serviceTitle: 'Solicitar este servicio',
+    serviceSubmit: 'Solicitar reserva',
+    serviceSubmitting: 'Enviando...',
+    guideTourTitle: 'Solicitar este tour',
+    guideTourSubmit: 'Solicitar reserva',
+    guideTourSubmitting: 'Enviando...',
+    loginToRequestService: 'Inicia sesión para solicitar este servicio',
+    loginToRequestGuideTour: 'Inicia sesión para solicitar este tour',
   },
 
   confirmation: {

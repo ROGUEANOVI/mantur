@@ -31,6 +31,8 @@ async function getAuthenticatedTourist() {
   return { supabase, userId: user.id }
 }
 
+const VALID_TRIP_TYPES = new Set(['one_way', 'round_trip'])
+
 export async function createTransportRequest(
   _prev: ActionResult,
   formData: FormData,
@@ -40,13 +42,43 @@ export async function createTransportRequest(
   const allowed = await checkRateLimit(transportRequestRateLimit, userId)
   if (!allowed) return { error: transportCopy.errors.rateLimited }
 
-  const origin = (formData.get('origin') as string)?.trim()
-  const destination = (formData.get('destination') as string)?.trim()
+  const copy = transportCopy.errors
+
+  const tripType = (formData.get('trip_type') as string | null) || 'one_way'
+  if (!VALID_TRIP_TYPES.has(tripType)) return { error: copy.missingFields }
+
+  // A route is optional — a tourist can still request a free-text ride with
+  // no transporter chosen yet, same as before this field existed. When a
+  // route IS chosen, its own origin/destination/modalities are the source
+  // of truth server-side (never trust a client-editable origin/destination
+  // alongside a routeId — the whole point of picking a published route is
+  // that its details are fixed).
+  const routeId = (formData.get('transporter_route_id') as string | null)?.trim() || null
+  let origin = (formData.get('origin') as string)?.trim()
+  let destination = (formData.get('destination') as string)?.trim()
+
+  if (routeId) {
+    if (!UUID_RE.test(routeId)) return { error: copy.missingFields }
+
+    const { data: route } = await supabase
+      .from('transporter_routes')
+      .select('origin, destination, allows_one_way, allows_round_trip')
+      .eq('id', routeId)
+      .eq('status', 'active')
+      .single<{ origin: string; destination: string; allows_one_way: boolean; allows_round_trip: boolean }>()
+
+    if (!route) return { error: copy.requestNotFound }
+
+    const modalityAllowed = tripType === 'round_trip' ? route.allows_round_trip : route.allows_one_way
+    if (!modalityAllowed) return { error: copy.missingFields }
+
+    origin = route.origin
+    destination = route.destination
+  }
+
   const rawDatetime = (formData.get('requested_datetime') as string)?.trim()
   const rawPeople = formData.get('people_count') as string
   const notes = (formData.get('notes') as string)?.trim() || null
-
-  const copy = transportCopy.errors
 
   if (!origin || !destination || !rawDatetime) return { error: copy.missingFields }
 
@@ -67,6 +99,8 @@ export async function createTransportRequest(
     requested_datetime: requestedDatetime.toISOString(),
     people_count: peopleCount,
     notes,
+    transporter_route_id: routeId,
+    trip_type: tripType,
   })
 
   if (error) return { error: copy.generic }

@@ -61,10 +61,14 @@ vi.mock('@/lib/supabase/server', () => ({
 const commissionRpcMock = vi.fn()
 const createBookingRpcMock = vi.fn()
 const createPackagePrereservaRpcMock = vi.fn()
+const createServicePrereservaRpcMock = vi.fn()
+const createGuideTourPrereservaRpcMock = vi.fn()
 const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
   if (fn === 'get_commission_rate') return commissionRpcMock(args)
   if (fn === 'create_booking_with_transaction') return createBookingRpcMock(args)
   if (fn === 'create_package_prereserva') return createPackagePrereservaRpcMock(args)
+  if (fn === 'create_service_prereserva') return createServicePrereservaRpcMock(args)
+  if (fn === 'create_guide_tour_prereserva') return createGuideTourPrereservaRpcMock(args)
   throw new Error(`unexpected rpc: ${fn}`)
 })
 
@@ -75,25 +79,39 @@ const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
 const adminProfilesListMock = vi.fn()
 const touristProfileSingleMock = vi.fn()
 const getUserByIdMock = vi.fn()
+const businessOwnerSingleMock = vi.fn() // businesses: select('owner_id').eq(id).single() — notifyBusinessOfServicePrereserva
+const guideProfileIdSingleMock = vi.fn() // tourist_guides: select('profile_id').eq(id).single() — notifyGuideOfTourPrereserva
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
     rpc: rpcMock,
     from: (table: string) => {
-      if (table !== 'profiles') throw new Error(`unexpected table on admin client: ${table}`)
-      return {
-        select: (columns: string) => ({
-          eq: () => (columns === 'id' ? adminProfilesListMock() : { single: () => touristProfileSingleMock() }),
-        }),
+      if (table === 'profiles') {
+        return {
+          select: (columns: string) => ({
+            eq: () => (columns === 'id' ? adminProfilesListMock() : { single: () => touristProfileSingleMock() }),
+          }),
+        }
       }
+      if (table === 'businesses') {
+        return { select: () => ({ eq: () => ({ single: businessOwnerSingleMock }) }) }
+      }
+      if (table === 'tourist_guides') {
+        return { select: () => ({ eq: () => ({ single: guideProfileIdSingleMock }) }) }
+      }
+      throw new Error(`unexpected table on admin client: ${table}`)
     },
     auth: { admin: { getUserById: getUserByIdMock } },
   })),
 }))
 
 const sendPackagePrereservaRequestedEmailMock = vi.fn()
+const sendBusinessBookingConfirmedEmailMock = vi.fn()
+const sendGuideBookingConfirmedEmailMock = vi.fn()
 vi.mock('@/lib/email/bookingEmails', () => ({
   sendPackagePrereservaRequestedEmail: (...args: unknown[]) => sendPackagePrereservaRequestedEmailMock(...args),
+  sendBusinessBookingConfirmedEmail: (...args: unknown[]) => sendBusinessBookingConfirmedEmailMock(...args),
+  sendGuideBookingConfirmedEmail: (...args: unknown[]) => sendGuideBookingConfirmedEmailMock(...args),
 }))
 
 const checkRateLimitMock = vi.fn()
@@ -113,7 +131,14 @@ vi.mock('@/lib/wompi/checkout', () => ({
     buildWompiCheckoutUrlMock(...args),
 }))
 
-const { createBooking, createGuideTourBooking, createPackagePrereserva, createTransportBooking } = await import('./actions')
+const {
+  createBooking,
+  createGuideTourBooking,
+  createPackagePrereserva,
+  createTransportBooking,
+  createServicePrereserva,
+  createGuideTourPrereserva,
+} = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -156,6 +181,8 @@ beforeEach(() => {
   adminProfilesListMock.mockResolvedValue({ data: [{ id: 'admin-1' }] })
   touristProfileSingleMock.mockResolvedValue({ data: { full_name: 'Ana Pérez' } })
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'admin@mantur.co' } } })
+  businessOwnerSingleMock.mockResolvedValue({ data: { owner_id: 'owner-1' } })
+  guideProfileIdSingleMock.mockResolvedValue({ data: { profile_id: 'guide-profile-1' } })
 })
 
 describe('rate limiting (shared by both booking actions)', () => {
@@ -861,5 +888,194 @@ describe('createTransportBooking', () => {
 
     const payload = createBookingRpcMock.mock.calls[0][0]
     expect(payload.p_booking_date).toBe('2099-03-15')
+  })
+})
+
+describe('createServicePrereserva', () => {
+  it('rejects a non-UUID service_id before querying the DB', async () => {
+    const fd = formData({ service_id: 'not-a-uuid', quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createServicePrereserva(fd)
+    expect(result).toEqual({ error: 'No se encontró el servicio o tour seleccionado.' })
+    expect(serviceSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the service is missing, inactive, or has no service_types row', async () => {
+    serviceSingle.mockResolvedValue({ data: null })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createServicePrereserva(fd)
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+  })
+
+  it('rejects non-numeric or zero quantity', async () => {
+    serviceSingle.mockResolvedValue({ data: { ...serviceRow(), name: 'Cabalgata' } })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '0', booking_date: FUTURE_DATE })
+    const result = await createServicePrereserva(fd)
+    expect(result).toEqual({ error: 'La cantidad debe ser al menos 1.' })
+  })
+
+  it('rejects a quantity above capacity', async () => {
+    serviceSingle.mockResolvedValue({ data: { ...serviceRow({ capacity: 5 }), name: 'Cabalgata' } })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '6', booking_date: FUTURE_DATE })
+    const result = await createServicePrereserva(fd)
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
+  })
+
+  it('rejects a past date', async () => {
+    serviceSingle.mockResolvedValue({ data: { ...serviceRow(), name: 'Cabalgata' } })
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: '2000-01-01' })
+    const result = await createServicePrereserva(fd)
+    expect(result).toEqual({ error: 'La fecha debe ser hoy o en el futuro.' })
+  })
+
+  it('maps a date_unavailable RPC exception to the "unavailable" copy, never a raw error', async () => {
+    serviceSingle.mockResolvedValue({ data: { ...serviceRow(), name: 'Cabalgata' } })
+    createServicePrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'date_unavailable' } })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createServicePrereserva(fd)
+
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+  })
+
+  it('returns a generic error for any other RPC failure', async () => {
+    serviceSingle.mockResolvedValue({ data: { ...serviceRow(), name: 'Cabalgata' } })
+    createServicePrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createServicePrereserva(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+
+  it('computes total from base_price × quantity, inserts at confirmed with no transaction, notifies the business, and redirects', async () => {
+    serviceSingle.mockResolvedValue({
+      data: { ...serviceRow({ base_price: 40000, business_id: 'biz-42' }), name: 'Cabalgata' },
+    })
+    createServicePrereservaRpcMock.mockResolvedValue({ data: 'booking-svc-1', error: null })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '3', booking_date: FUTURE_DATE, notes: '  Llegamos temprano  ' })
+    await expect(createServicePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-svc-1/confirmacion')
+
+    expect(createServicePrereservaRpcMock).toHaveBeenCalledWith({
+      p_tourist_id: 'user-1',
+      p_service_id: SERVICE_ID,
+      p_quantity: 3,
+      p_booking_date: FUTURE_DATE,
+      p_total_amount: 120000,
+      p_notes: 'Llegamos temprano',
+    })
+    expect(businessOwnerSingleMock).toHaveBeenCalled()
+    expect(sendBusinessBookingConfirmedEmailMock).toHaveBeenCalledWith(
+      'admin@mantur.co',
+      expect.objectContaining({ serviceName: 'Cabalgata', quantity: 3 }),
+    )
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('prices a fixed-pricing-unit service as a whole regardless of quantity, storing quantity 1', async () => {
+    serviceSingle.mockResolvedValue({
+      data: { ...serviceRow({ base_price: 200000, pricing_unit: 'fixed' }), name: 'Alquiler de salón' },
+    })
+    createServicePrereservaRpcMock.mockResolvedValue({ data: 'booking-svc-2', error: null })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '4', booking_date: FUTURE_DATE })
+    await expect(createServicePrereserva(fd)).rejects.toThrow('redirect:')
+
+    const payload = createServicePrereservaRpcMock.mock.calls[0][0]
+    expect(payload.p_total_amount).toBe(200000)
+    expect(payload.p_quantity).toBe(1)
+  })
+
+  it('does not let a failed notification email block the redirect', async () => {
+    serviceSingle.mockResolvedValue({ data: { ...serviceRow(), name: 'Cabalgata' } })
+    createServicePrereservaRpcMock.mockResolvedValue({ data: 'booking-svc-3', error: null })
+    businessOwnerSingleMock.mockRejectedValue(new Error('db down'))
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    await expect(createServicePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-svc-3/confirmacion')
+  })
+})
+
+describe('createGuideTourPrereserva', () => {
+  function tourRow(overrides: Partial<{ price: number; capacity: number | null; status: string; guide_id: string; name: string }> = {}) {
+    return {
+      id: TOUR_ID,
+      name: overrides.name ?? 'Recorrido nocturno',
+      price: overrides.price ?? 30000,
+      capacity: 'capacity' in overrides ? overrides.capacity : 8,
+      status: overrides.status ?? 'active',
+      guide_id: overrides.guide_id ?? 'guide-1',
+    }
+  }
+
+  it('rejects a non-UUID guide_tour_id before querying the DB', async () => {
+    const fd = formData({ guide_tour_id: 'not-a-uuid', people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourPrereserva(fd)
+    expect(result).toEqual({ error: 'No se encontró el servicio o tour seleccionado.' })
+    expect(guideTourSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the tour is missing or inactive', async () => {
+    guideTourSingle.mockResolvedValue({ data: null })
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourPrereserva(fd)
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+  })
+
+  it('rejects a people_count above capacity', async () => {
+    guideTourSingle.mockResolvedValue({ data: tourRow({ capacity: 4 }) })
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '5', booking_date: FUTURE_DATE })
+    const result = await createGuideTourPrereserva(fd)
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
+  })
+
+  it('rejects a past date', async () => {
+    guideTourSingle.mockResolvedValue({ data: tourRow() })
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: '2000-01-01' })
+    const result = await createGuideTourPrereserva(fd)
+    expect(result).toEqual({ error: 'La fecha debe ser hoy o en el futuro.' })
+  })
+
+  it('maps a date_unavailable RPC exception to the "unavailable" copy', async () => {
+    guideTourSingle.mockResolvedValue({ data: tourRow() })
+    createGuideTourPrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'date_unavailable' } })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourPrereserva(fd)
+
+    expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+  })
+
+  it('computes total from price × people_count, notifies the guide, and redirects', async () => {
+    guideTourSingle.mockResolvedValue({ data: tourRow({ price: 25000, guide_id: 'guide-99' }) })
+    createGuideTourPrereservaRpcMock.mockResolvedValue({ data: 'booking-tour-1', error: null })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '2', booking_date: FUTURE_DATE, notes: 'Punto de encuentro: plaza' })
+    await expect(createGuideTourPrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-tour-1/confirmacion')
+
+    expect(createGuideTourPrereservaRpcMock).toHaveBeenCalledWith({
+      p_tourist_id: 'user-1',
+      p_guide_tour_id: TOUR_ID,
+      p_quantity: 2,
+      p_booking_date: FUTURE_DATE,
+      p_total_amount: 50000,
+      p_notes: 'Punto de encuentro: plaza',
+    })
+    expect(guideProfileIdSingleMock).toHaveBeenCalled()
+    expect(sendGuideBookingConfirmedEmailMock).toHaveBeenCalledWith(
+      'admin@mantur.co',
+      expect.objectContaining({ tourName: 'Recorrido nocturno', quantity: 2 }),
+    )
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mis-reservas')
+  })
+
+  it('returns a generic error for any other RPC failure', async () => {
+    guideTourSingle.mockResolvedValue({ data: tourRow() })
+    createGuideTourPrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourPrereserva(fd)
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 })
