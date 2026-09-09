@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { normalizeColombianPhone } from '@/lib/phone'
-import { AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES } from '@/lib/validation'
+import { AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES, WEEKDAYS } from '@/lib/validation'
 
 type ActionResult = { error: string } | void
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -256,6 +256,81 @@ export async function setGuideAvailability(formData: FormData): Promise<ActionRe
   if (error) return { error: copy.generic }
 
   revalidatePath('/mi-perfil-guia/disponibilidad')
+}
+
+// Weekly recurring counterpart to setGuideAvailability — see
+// setBusinessWeeklyAvailability (mi-negocio/actions.ts) for the full
+// rationale, same shape here.
+export async function setGuideWeeklyAvailability(formData: FormData): Promise<ActionResult> {
+  const copy = guidesCopy.availability.errors
+  const { supabase, guideId } = await getAuthenticatedGuide()
+
+  const rawWeekday = formData.get('weekday') as string
+  const weekday = parseInt(rawWeekday, 10)
+  const status = formData.get('status') as string
+  if (!WEEKDAYS.has(weekday)) return { error: copy.generic }
+  if (!AVAILABILITY_STATUSES.has(status)) return { error: copy.generic }
+
+  const { error } = await supabase.from('provider_weekly_availability').upsert(
+    {
+      provider_type: 'guide',
+      provider_id: guideId,
+      weekday,
+      status,
+      source: 'provider_self_service',
+    },
+    { onConflict: 'provider_type,provider_id,weekday' },
+  )
+
+  if (error) return { error: copy.generic }
+
+  revalidatePath('/mi-perfil-guia/disponibilidad')
+}
+
+// Item-level counterpart to setGuideAvailability, for a single tour rather
+// than the whole guide profile. Ownership verified through the
+// guide_tour→tourist_guide→profile_id chain, mirroring
+// provider_availability_insert_own/_update_own's own 'guide_tour' branch
+// (20260920000000).
+export async function setGuideTourAvailability(formData: FormData): Promise<ActionResult> {
+  const copy = guidesCopy.tourAvailability.errors
+  const tourId = formData.get('providerId') as string
+  if (!UUID_RE.test(tourId)) return { error: copy.notFound }
+
+  const { supabase, userId, guideId } = await getAuthenticatedGuide()
+
+  const date = formData.get('date') as string
+  const status = formData.get('status') as string
+  if (!AVAILABILITY_DATE_RE.test(date)) return { error: copy.generic }
+  if (!AVAILABILITY_STATUSES.has(status)) return { error: copy.generic }
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (date < today) return { error: copy.pastDate }
+
+  const { data: tour } = await supabase
+    .from('guide_tours')
+    .select('id')
+    .eq('id', tourId)
+    .eq('guide_id', guideId)
+    .maybeSingle()
+
+  if (!tour) return { error: copy.notFound }
+
+  const { error } = await supabase.from('provider_availability').upsert(
+    {
+      provider_type: 'guide_tour',
+      provider_id: tourId,
+      date,
+      status,
+      source: 'provider_self_service',
+      resolved_by: userId,
+    },
+    { onConflict: 'provider_type,provider_id,date' },
+  )
+
+  if (error) return { error: copy.generic }
+
+  revalidatePath(`/mi-perfil-guia/tours/${tourId}/disponibilidad`)
 }
 
 export async function toggleGuideAvailability(): Promise<ActionResult> {

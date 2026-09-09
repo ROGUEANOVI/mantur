@@ -35,6 +35,27 @@ const toggleUpdateMock = vi.fn()
 const userStorageUpload = vi.fn()
 const userStorageRemove = vi.fn()
 const payoutAccountUpsertMock = vi.fn()
+const providerAvailabilityUpsertMock = vi.fn()
+const providerWeeklyAvailabilityUpsertMock = vi.fn()
+const routeInsertMock = vi.fn()
+const routeUpdateSelectMock = vi.fn()
+const routeAvailabilityMaybeSingle = vi.fn() // select('id').eq(id).eq(transporter_id).maybeSingle() — setTransporterRouteAvailability
+
+function transporterRoutesUserTable() {
+  return {
+    insert: (payload: unknown) => routeInsertMock(payload),
+    update: (payload: unknown) => ({
+      eq: (col1: string, val1: string) => ({
+        eq: (col2: string, val2: string) => ({
+          select: () => routeUpdateSelectMock(payload, col1, val1, col2, val2),
+        }),
+      }),
+    }),
+    select: () => ({
+      eq: () => ({ eq: () => ({ maybeSingle: routeAvailabilityMaybeSingle }) }),
+    }),
+  }
+}
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -54,6 +75,13 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'transporter_payout_accounts') {
         return { upsert: (payload: unknown, opts: unknown) => payoutAccountUpsertMock(payload, opts) }
       }
+      if (table === 'provider_availability') {
+        return { upsert: (payload: unknown, opts: unknown) => providerAvailabilityUpsertMock(payload, opts) }
+      }
+      if (table === 'provider_weekly_availability') {
+        return { upsert: (payload: unknown, opts: unknown) => providerWeeklyAvailabilityUpsertMock(payload, opts) }
+      }
+      if (table === 'transporter_routes') return transporterRoutesUserTable()
       throw new Error(`unexpected table on user client: ${table}`)
     },
     storage: {
@@ -91,8 +119,19 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
-const { toggleAvailability, acceptTransportRequest, markCompleted, updateTransporterProfile, saveTransporterPayoutAccount } =
-  await import('./actions')
+const {
+  toggleAvailability,
+  acceptTransportRequest,
+  markCompleted,
+  updateTransporterProfile,
+  saveTransporterPayoutAccount,
+  setTransporterAvailability,
+  setTransporterWeeklyAvailability,
+  setTransporterRouteAvailability,
+  createTransporterRoute,
+  updateTransporterRoute,
+  toggleTransporterRouteStatus,
+} = await import('./actions')
 
 function formData(fields: Record<string, string | File>) {
   const fd = new FormData()
@@ -504,5 +543,361 @@ describe('saveTransporterPayoutAccount', () => {
     const result = await saveTransporterPayoutAccount(formData(VALID_FIELDS))
 
     expect(result).toEqual({ error: 'No se pudo guardar la cuenta de pagos. Intenta de nuevo.' })
+  })
+})
+
+describe('setTransporterAvailability', () => {
+  it('rejects a malformed date', async () => {
+    const result = await setTransporterAvailability(formData({ date: '01/01/2099', status: 'unavailable' }))
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid status', async () => {
+    const result = await setTransporterAvailability(formData({ date: FUTURE_DATE, status: 'closed' }))
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a past date', async () => {
+    const result = await setTransporterAvailability(formData({ date: '2000-01-01', status: 'unavailable' }))
+    expect(result).toEqual({ error: 'No puedes marcar una fecha pasada.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts a self-service unavailable row scoped to the caller\'s own transporterId', async () => {
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await setTransporterAvailability(formData({ date: FUTURE_DATE, status: 'unavailable' }))
+
+    expect(result).toBeUndefined()
+    const [payload, opts] = providerAvailabilityUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      provider_type: 'transporter',
+      provider_id: TRANSPORTER_ID,
+      date: FUTURE_DATE,
+      status: 'unavailable',
+      source: 'provider_self_service',
+      resolved_by: 'user-1',
+    })
+    expect(opts).toEqual({ onConflict: 'provider_type,provider_id,date' })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte/disponibilidad')
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await setTransporterAvailability(formData({ date: FUTURE_DATE, status: 'unavailable' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('setTransporterWeeklyAvailability', () => {
+  it('rejects an out-of-range weekday', async () => {
+    const result = await setTransporterWeeklyAvailability(formData({ weekday: '7', status: 'unavailable' }))
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerWeeklyAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid status', async () => {
+    const result = await setTransporterWeeklyAvailability(formData({ weekday: '2', status: 'closed' }))
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerWeeklyAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts a self-service weekly row scoped to the caller\'s own transporterId', async () => {
+    providerWeeklyAvailabilityUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await setTransporterWeeklyAvailability(formData({ weekday: '2', status: 'unavailable' }))
+
+    expect(result).toBeUndefined()
+    const [payload, opts] = providerWeeklyAvailabilityUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      provider_type: 'transporter',
+      provider_id: TRANSPORTER_ID,
+      weekday: 2,
+      status: 'unavailable',
+      source: 'provider_self_service',
+    })
+    expect(opts).toEqual({ onConflict: 'provider_type,provider_id,weekday' })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte/disponibilidad')
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    providerWeeklyAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await setTransporterWeeklyAvailability(formData({ weekday: '2', status: 'unavailable' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('setTransporterRouteAvailability', () => {
+  const ROUTE_ID = '33333333-3333-3333-3333-333333333333'
+
+  it('rejects a non-UUID providerId without querying the DB', async () => {
+    const result = await setTransporterRouteAvailability(
+      formData({ providerId: 'not-a-uuid', date: FUTURE_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Ruta no encontrada.' })
+    expect(routeAvailabilityMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed date', async () => {
+    const result = await setTransporterRouteAvailability(
+      formData({ providerId: ROUTE_ID, date: '01/01/2099', status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a past date', async () => {
+    const result = await setTransporterRouteAvailability(
+      formData({ providerId: ROUTE_ID, date: '2000-01-01', status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'No puedes marcar una fecha pasada.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the route does not belong to the caller', async () => {
+    routeAvailabilityMaybeSingle.mockResolvedValue({ data: null })
+    const result = await setTransporterRouteAvailability(
+      formData({ providerId: ROUTE_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Ruta no encontrada.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts a self-service unavailable row scoped to this route', async () => {
+    routeAvailabilityMaybeSingle.mockResolvedValue({ data: { id: ROUTE_ID } })
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await setTransporterRouteAvailability(
+      formData({ providerId: ROUTE_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+
+    expect(result).toBeUndefined()
+    const [payload, opts] = providerAvailabilityUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      provider_type: 'transporter_route',
+      provider_id: ROUTE_ID,
+      date: FUTURE_DATE,
+      status: 'unavailable',
+      source: 'provider_self_service',
+      resolved_by: 'user-1',
+    })
+    expect(opts).toEqual({ onConflict: 'provider_type,provider_id,date' })
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/mi-perfil-transporte/rutas/${ROUTE_ID}/disponibilidad`)
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    routeAvailabilityMaybeSingle.mockResolvedValue({ data: { id: ROUTE_ID } })
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await setTransporterRouteAvailability(
+      formData({ providerId: ROUTE_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('createTransporterRoute', () => {
+  const VALID_ROUTE_FIELDS = {
+    origin: 'Casco urbano de Manaure',
+    destination: 'Balneario El Edén',
+    allows_one_way: 'on',
+  }
+
+  it('rejects missing origin/destination', async () => {
+    const result = await createTransporterRoute(formData({ allows_one_way: 'on' }))
+    expect(result).toEqual({ error: 'El origen y el destino son obligatorios.' })
+    expect(routeInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when neither modality is selected', async () => {
+    const result = await createTransporterRoute(
+      formData({ origin: 'A', destination: 'B' }),
+    )
+    expect(result).toEqual({ error: 'Selecciona al menos una modalidad (ida o ida y vuelta).' })
+    expect(routeInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid one-way price', async () => {
+    const result = await createTransporterRoute(
+      formData({ ...VALID_ROUTE_FIELDS, price_one_way: '-5' }),
+    )
+    expect(result).toEqual({ error: 'El precio debe ser un número positivo.' })
+    expect(routeInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a one-way price large enough to overflow the price_cents column', async () => {
+    const result = await createTransporterRoute(
+      formData({ ...VALID_ROUTE_FIELDS, price_one_way: '99999999999' }),
+    )
+    expect(result).toEqual({ error: 'El precio debe ser un número positivo.' })
+    expect(routeInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid round-trip price', async () => {
+    const result = await createTransporterRoute(
+      formData({ ...VALID_ROUTE_FIELDS, allows_round_trip: 'on', price_round_trip: '0' }),
+    )
+    expect(result).toEqual({ error: 'El precio debe ser un número positivo.' })
+    expect(routeInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid duration', async () => {
+    const result = await createTransporterRoute(
+      formData({ ...VALID_ROUTE_FIELDS, estimated_duration_minutes: '-1' }),
+    )
+    expect(result).toEqual({ error: 'La duración debe ser un número positivo.' })
+    expect(routeInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a duration longer than a day', async () => {
+    const result = await createTransporterRoute(
+      formData({ ...VALID_ROUTE_FIELDS, estimated_duration_minutes: '1441' }),
+    )
+    expect(result).toEqual({ error: 'La duración debe ser un número positivo.' })
+    expect(routeInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('inserts a route with only the selected modality priced, and redirects', async () => {
+    routeInsertMock.mockResolvedValue({ error: null })
+
+    await expect(
+      createTransporterRoute(
+        formData({
+          ...VALID_ROUTE_FIELDS,
+          allows_round_trip: 'on',
+          price_one_way: '15000',
+          price_round_trip: '25000',
+          estimated_duration_minutes: '20',
+          notes: 'Solo en temporada seca',
+        }),
+      ),
+    ).rejects.toThrow('redirect:/mi-perfil-transporte/rutas')
+
+    expect(routeInsertMock).toHaveBeenCalledWith({
+      transporter_id: TRANSPORTER_ID,
+      origin: 'Casco urbano de Manaure',
+      destination: 'Balneario El Edén',
+      allows_one_way: true,
+      allows_round_trip: true,
+      price_one_way_cents: 1_500_000,
+      price_round_trip_cents: 2_500_000,
+      estimated_duration_minutes: 20,
+      notes: 'Solo en temporada seca',
+      status: 'active',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte/rutas')
+  })
+
+  it('nulls out the price for a modality that is not offered, even if a price was submitted for it', async () => {
+    routeInsertMock.mockResolvedValue({ error: null })
+
+    await expect(
+      createTransporterRoute(formData({ ...VALID_ROUTE_FIELDS, price_round_trip: '25000' })),
+    ).rejects.toThrow('redirect:')
+
+    expect(routeInsertMock.mock.calls[0][0]).toMatchObject({
+      allows_round_trip: false,
+      price_round_trip_cents: null,
+    })
+  })
+
+  it('returns a generic error when the insert fails', async () => {
+    routeInsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await createTransporterRoute(formData(VALID_ROUTE_FIELDS))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('updateTransporterRoute', () => {
+  const ROUTE_ID = '33333333-3333-3333-3333-333333333333'
+  const VALID_ROUTE_FIELDS = {
+    origin: 'Casco urbano de Manaure',
+    destination: 'Balneario El Edén',
+    allows_one_way: 'on',
+  }
+
+  it('rejects a non-UUID routeId without querying the DB', async () => {
+    const result = await updateTransporterRoute('not-a-uuid', formData(VALID_ROUTE_FIELDS))
+    expect(result).toEqual({ error: 'Ruta no encontrada.' })
+    expect(routeUpdateSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing origin/destination', async () => {
+    const result = await updateTransporterRoute(ROUTE_ID, formData({ allows_one_way: 'on' }))
+    expect(result).toEqual({ error: 'El origen y el destino son obligatorios.' })
+    expect(routeUpdateSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when neither modality is selected', async () => {
+    const result = await updateTransporterRoute(ROUTE_ID, formData({ origin: 'A', destination: 'B' }))
+    expect(result).toEqual({ error: 'Selecciona al menos una modalidad (ida o ida y vuelta).' })
+    expect(routeUpdateSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('updates the route scoped to this transporter and returns success', async () => {
+    routeUpdateSelectMock.mockResolvedValue({ data: [{ id: ROUTE_ID }], error: null })
+
+    const result = await updateTransporterRoute(ROUTE_ID, formData(VALID_ROUTE_FIELDS))
+
+    expect(result).toEqual({ success: true })
+    const [payload, col1, val1, col2, val2] = routeUpdateSelectMock.mock.calls[0]
+    expect(payload).toMatchObject({ origin: 'Casco urbano de Manaure', allows_one_way: true, allows_round_trip: false })
+    expect([col1, val1, col2, val2]).toEqual(['id', ROUTE_ID, 'transporter_id', TRANSPORTER_ID])
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte/rutas')
+  })
+
+  it('returns a generic error when the update affects no rows (RLS block or wrong owner)', async () => {
+    routeUpdateSelectMock.mockResolvedValue({ data: [], error: null })
+
+    const result = await updateTransporterRoute(ROUTE_ID, formData(VALID_ROUTE_FIELDS))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('toggleTransporterRouteStatus', () => {
+  const ROUTE_ID = '33333333-3333-3333-3333-333333333333'
+
+  it('rejects a non-UUID routeId without querying the DB', async () => {
+    const result = await toggleTransporterRouteStatus('not-a-uuid', 'active')
+    expect(result).toEqual({ error: 'Ruta no encontrada.' })
+    expect(routeUpdateSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('flips active to inactive, scoped to this transporter', async () => {
+    routeUpdateSelectMock.mockResolvedValue({ data: [{ id: ROUTE_ID }], error: null })
+
+    const result = await toggleTransporterRouteStatus(ROUTE_ID, 'active')
+
+    expect(result).toBeUndefined()
+    const [payload, col1, val1, col2, val2] = routeUpdateSelectMock.mock.calls[0]
+    expect(payload).toEqual({ status: 'inactive' })
+    expect([col1, val1, col2, val2]).toEqual(['id', ROUTE_ID, 'transporter_id', TRANSPORTER_ID])
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte/rutas')
+  })
+
+  it('flips inactive to active', async () => {
+    routeUpdateSelectMock.mockResolvedValue({ data: [{ id: ROUTE_ID }], error: null })
+
+    await toggleTransporterRouteStatus(ROUTE_ID, 'inactive')
+
+    expect(routeUpdateSelectMock.mock.calls[0][0]).toEqual({ status: 'active' })
+  })
+
+  it('returns a generic error when the update affects no rows', async () => {
+    routeUpdateSelectMock.mockResolvedValue({ data: [], error: null })
+
+    const result = await toggleTransporterRouteStatus(ROUTE_ID, 'active')
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 })

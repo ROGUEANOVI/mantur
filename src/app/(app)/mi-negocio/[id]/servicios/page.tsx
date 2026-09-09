@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Plus, Clock, Users, ChevronLeft, Pencil } from 'lucide-react'
+import { Plus, Clock, Users, ChevronLeft, Pencil, CalendarDays } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy, businessesCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
@@ -160,13 +160,22 @@ function ServiceCard({ service: svc, businessId }: { service: Service; businessI
           serviceId={svc.id}
           currentStatus={svc.status as 'active' | 'inactive'}
         />
-        <Link
-          href={`/mi-negocio/${businessId}/servicios/${svc.id}/editar`}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-11 py-2"
-        >
-          <Pencil className="size-3.5" aria-hidden="true" />
-          {miNegocioCopy.services.editButton}
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/mi-negocio/${businessId}/servicios/${svc.id}/disponibilidad`}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-11 py-2"
+          >
+            <CalendarDays className="size-3.5" aria-hidden="true" />
+            {miNegocioCopy.services.availabilityButton}
+          </Link>
+          <Link
+            href={`/mi-negocio/${businessId}/servicios/${svc.id}/editar`}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-11 py-2"
+          >
+            <Pencil className="size-3.5" aria-hidden="true" />
+            {miNegocioCopy.services.editButton}
+          </Link>
+        </div>
       </div>
     </div>
   )

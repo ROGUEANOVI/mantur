@@ -75,6 +75,7 @@ const serviceInsertMock = vi.fn()
 const serviceUpdateSelect = vi.fn()
 const serviceMaybeSingle = vi.fn() // select(...).eq(id).maybeSingle() — upload/deleteServiceImage, request/confirmServiceVideoUpload, deleteServiceVideo
 const existingServiceSingle = vi.fn() // select('service_types(slug)').eq(id).single() — updateService
+const serviceAvailabilityMaybeSingle = vi.fn() // select('id, business_id, businesses!inner(owner_id)')... .maybeSingle() — setServiceAvailability
 
 function businessesUserTable() {
   return {
@@ -131,6 +132,9 @@ function servicesUserTable() {
         // instead of trusting a service_type_id on the update payload.
         return { eq: () => ({ single: existingServiceSingle }) }
       }
+      if (cols === 'id, business_id, businesses!inner(owner_id)') {
+        return { eq: () => ({ eq: () => ({ maybeSingle: serviceAvailabilityMaybeSingle }) }) }
+      }
       return { eq: () => ({ maybeSingle: serviceMaybeSingle }) }
     },
   }
@@ -153,6 +157,7 @@ const userStorageUpload = vi.fn()
 const userStorageRemove = vi.fn()
 const payoutAccountUpsertMock = vi.fn()
 const providerAvailabilityUpsertMock = vi.fn()
+const providerWeeklyAvailabilityUpsertMock = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -168,6 +173,9 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       if (table === 'provider_availability') {
         return { upsert: (payload: unknown, opts: unknown) => providerAvailabilityUpsertMock(payload, opts) }
+      }
+      if (table === 'provider_weekly_availability') {
+        return { upsert: (payload: unknown, opts: unknown) => providerWeeklyAvailabilityUpsertMock(payload, opts) }
       }
       throw new Error(`unexpected table on user client: ${table}`)
     },
@@ -216,6 +224,8 @@ const {
   createService,
   updateService,
   toggleServiceStatus,
+  setBusinessWeeklyAvailability,
+  setServiceAvailability,
   uploadBusinessImage,
   uploadServiceImage,
   deleteServiceImage,
@@ -1667,6 +1677,154 @@ describe('setBusinessAvailability', () => {
 
     const result = await setBusinessAvailability(
       formData({ businessId: BIZ_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('setBusinessWeeklyAvailability', () => {
+  it('rejects a non-UUID businessId without querying the DB', async () => {
+    const result = await setBusinessWeeklyAvailability(
+      formData({ businessId: 'not-a-uuid', weekday: '2', status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(businessOwnershipSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects an out-of-range weekday', async () => {
+    const result = await setBusinessWeeklyAvailability(
+      formData({ businessId: BIZ_ID, weekday: '7', status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerWeeklyAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid status', async () => {
+    const result = await setBusinessWeeklyAvailability(
+      formData({ businessId: BIZ_ID, weekday: '2', status: 'closed' }),
+    )
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerWeeklyAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the business does not belong to the caller', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: null })
+    const result = await setBusinessWeeklyAvailability(
+      formData({ businessId: BIZ_ID, weekday: '2', status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(providerWeeklyAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts a self-service weekly row scoped to this business', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    providerWeeklyAvailabilityUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await setBusinessWeeklyAvailability(
+      formData({ businessId: BIZ_ID, weekday: '2', status: 'unavailable' }),
+    )
+
+    expect(result).toBeUndefined()
+    const [payload, opts] = providerWeeklyAvailabilityUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      provider_type: 'business',
+      provider_id: BIZ_ID,
+      weekday: 2,
+      status: 'unavailable',
+      source: 'provider_self_service',
+    })
+    expect(opts).toEqual({ onConflict: 'provider_type,provider_id,weekday' })
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/mi-negocio/${BIZ_ID}/disponibilidad`)
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    providerWeeklyAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await setBusinessWeeklyAvailability(
+      formData({ businessId: BIZ_ID, weekday: '2', status: 'unavailable' }),
+    )
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('setServiceAvailability', () => {
+  const FUTURE_DATE = '2099-01-01'
+  const PAST_DATE = '2000-01-01'
+
+  it('rejects a non-UUID providerId without querying the DB', async () => {
+    const result = await setServiceAvailability(
+      formData({ providerId: 'not-a-uuid', date: FUTURE_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
+    expect(serviceAvailabilityMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed date', async () => {
+    const result = await setServiceAvailability(
+      formData({ providerId: SERVICE_ID, date: '01/01/2099', status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid status', async () => {
+    const result = await setServiceAvailability(
+      formData({ providerId: SERVICE_ID, date: FUTURE_DATE, status: 'closed' }),
+    )
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a past date', async () => {
+    const result = await setServiceAvailability(
+      formData({ providerId: SERVICE_ID, date: PAST_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'No puedes marcar una fecha pasada.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the service does not belong to a business owned by the caller', async () => {
+    serviceAvailabilityMaybeSingle.mockResolvedValue({ data: null })
+    const result = await setServiceAvailability(
+      formData({ providerId: SERVICE_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Servicio no encontrado.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts a self-service unavailable row scoped to this service', async () => {
+    serviceAvailabilityMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, business_id: BIZ_ID } })
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await setServiceAvailability(
+      formData({ providerId: SERVICE_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+
+    expect(result).toBeUndefined()
+    const [payload, opts] = providerAvailabilityUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      provider_type: 'service',
+      provider_id: SERVICE_ID,
+      date: FUTURE_DATE,
+      status: 'unavailable',
+      source: 'provider_self_service',
+      resolved_by: USER_ID,
+    })
+    expect(opts).toEqual({ onConflict: 'provider_type,provider_id,date' })
+    expect(revalidatePathMock).toHaveBeenCalledWith(
+      `/mi-negocio/${BIZ_ID}/servicios/${SERVICE_ID}/disponibilidad`,
+    )
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    serviceAvailabilityMaybeSingle.mockResolvedValue({ data: { id: SERVICE_ID, business_id: BIZ_ID } })
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await setServiceAvailability(
+      formData({ providerId: SERVICE_ID, date: FUTURE_DATE, status: 'unavailable' }),
     )
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })

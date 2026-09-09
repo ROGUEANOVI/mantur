@@ -1,13 +1,17 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { redirect, notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
 import AvailabilityCalendar from '@/components/shared/AvailabilityCalendar'
-import WeeklyAvailabilityPattern from '@/components/shared/WeeklyAvailabilityPattern'
-import { setGuideAvailability, setGuideWeeklyAvailability } from '../actions'
+import { setGuideTourAvailability } from '../../../actions'
 
-export default async function GuideAvailabilityPage() {
+export default async function GuideTourAvailabilityPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id: tourId } = await params
   const supabase = await createClient()
   const {
     data: { user },
@@ -31,26 +35,26 @@ export default async function GuideAvailabilityPage() {
 
   if (!guide) redirect('/')
 
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
-  const [dateRows, weeklyRows] = await Promise.all([
-    supabase
-      .from('provider_availability')
-      .select('date')
-      .eq('provider_type', 'guide')
-      .eq('provider_id', guide.id)
-      .eq('status', 'unavailable')
-      .gte('date', today),
-    supabase
-      .from('provider_weekly_availability')
-      .select('weekday')
-      .eq('provider_type', 'guide')
-      .eq('provider_id', guide.id)
-      .eq('status', 'unavailable'),
-  ])
+  const { data: tour } = await supabase
+    .from('guide_tours')
+    .select('id, name')
+    .eq('id', tourId)
+    .eq('guide_id', guide.id)
+    .maybeSingle()
 
-  const unavailableDates = (dateRows.data ?? []).map((r) => r.date as string)
-  const unavailableWeekdays = (weeklyRows.data ?? []).map((r) => r.weekday as number)
-  const copy = guidesCopy.availability
+  if (!tour) notFound()
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  const { data: rows } = await supabase
+    .from('provider_availability')
+    .select('date')
+    .eq('provider_type', 'guide_tour')
+    .eq('provider_id', tour.id)
+    .eq('status', 'unavailable')
+    .gte('date', today)
+
+  const unavailableDates = (rows ?? []).map((r) => r.date as string)
+  const copy = guidesCopy.tourAvailability
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
@@ -64,22 +68,14 @@ export default async function GuideAvailabilityPage() {
         </Link>
 
         <div>
-          <h1 className="text-xl font-bold text-foreground">{copy.title}</h1>
+          <h1 className="text-xl font-bold text-foreground">{tour.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">{copy.subtitle}</p>
         </div>
 
-        <WeeklyAvailabilityPattern
-          providerType="guide"
-          providerId={guide.id}
-          action={setGuideWeeklyAvailability}
-          unavailableWeekdays={unavailableWeekdays}
-          copy={copy}
-        />
-
         <AvailabilityCalendar
-          providerType="guide"
-          providerId={guide.id}
-          action={setGuideAvailability}
+          providerType="guide_tour"
+          providerId={tour.id}
+          action={setGuideTourAvailability}
           unavailableDates={unavailableDates}
           copy={copy}
         />

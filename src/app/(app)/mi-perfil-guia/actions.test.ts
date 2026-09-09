@@ -34,6 +34,7 @@ const currentAvailabilitySingle = vi.fn()
 const touristGuidesUpdateMock = vi.fn()
 const tourStatusReadSingle = vi.fn()
 const tourStatusReadEqMock = vi.fn()
+const tourAvailabilityMaybeSingle = vi.fn() // select('id').eq(id).eq(guide_id).maybeSingle() — setGuideTourAvailability
 const tourImagesMaybeSingleEqMock = vi.fn()
 
 function touristGuidesUserTable() {
@@ -55,7 +56,7 @@ function guideToursUserTable() {
       eq: (col1: string, val1: string) => ({
         eq: (col2: string, val2: string) => {
           tourStatusReadEqMock(col1, val1, col2, val2)
-          return { single: tourStatusReadSingle }
+          return { single: tourStatusReadSingle, maybeSingle: tourAvailabilityMaybeSingle }
         },
       }),
     }),
@@ -66,6 +67,7 @@ const userStorageUpload = vi.fn()
 const userStorageRemove = vi.fn()
 const payoutAccountUpsertMock = vi.fn()
 const providerAvailabilityUpsertMock = vi.fn()
+const providerWeeklyAvailabilityUpsertMock = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -79,6 +81,9 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       if (table === 'provider_availability') {
         return { upsert: (payload: unknown, opts: unknown) => providerAvailabilityUpsertMock(payload, opts) }
+      }
+      if (table === 'provider_weekly_availability') {
+        return { upsert: (payload: unknown, opts: unknown) => providerWeeklyAvailabilityUpsertMock(payload, opts) }
       }
       throw new Error(`unexpected table on user client: ${table}`)
     },
@@ -157,6 +162,8 @@ const {
   deleteTourImage,
   saveGuidePayoutAccount,
   setGuideAvailability,
+  setGuideWeeklyAvailability,
+  setGuideTourAvailability,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[] | File>) {
@@ -810,6 +817,125 @@ describe('setGuideAvailability', () => {
     providerAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
 
     const result = await setGuideAvailability(formData({ date: FUTURE_DATE, status: 'unavailable' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('setGuideWeeklyAvailability', () => {
+  it('rejects an out-of-range weekday', async () => {
+    const result = await setGuideWeeklyAvailability(formData({ weekday: '7', status: 'unavailable' }))
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerWeeklyAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid status', async () => {
+    const result = await setGuideWeeklyAvailability(formData({ weekday: '2', status: 'closed' }))
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerWeeklyAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts a self-service weekly row scoped to the caller\'s own guideId', async () => {
+    providerWeeklyAvailabilityUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await setGuideWeeklyAvailability(formData({ weekday: '2', status: 'unavailable' }))
+
+    expect(result).toBeUndefined()
+    const [payload, opts] = providerWeeklyAvailabilityUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      provider_type: 'guide',
+      provider_id: GUIDE_ID,
+      weekday: 2,
+      status: 'unavailable',
+      source: 'provider_self_service',
+    })
+    expect(opts).toEqual({ onConflict: 'provider_type,provider_id,weekday' })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-guia/disponibilidad')
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    providerWeeklyAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await setGuideWeeklyAvailability(formData({ weekday: '2', status: 'unavailable' }))
+
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+describe('setGuideTourAvailability', () => {
+  const FUTURE_DATE = '2099-01-01'
+  const PAST_DATE = '2000-01-01'
+
+  it('rejects a non-UUID providerId without querying the DB', async () => {
+    const result = await setGuideTourAvailability(
+      formData({ providerId: 'not-a-uuid', date: FUTURE_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Tour no encontrado.' })
+    expect(tourAvailabilityMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed date', async () => {
+    const result = await setGuideTourAvailability(
+      formData({ providerId: TOUR_ID, date: '01/01/2099', status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid status', async () => {
+    const result = await setGuideTourAvailability(
+      formData({ providerId: TOUR_ID, date: FUTURE_DATE, status: 'closed' }),
+    )
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a past date', async () => {
+    const result = await setGuideTourAvailability(
+      formData({ providerId: TOUR_ID, date: PAST_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'No puedes marcar una fecha pasada.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the tour does not belong to the caller', async () => {
+    tourAvailabilityMaybeSingle.mockResolvedValue({ data: null })
+    const result = await setGuideTourAvailability(
+      formData({ providerId: TOUR_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+    expect(result).toEqual({ error: 'Tour no encontrado.' })
+    expect(providerAvailabilityUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts a self-service unavailable row scoped to this tour', async () => {
+    tourAvailabilityMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID } })
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: null })
+
+    const result = await setGuideTourAvailability(
+      formData({ providerId: TOUR_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
+
+    expect(result).toBeUndefined()
+    const [payload, opts] = providerAvailabilityUpsertMock.mock.calls[0]
+    expect(payload).toEqual({
+      provider_type: 'guide_tour',
+      provider_id: TOUR_ID,
+      date: FUTURE_DATE,
+      status: 'unavailable',
+      source: 'provider_self_service',
+      resolved_by: USER_ID,
+    })
+    expect(opts).toEqual({ onConflict: 'provider_type,provider_id,date' })
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/mi-perfil-guia/tours/${TOUR_ID}/disponibilidad`)
+  })
+
+  it('returns a generic error when the upsert fails', async () => {
+    tourAvailabilityMaybeSingle.mockResolvedValue({ data: { id: TOUR_ID } })
+    providerAvailabilityUpsertMock.mockResolvedValue({ error: { message: 'db error' } })
+
+    const result = await setGuideTourAvailability(
+      formData({ providerId: TOUR_ID, date: FUTURE_DATE, status: 'unavailable' }),
+    )
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })

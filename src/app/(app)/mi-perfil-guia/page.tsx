@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone, Settings, ChevronRight } from 'lucide-react'
+import { Plus, Clock, Users, Pencil, CalendarDays, Banknote, Phone, Settings, ChevronRight, CalendarClock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
@@ -249,13 +249,22 @@ export default async function MiPerfilGuiaPage() {
                           {isActive ? copy.toggleInactive : copy.toggleActive}
                         </button>
                       </form>
-                      <Link
-                        href={`/mi-perfil-guia/tours/${tour.id}/editar`}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-11 py-2"
-                      >
-                        <Pencil className="size-3.5" aria-hidden="true" />
-                        {copy.editTour}
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/mi-perfil-guia/tours/${tour.id}/disponibilidad`}
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-11 py-2"
+                        >
+                          <CalendarClock className="size-3.5" aria-hidden="true" />
+                          {copy.tourAvailabilityButton}
+                        </Link>
+                        <Link
+                          href={`/mi-perfil-guia/tours/${tour.id}/editar`}
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-11 py-2"
+                        >
+                          <Pencil className="size-3.5" aria-hidden="true" />
+                          {copy.editTour}
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 )

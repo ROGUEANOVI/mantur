@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Car, MapPin, Calendar, Users, Phone, FileText } from 'lucide-react'
+import { Car, MapPin, Calendar, Users, Phone, FileText, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
 import { acceptTransportRequest, markCompleted } from '@/app/(app)/mi-perfil-transporte/actions'
@@ -158,6 +158,22 @@ export default async function MiPerfilTransportePage() {
               <span className="ml-auto text-xs text-muted-foreground font-normal">
                 {transportCopy.editProfile.statusLabels[transporter.verification_status] ?? transporter.verification_status}
               </span>
+            </Link>
+
+            <Link
+              href="/mi-perfil-transporte/disponibilidad"
+              className="flex items-center justify-between text-sm font-medium text-primary hover:underline underline-offset-4 min-h-11"
+            >
+              {transportCopy.availability.title}
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Link>
+
+            <Link
+              href="/mi-perfil-transporte/rutas"
+              className="flex items-center justify-between text-sm font-medium text-primary hover:underline underline-offset-4 min-h-11"
+            >
+              {transportCopy.routes.title}
+              <ChevronRight className="size-4" aria-hidden="true" />
             </Link>
           </div>
         </div>

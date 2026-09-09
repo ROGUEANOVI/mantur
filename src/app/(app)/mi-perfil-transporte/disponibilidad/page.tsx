@@ -1,62 +1,66 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { miNegocioCopy } from '@/lib/copy/businesses'
+import { transportCopy } from '@/lib/copy/transport'
 import AvailabilityCalendar from '@/components/shared/AvailabilityCalendar'
 import WeeklyAvailabilityPattern from '@/components/shared/WeeklyAvailabilityPattern'
-import { setBusinessAvailability, setBusinessWeeklyAvailability } from '../../actions'
+import { setTransporterAvailability, setTransporterWeeklyAvailability } from '../actions'
 
-export default async function BusinessAvailabilityPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
+export default async function TransporterAvailabilityPage() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { data: business } = await supabase
-    .from('businesses')
-    .select('id, name')
-    .eq('id', id)
-    .eq('owner_id', user!.id)
-    .maybeSingle()
+  if (!user) redirect('/login')
 
-  if (!business) notFound()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'transporter') redirect('/')
+
+  const { data: transporter } = await supabase
+    .from('transporters')
+    .select('id')
+    .eq('profile_id', user.id)
+    .single()
+
+  if (!transporter) redirect('/')
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
   const [dateRows, weeklyRows] = await Promise.all([
     supabase
       .from('provider_availability')
       .select('date')
-      .eq('provider_type', 'business')
-      .eq('provider_id', business.id)
+      .eq('provider_type', 'transporter')
+      .eq('provider_id', transporter.id)
       .eq('status', 'unavailable')
       .gte('date', today),
     supabase
       .from('provider_weekly_availability')
       .select('weekday')
-      .eq('provider_type', 'business')
-      .eq('provider_id', business.id)
+      .eq('provider_type', 'transporter')
+      .eq('provider_id', transporter.id)
       .eq('status', 'unavailable'),
   ])
 
   const unavailableDates = (dateRows.data ?? []).map((r) => r.date as string)
   const unavailableWeekdays = (weeklyRows.data ?? []).map((r) => r.weekday as number)
-  const copy = miNegocioCopy.availability
+  const copy = transportCopy.availability
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg space-y-5">
         <Link
-          href={`/mi-negocio/${business.id}`}
+          href="/mi-perfil-transporte"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-primary min-h-11 py-2 hover:underline underline-offset-4"
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
-          {copy.backToBusiness}
+          {copy.backToPanel}
         </Link>
 
         <div>
@@ -65,17 +69,17 @@ export default async function BusinessAvailabilityPage({
         </div>
 
         <WeeklyAvailabilityPattern
-          providerType="business"
-          providerId={business.id}
-          action={setBusinessWeeklyAvailability}
+          providerType="transporter"
+          providerId={transporter.id}
+          action={setTransporterWeeklyAvailability}
           unavailableWeekdays={unavailableWeekdays}
           copy={copy}
         />
 
         <AvailabilityCalendar
-          providerType="business"
-          providerId={business.id}
-          action={setBusinessAvailability}
+          providerType="transporter"
+          providerId={transporter.id}
+          action={setTransporterAvailability}
           unavailableDates={unavailableDates}
           copy={copy}
         />
