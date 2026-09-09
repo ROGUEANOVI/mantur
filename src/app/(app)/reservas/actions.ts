@@ -380,6 +380,7 @@ export async function createServicePrereserva(formData: FormData): Promise<Booki
 
   if (rpcError || !bookingId) {
     if (rpcError?.message === 'date_unavailable') return { error: bookingsCopy.errors.unavailable }
+    if (rpcError?.message === 'capacity_exceeded') return { error: bookingsCopy.errors.capacityExceeded }
     return { error: bookingsCopy.errors.generic }
   }
 
@@ -561,6 +562,7 @@ export async function createGuideTourPrereserva(formData: FormData): Promise<Boo
 
   if (rpcError || !bookingId) {
     if (rpcError?.message === 'date_unavailable') return { error: bookingsCopy.errors.unavailable }
+    if (rpcError?.message === 'capacity_exceeded') return { error: bookingsCopy.errors.capacityExceeded }
     return { error: bookingsCopy.errors.generic }
   }
 

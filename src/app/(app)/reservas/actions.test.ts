@@ -937,6 +937,16 @@ describe('createServicePrereserva', () => {
     expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
   })
 
+  it('maps a capacity_exceeded RPC exception (other confirmed bookings already fill the date) to the capacity copy', async () => {
+    serviceSingle.mockResolvedValue({ data: { ...serviceRow(), name: 'Cabalgata' } })
+    createServicePrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'capacity_exceeded' } })
+
+    const fd = formData({ service_id: SERVICE_ID, quantity: '1', booking_date: FUTURE_DATE })
+    const result = await createServicePrereserva(fd)
+
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
+  })
+
   it('returns a generic error for any other RPC failure', async () => {
     serviceSingle.mockResolvedValue({ data: { ...serviceRow(), name: 'Cabalgata' } })
     createServicePrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
@@ -1044,6 +1054,16 @@ describe('createGuideTourPrereserva', () => {
     const result = await createGuideTourPrereserva(fd)
 
     expect(result).toEqual({ error: 'Esto no está disponible en este momento.' })
+  })
+
+  it('maps a capacity_exceeded RPC exception (other confirmed bookings already fill the date) to the capacity copy', async () => {
+    guideTourSingle.mockResolvedValue({ data: tourRow() })
+    createGuideTourPrereservaRpcMock.mockResolvedValue({ data: null, error: { message: 'capacity_exceeded' } })
+
+    const fd = formData({ guide_tour_id: TOUR_ID, people_count: '1', booking_date: FUTURE_DATE })
+    const result = await createGuideTourPrereserva(fd)
+
+    expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
   })
 
   it('computes total from price × people_count, notifies the guide, and redirects', async () => {
