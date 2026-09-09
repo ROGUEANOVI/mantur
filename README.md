@@ -1,6 +1,8 @@
 # ManTur — Turismo con alma local
 
-A tourism marketplace for **Manaure Balcón del Cesar** (Cesar, Colombia), connecting three actors: tourists, business owners, and local motocarro drivers (transporters).
+A mobile-first tourism marketplace for **Manaure Balcón del Cesar** (Cesar,
+Colombia), connecting tourists, business owners, local motocarro transporters,
+tourist guides, and ManTur as a tour-package operator.
 
 Live: [mantur.co](https://mantur.co)
 
@@ -24,7 +26,7 @@ Live: [mantur.co](https://mantur.co)
 | Language | TypeScript |
 | Styling | Tailwind CSS v4 + shadcn/ui Vega |
 | Database | Supabase (Postgres + Auth + Storage + RLS) |
-| Payments | Wompi (Colombian gateway) — sandbox for MVP |
+| Payments | Wompi (Colombian gateway) + Alegra invoicing; direct service and guide payments are currently dormant during manual operations |
 | Hosting | Vercel |
 
 ---
@@ -116,4 +118,6 @@ supabase/
 3. Run `npm run build` before opening a PR — zero TypeScript errors required.
 4. Never commit directly to `main`.
 
-See `CLAUDE.md` for full project memory and architecture decisions.
+See `AGENTS.md` for shared agent instructions, `docs/current-state.md` for the
+live operating model, and `docs/architecture.md` for architecture decisions.
+Claude Code-specific additions live in `CLAUDE.md`.
