@@ -340,7 +340,15 @@ CREATE POLICY "provider_weekly_availability_update_own"
 --
 -- An item is available on a date only if BOTH its own resolution AND its
 -- parent provider's resolution say available — the inheritance the two
--- prereserva RPCs (added in a later migration) rely on.
+-- prereserva RPCs (added in a later migration) rely on. Because of this AND,
+-- an item's own explicit 'available' override can never rescue a date its
+-- parent has closed — "wins outright" above describes step (1) resolving
+-- the ENTITY's own status in isolation, not a bypass of the parent check.
+-- The implementation reflects this directly: only item_status =
+-- 'unavailable' short-circuits early (a real override, in the blocking
+-- direction); an item_status of 'available' or NULL both fall through to
+-- the parent check identically, since either way the item itself isn't
+-- what's blocking the date.
 --
 -- SECURITY DEFINER + SET search_path = '' since it reads provider_availability
 -- and provider_weekly_availability directly, bypassing RLS by design — this
