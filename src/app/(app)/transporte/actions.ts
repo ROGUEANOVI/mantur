@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { transportCopy } from '@/lib/copy/transport'
 import { transportRequestRateLimit, transporterReviewRateLimit, checkRateLimit } from '@/lib/rate-limit'
+import { sendTransporterRouteRequestPendingEmail } from '@/lib/email/bookingEmails'
 
 type ActionResult = { error: string } | void
 type ReviewResult = { error: string } | { success: true }
@@ -56,16 +57,23 @@ export async function createTransportRequest(
   const routeId = (formData.get('transporter_route_id') as string | null)?.trim() || null
   let origin = (formData.get('origin') as string)?.trim()
   let destination = (formData.get('destination') as string)?.trim()
+  let routeTransporterId: string | null = null
 
   if (routeId) {
     if (!UUID_RE.test(routeId)) return { error: copy.missingFields }
 
     const { data: route } = await supabase
       .from('transporter_routes')
-      .select('origin, destination, allows_one_way, allows_round_trip')
+      .select('origin, destination, allows_one_way, allows_round_trip, transporter_id')
       .eq('id', routeId)
       .eq('status', 'active')
-      .single<{ origin: string; destination: string; allows_one_way: boolean; allows_round_trip: boolean }>()
+      .single<{
+        origin: string
+        destination: string
+        allows_one_way: boolean
+        allows_round_trip: boolean
+        transporter_id: string
+      }>()
 
     if (!route) return { error: copy.requestNotFound }
 
@@ -74,6 +82,7 @@ export async function createTransportRequest(
 
     origin = route.origin
     destination = route.destination
+    routeTransporterId = route.transporter_id
   }
 
   const rawDatetime = (formData.get('requested_datetime') as string)?.trim()
@@ -92,6 +101,31 @@ export async function createTransportRequest(
     return { error: copy.missingFields }
   }
 
+  // is_item_available() is service_role-only (REVOKE ALL FROM PUBLIC) — the
+  // one deliberate exception to this file's RLS-only posture (free-text
+  // requests never reach this branch). Re-checks server-side what
+  // BlockedDatesPicker already filtered client-side, same defense-in-depth
+  // reasoning as create_service_prereserva()'s own re-check. Does not
+  // change the request's status semantics: it still inserts at 'pending' —
+  // the transporter's explicit accept (acceptTransportRequest) remains the
+  // real gate, this only closes the bypassable-gate gap.
+  let admin: ReturnType<typeof createAdminClient> | null = null
+  if (routeId && routeTransporterId) {
+    admin = createAdminClient()
+    // rawDatetime is always `${pickedDate}T${pickedTime}` for a route
+    // request (TransportRequestForm.tsx) — slicing it keeps the exact date
+    // the tourist picked, avoiding any UTC shift from parsing it as a Date.
+    const requestedDateStr = rawDatetime.slice(0, 10)
+    const { data: available, error: availabilityError } = await admin.rpc('is_item_available', {
+      p_item_type: 'transporter_route',
+      p_item_id: routeId,
+      p_parent_type: 'transporter',
+      p_parent_id: routeTransporterId,
+      p_date: requestedDateStr,
+    })
+    if (availabilityError || !available) return { error: copy.dateUnavailable }
+  }
+
   const { error } = await supabase.from('transport_requests').insert({
     tourist_id: userId,
     origin,
@@ -105,8 +139,61 @@ export async function createTransportRequest(
 
   if (error) return { error: copy.generic }
 
+  if (routeId && routeTransporterId && admin) {
+    await notifyTransporterOfRouteRequest(admin, {
+      transporterId: routeTransporterId,
+      routeLabel: `${origin} → ${destination}`,
+      touristId: userId,
+      requestedDatetime: requestedDatetime.toISOString(),
+      peopleCount,
+    })
+  }
+
   revalidatePath('/mis-viajes')
   redirect('/mis-viajes')
+}
+
+// Never throws: an email delivery problem must not break the tourist's own
+// request flow, same reasoning as notifyBusinessOfServicePrereserva
+// (src/app/(app)/reservas/actions.ts). Informational-only — nothing is
+// confirmed yet, the transporter still has to accept.
+async function notifyTransporterOfRouteRequest(
+  admin: ReturnType<typeof createAdminClient>,
+  params: {
+    transporterId: string
+    routeLabel: string
+    touristId: string
+    requestedDatetime: string
+    peopleCount: number
+  },
+): Promise<void> {
+  try {
+    const { data: transporter } = await admin
+      .from('transporters')
+      .select('profile_id')
+      .eq('id', params.transporterId)
+      .single<{ profile_id: string }>()
+    if (!transporter) return
+
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', params.touristId)
+      .single<{ full_name: string | null }>()
+
+    const { data: transporterUserData } = await admin.auth.admin.getUserById(transporter.profile_id)
+    const transporterEmail = transporterUserData?.user?.email
+    if (!transporterEmail) return
+
+    await sendTransporterRouteRequestPendingEmail(transporterEmail, {
+      routeLabel: params.routeLabel,
+      touristName: touristProfile?.full_name ?? 'Un turista',
+      requestedDatetime: params.requestedDatetime,
+      peopleCount: params.peopleCount,
+    })
+  } catch (error) {
+    console.error('Unexpected error while notifying transporter of a new route request', error)
+  }
 }
 
 export async function cancelTransportRequest(formData: FormData): Promise<void> {

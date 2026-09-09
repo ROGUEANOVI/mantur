@@ -76,6 +76,7 @@ const serviceUpdateSelect = vi.fn()
 const serviceMaybeSingle = vi.fn() // select(...).eq(id).maybeSingle() — upload/deleteServiceImage, request/confirmServiceVideoUpload, deleteServiceVideo
 const existingServiceSingle = vi.fn() // select('service_types(slug)').eq(id).single() — updateService
 const serviceAvailabilityMaybeSingle = vi.fn() // select('id, business_id, businesses!inner(owner_id)')... .maybeSingle() — setServiceAvailability
+const bookingOwnershipMaybeSingle = vi.fn() // select(...).eq(id).eq(status).eq(businesses.owner_id)... .maybeSingle() — cancelServiceBooking
 
 function businessesUserTable() {
   return {
@@ -153,6 +154,14 @@ function categoryLinksUserTable() {
   }
 }
 
+function bookingsUserTable() {
+  return {
+    select: () => ({
+      eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: bookingOwnershipMaybeSingle }) }) }),
+    }),
+  }
+}
+
 const userStorageUpload = vi.fn()
 const userStorageRemove = vi.fn()
 const payoutAccountUpsertMock = vi.fn()
@@ -177,6 +186,7 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'provider_weekly_availability') {
         return { upsert: (payload: unknown, opts: unknown) => providerWeeklyAvailabilityUpsertMock(payload, opts) }
       }
+      if (table === 'bookings') return bookingsUserTable()
       throw new Error(`unexpected table on user client: ${table}`)
     },
     storage: {
@@ -194,6 +204,9 @@ const storageUpload = vi.fn()
 const storageGetPublicUrl = vi.fn()
 const storageRemove = vi.fn()
 const storageCreateSignedUploadUrl = vi.fn()
+const bookingCancelUpdateSelectMock = vi.fn() // bookings.update({status:'cancelled'}).eq(id).eq(status).select('id') — cancelServiceBooking
+const touristProfileSingleMock = vi.fn() // profiles: select('full_name').eq(id).single() — cancelServiceBooking's email lookup
+const getUserByIdMock = vi.fn()
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
@@ -204,8 +217,19 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'services') {
         return { update: (payload: unknown) => ({ eq: (col: string, val: string) => adminServicesUpdate(payload, col, val) }) }
       }
+      if (table === 'bookings') {
+        return {
+          update: (payload: unknown) => ({
+            eq: () => ({ eq: () => ({ select: () => bookingCancelUpdateSelectMock(payload) }) }),
+          }),
+        }
+      }
+      if (table === 'profiles') {
+        return { select: () => ({ eq: () => ({ single: touristProfileSingleMock }) }) }
+      }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
+    auth: { admin: { getUserById: getUserByIdMock } },
     storage: {
       from: (bucket: string) => ({
         upload: (path: string, file: unknown, opts: unknown) => storageUpload(bucket, path, file, opts),
@@ -215,6 +239,19 @@ vi.mock('@/lib/supabase/admin', () => ({
       }),
     },
   })),
+}))
+
+const checkRateLimitMock = vi.fn()
+
+vi.mock('@/lib/rate-limit', () => ({
+  providerBookingCancelRateLimit: {},
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
+const sendServiceBookingCancelledEmailMock = vi.fn()
+
+vi.mock('@/lib/email/bookingEmails', () => ({
+  sendServiceBookingCancelledEmail: (...args: unknown[]) => sendServiceBookingCancelledEmailMock(...args),
 }))
 
 const {
@@ -238,6 +275,7 @@ const {
   deleteServiceVideo,
   savePayoutAccount,
   setBusinessAvailability,
+  cancelServiceBooking,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[] | File>) {
@@ -270,6 +308,9 @@ beforeEach(() => {
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
   userStorageUpload.mockResolvedValue({ error: null })
   userStorageRemove.mockResolvedValue({ error: null })
+  checkRateLimitMock.mockResolvedValue(true)
+  touristProfileSingleMock.mockResolvedValue({ data: { full_name: 'Ana Pérez' } })
+  getUserByIdMock.mockResolvedValue({ data: { user: { email: 'turista@example.com' } } })
 })
 
 function fakeRntFile(overrides: Partial<{ type: string; size: number }> = {}) {
@@ -1828,5 +1869,75 @@ describe('setServiceAvailability', () => {
     )
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+const BOOKING_ID = '66666666-6666-6666-6666-666666666666'
+
+function confirmedBookingRow() {
+  return {
+    id: BOOKING_ID,
+    business_id: BIZ_ID,
+    tourist_id: 'tourist-1',
+    booking_date: '2099-06-15',
+    services: { name: 'Cabalgata al atardecer' },
+  }
+}
+
+describe('cancelServiceBooking', () => {
+  it('returns a rate-limit error and never queries the DB when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const result = await cancelServiceBooking(formData({ bookingId: BOOKING_ID }))
+    expect(result).toEqual({ error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' })
+    expect(bookingOwnershipMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-UUID bookingId without querying the DB', async () => {
+    const result = await cancelServiceBooking(formData({ bookingId: 'not-a-uuid' }))
+    expect(result).toEqual({ error: 'Reserva no encontrada.' })
+    expect(bookingOwnershipMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('returns "not found" when the booking does not exist, is not confirmed, or is not owned by this business owner', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: null })
+    const result = await cancelServiceBooking(formData({ bookingId: BOOKING_ID }))
+    expect(result).toEqual({ error: 'Reserva no encontrada.' })
+    expect(bookingCancelUpdateSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels the booking, notifies the tourist by email, and revalidates the reservas page', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: confirmedBookingRow() })
+    bookingCancelUpdateSelectMock.mockResolvedValue({ data: [{ id: BOOKING_ID }], error: null })
+
+    const result = await cancelServiceBooking(formData({ bookingId: BOOKING_ID }))
+
+    expect(result).toBeUndefined()
+    expect(bookingCancelUpdateSelectMock).toHaveBeenCalledWith({ status: 'cancelled' })
+    expect(sendServiceBookingCancelledEmailMock).toHaveBeenCalledWith('turista@example.com', {
+      serviceName: 'Cabalgata al atardecer',
+      touristName: 'Ana Pérez',
+      bookingDate: '2099-06-15',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/mi-negocio/${BIZ_ID}/reservas`)
+  })
+
+  it('returns a generic error when the update matches zero rows (a race: already cancelled between the read and the write)', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: confirmedBookingRow() })
+    bookingCancelUpdateSelectMock.mockResolvedValue({ data: [], error: null })
+
+    const result = await cancelServiceBooking(formData({ bookingId: BOOKING_ID }))
+
+    expect(result).toEqual({ error: 'No se pudo cancelar la reserva. Intenta de nuevo.' })
+    expect(sendServiceBookingCancelledEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('does not fail the action when the confirmation email cannot be sent', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: confirmedBookingRow() })
+    bookingCancelUpdateSelectMock.mockResolvedValue({ data: [{ id: BOOKING_ID }], error: null })
+    sendServiceBookingCancelledEmailMock.mockRejectedValue(new Error('resend down'))
+
+    const result = await cancelServiceBooking(formData({ bookingId: BOOKING_ID }))
+
+    expect(result).toBeUndefined()
   })
 })

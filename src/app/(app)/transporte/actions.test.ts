@@ -9,6 +9,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // like createGuideTourReview/createPackageReview elsewhere in this
 // codebase, it uses the admin client with its own explicit re-validation,
 // RLS staying only as defense-in-depth.
+//
+// createTransportRequest itself has one narrow, deliberate exception to
+// its RLS-only posture: when a transporter_route_id is chosen, it calls
+// the service_role-only is_item_available() RPC (via createAdminClient())
+// to re-check the route's calendar server-side, and — only in that
+// branch — notifies the route's owning transporter by email. A free-text
+// request (no route) never touches the admin client at all, asserted
+// explicitly below.
 
 class RedirectSignal extends Error {
   constructor(public url: string) {
@@ -70,8 +78,18 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const transportRequestReviewSingleMock = vi.fn()
 const transporterReviewInsertMock = vi.fn()
+const isItemAvailableRpcMock = vi.fn()
+// notifyTransporterOfRouteRequest's lookups — transporters.profile_id,
+// profiles.full_name (tourist), auth.admin.getUserById (transporter email).
+const transporterProfileIdSingleMock = vi.fn()
+const routeTouristProfileSingleMock = vi.fn()
+const getUserByIdMock = vi.fn()
 
 const createAdminClientMock = vi.fn(() => ({
+  rpc: (fn: string, args: Record<string, unknown>) => {
+    if (fn === 'is_item_available') return isItemAvailableRpcMock(args)
+    throw new Error(`unexpected rpc: ${fn}`)
+  },
   from: (table: string) => {
     if (table === 'transport_requests') {
       return { select: () => ({ eq: () => ({ single: transportRequestReviewSingleMock }) }) }
@@ -79,8 +97,15 @@ const createAdminClientMock = vi.fn(() => ({
     if (table === 'transporter_reviews') {
       return { insert: (payload: Record<string, unknown>) => transporterReviewInsertMock(payload) }
     }
+    if (table === 'transporters') {
+      return { select: () => ({ eq: () => ({ single: transporterProfileIdSingleMock }) }) }
+    }
+    if (table === 'profiles') {
+      return { select: () => ({ eq: () => ({ single: routeTouristProfileSingleMock }) }) }
+    }
     throw new Error(`unexpected table on admin client: ${table}`)
   },
+  auth: { admin: { getUserById: getUserByIdMock } },
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -93,6 +118,12 @@ vi.mock('@/lib/rate-limit', () => ({
   transportRequestRateLimit: {},
   transporterReviewRateLimit: {},
   checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
+const sendTransporterRouteRequestPendingEmailMock = vi.fn()
+
+vi.mock('@/lib/email/bookingEmails', () => ({
+  sendTransporterRouteRequestPendingEmail: (...args: unknown[]) => sendTransporterRouteRequestPendingEmailMock(...args),
 }))
 
 const { createTransportRequest, cancelTransportRequest, createTransporterReview } = await import('./actions')
@@ -112,6 +143,12 @@ beforeEach(() => {
   authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
   checkRateLimitMock.mockResolvedValue(true)
+  // Default a route request to "available" so tests that aren't specifically
+  // about the availability check don't need to mock it individually.
+  isItemAvailableRpcMock.mockResolvedValue({ data: true, error: null })
+  transporterProfileIdSingleMock.mockResolvedValue({ data: { profile_id: 'transporter-profile-1' } })
+  routeTouristProfileSingleMock.mockResolvedValue({ data: { full_name: 'Ana Pérez' } })
+  getUserByIdMock.mockResolvedValue({ data: { user: { email: 'transportador@example.com' } } })
 })
 
 describe('rate limiting', () => {
@@ -293,7 +330,7 @@ describe('createTransportRequest with a published route', () => {
 
   it('rejects a trip_type the route does not offer', async () => {
     transporterRouteSingle.mockResolvedValue({
-      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: false, allows_round_trip: true },
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: false, allows_round_trip: true, transporter_id: 'transporter-1' },
     })
     const fd = formData({
       transporter_route_id: ROUTE_ID, trip_type: 'one_way', requested_datetime: futureDatetime(), people_count: '1',
@@ -305,7 +342,7 @@ describe('createTransportRequest with a published route', () => {
 
   it('uses the route\'s own origin/destination, ignoring any client-supplied ones', async () => {
     transporterRouteSingle.mockResolvedValue({
-      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true },
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true, transporter_id: 'transporter-1' },
     })
     transportRequestsInsert.mockResolvedValue({ error: null })
     const fd = formData({
@@ -331,7 +368,7 @@ describe('createTransportRequest with a published route', () => {
 
   it('defaults trip_type to one_way when the field is absent', async () => {
     transporterRouteSingle.mockResolvedValue({
-      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true },
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true, transporter_id: 'transporter-1' },
     })
     transportRequestsInsert.mockResolvedValue({ error: null })
     const fd = formData({
@@ -340,6 +377,61 @@ describe('createTransportRequest with a published route', () => {
 
     await expect(createTransportRequest(undefined, fd)).rejects.toThrow('redirect:/mis-viajes')
     expect(transportRequestsInsert).toHaveBeenCalledWith(expect.objectContaining({ trip_type: 'one_way' }))
+  })
+
+  it('re-checks is_item_available() server-side and rejects with dateUnavailable when the date is blocked, without inserting', async () => {
+    transporterRouteSingle.mockResolvedValue({
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true, transporter_id: 'transporter-1' },
+    })
+    isItemAvailableRpcMock.mockResolvedValue({ data: false, error: null })
+    const fd = formData({
+      transporter_route_id: ROUTE_ID, requested_datetime: '2099-06-15T10:00', people_count: '1',
+    })
+
+    const result = await createTransportRequest(undefined, fd)
+
+    expect(result).toEqual({ error: 'Esta ruta no está disponible en la fecha seleccionada.' })
+    expect(isItemAvailableRpcMock).toHaveBeenCalledWith({
+      p_item_type: 'transporter_route',
+      p_item_id: ROUTE_ID,
+      p_parent_type: 'transporter',
+      p_parent_id: 'transporter-1',
+      p_date: '2099-06-15',
+    })
+    expect(transportRequestsInsert).not.toHaveBeenCalled()
+    expect(sendTransporterRouteRequestPendingEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('inserts and notifies the route\'s owning transporter when the date is available', async () => {
+    transporterRouteSingle.mockResolvedValue({
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true, transporter_id: 'transporter-1' },
+    })
+    isItemAvailableRpcMock.mockResolvedValue({ data: true, error: null })
+    transportRequestsInsert.mockResolvedValue({ error: null })
+
+    const fd = formData({
+      transporter_route_id: ROUTE_ID, requested_datetime: '2099-06-15T10:00', people_count: '2',
+    })
+
+    await expect(createTransportRequest(undefined, fd)).rejects.toThrow('redirect:/mis-viajes')
+
+    expect(transportRequestsInsert).toHaveBeenCalledWith(expect.objectContaining({ transporter_route_id: ROUTE_ID }))
+    expect(transporterProfileIdSingleMock).toHaveBeenCalled()
+    expect(sendTransporterRouteRequestPendingEmailMock).toHaveBeenCalledWith(
+      'transportador@example.com',
+      expect.objectContaining({ routeLabel: 'Casco urbano → Cascada', touristName: 'Ana Pérez', peopleCount: 2 }),
+    )
+  })
+
+  it('never calls the admin client for a free-text request (no route)', async () => {
+    transportRequestsInsert.mockResolvedValue({ error: null })
+    const fd = formData({ origin: 'A', destination: 'B', requested_datetime: futureDatetime(), people_count: '1' })
+
+    await expect(createTransportRequest(undefined, fd)).rejects.toThrow('redirect:/mis-viajes')
+
+    expect(createAdminClientMock).not.toHaveBeenCalled()
+    expect(isItemAvailableRpcMock).not.toHaveBeenCalled()
+    expect(sendTransporterRouteRequestPendingEmailMock).not.toHaveBeenCalled()
   })
 })
 

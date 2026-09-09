@@ -36,6 +36,15 @@ const tourStatusReadSingle = vi.fn()
 const tourStatusReadEqMock = vi.fn()
 const tourAvailabilityMaybeSingle = vi.fn() // select('id').eq(id).eq(guide_id).maybeSingle() — setGuideTourAvailability
 const tourImagesMaybeSingleEqMock = vi.fn()
+const bookingOwnershipMaybeSingle = vi.fn() // bookings: select(...).eq(id).eq(guide_id).eq(status).maybeSingle() — cancelGuideTourBooking
+
+function bookingsUserTable() {
+  return {
+    select: () => ({
+      eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: bookingOwnershipMaybeSingle }) }) }),
+    }),
+  }
+}
 
 function touristGuidesUserTable() {
   return {
@@ -85,6 +94,7 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'provider_weekly_availability') {
         return { upsert: (payload: unknown, opts: unknown) => providerWeeklyAvailabilityUpsertMock(payload, opts) }
       }
+      if (table === 'bookings') return bookingsUserTable()
       throw new Error(`unexpected table on user client: ${table}`)
     },
     storage: {
@@ -136,12 +146,27 @@ function guideToursAdminTable() {
   }
 }
 
+const bookingCancelUpdateSelectMock = vi.fn() // bookings.update({status:'cancelled'}).eq(id).eq(status).select('id') — cancelGuideTourBooking
+const touristProfileSingleMock = vi.fn() // profiles: select('full_name').eq(id).single() — cancelGuideTourBooking's email lookup
+const getUserByIdMock = vi.fn()
+
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
     from: (table: string) => {
       if (table === 'guide_tours') return guideToursAdminTable()
+      if (table === 'bookings') {
+        return {
+          update: (payload: unknown) => ({
+            eq: () => ({ eq: () => ({ select: () => bookingCancelUpdateSelectMock(payload) }) }),
+          }),
+        }
+      }
+      if (table === 'profiles') {
+        return { select: () => ({ eq: () => ({ single: touristProfileSingleMock }) }) }
+      }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
+    auth: { admin: { getUserById: getUserByIdMock } },
     storage: {
       from: (bucket: string) => ({
         upload: (path: string, file: unknown, opts: unknown) => storageUpload(bucket, path, file, opts),
@@ -150,6 +175,19 @@ vi.mock('@/lib/supabase/admin', () => ({
       }),
     },
   })),
+}))
+
+const checkRateLimitMock = vi.fn()
+
+vi.mock('@/lib/rate-limit', () => ({
+  providerBookingCancelRateLimit: {},
+  checkRateLimit: (...args: unknown[]) => checkRateLimitMock(...args),
+}))
+
+const sendGuideTourBookingCancelledEmailMock = vi.fn()
+
+vi.mock('@/lib/email/bookingEmails', () => ({
+  sendGuideTourBookingCancelledEmail: (...args: unknown[]) => sendGuideTourBookingCancelledEmailMock(...args),
 }))
 
 const {
@@ -164,6 +202,7 @@ const {
   setGuideAvailability,
   setGuideWeeklyAvailability,
   setGuideTourAvailability,
+  cancelGuideTourBooking,
 } = await import('./actions')
 
 function formData(fields: Record<string, string | string[] | File>) {
@@ -191,6 +230,9 @@ beforeEach(() => {
   storageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/photo.webp' } })
   userStorageUpload.mockResolvedValue({ error: null })
   userStorageRemove.mockResolvedValue({ error: null })
+  checkRateLimitMock.mockResolvedValue(true)
+  touristProfileSingleMock.mockResolvedValue({ data: { full_name: 'Ana Pérez' } })
+  getUserByIdMock.mockResolvedValue({ data: { user: { email: 'turista@example.com' } } })
 })
 
 function fakeRntFile(name = 'rnt.pdf', type = 'application/pdf') {
@@ -938,5 +980,74 @@ describe('setGuideTourAvailability', () => {
     )
 
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
+  })
+})
+
+const BOOKING_ID = '66666666-6666-6666-6666-666666666666'
+
+function confirmedTourBookingRow() {
+  return {
+    id: BOOKING_ID,
+    tourist_id: 'tourist-1',
+    booking_date: '2099-06-15',
+    guide_tours: { name: 'Caminata a Los Pinos' },
+  }
+}
+
+describe('cancelGuideTourBooking', () => {
+  it('returns a rate-limit error and never queries the DB when the limit is exceeded', async () => {
+    checkRateLimitMock.mockResolvedValue(false)
+    const result = await cancelGuideTourBooking(formData({ bookingId: BOOKING_ID }))
+    expect(result).toEqual({ error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' })
+    expect(bookingOwnershipMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-UUID bookingId without querying the DB', async () => {
+    const result = await cancelGuideTourBooking(formData({ bookingId: 'not-a-uuid' }))
+    expect(result).toEqual({ error: 'Reserva no encontrada.' })
+    expect(bookingOwnershipMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  it('returns "not found" when the booking does not exist, is not confirmed, or is not owned by this guide', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: null })
+    const result = await cancelGuideTourBooking(formData({ bookingId: BOOKING_ID }))
+    expect(result).toEqual({ error: 'Reserva no encontrada.' })
+    expect(bookingCancelUpdateSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels the booking, notifies the tourist by email, and revalidates the panel', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: confirmedTourBookingRow() })
+    bookingCancelUpdateSelectMock.mockResolvedValue({ data: [{ id: BOOKING_ID }], error: null })
+
+    const result = await cancelGuideTourBooking(formData({ bookingId: BOOKING_ID }))
+
+    expect(result).toBeUndefined()
+    expect(bookingCancelUpdateSelectMock).toHaveBeenCalledWith({ status: 'cancelled' })
+    expect(sendGuideTourBookingCancelledEmailMock).toHaveBeenCalledWith('turista@example.com', {
+      tourName: 'Caminata a Los Pinos',
+      touristName: 'Ana Pérez',
+      bookingDate: '2099-06-15',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-guia')
+  })
+
+  it('returns a generic error when the update matches zero rows (a race: already cancelled between the read and the write)', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: confirmedTourBookingRow() })
+    bookingCancelUpdateSelectMock.mockResolvedValue({ data: [], error: null })
+
+    const result = await cancelGuideTourBooking(formData({ bookingId: BOOKING_ID }))
+
+    expect(result).toEqual({ error: 'No se pudo cancelar la reserva. Intenta de nuevo.' })
+    expect(sendGuideTourBookingCancelledEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('does not fail the action when the confirmation email cannot be sent', async () => {
+    bookingOwnershipMaybeSingle.mockResolvedValue({ data: confirmedTourBookingRow() })
+    bookingCancelUpdateSelectMock.mockResolvedValue({ data: [{ id: BOOKING_ID }], error: null })
+    sendGuideTourBookingCancelledEmailMock.mockRejectedValue(new Error('resend down'))
+
+    const result = await cancelGuideTourBooking(formData({ bookingId: BOOKING_ID }))
+
+    expect(result).toBeUndefined()
   })
 })

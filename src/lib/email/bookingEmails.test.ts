@@ -26,6 +26,12 @@ const {
   sendPackageProvidersCancelledEmail,
   packageProvidersPayoutSentEmail,
   sendPackageProvidersPayoutSentEmail,
+  serviceBookingCancelledEmail,
+  sendServiceBookingCancelledEmail,
+  guideTourBookingCancelledEmail,
+  sendGuideTourBookingCancelledEmail,
+  transporterRouteRequestPendingEmail,
+  sendTransporterRouteRequestPendingEmail,
 } = await import('./bookingEmails')
 
 const PARAMS = {
@@ -371,5 +377,104 @@ describe('sendPackageProvidersPayoutSentEmail', () => {
   it('does not throw when Resend rejects the send', async () => {
     sendMock.mockRejectedValue(new Error('network error'))
     await expect(sendPackageProvidersPayoutSentEmail('negocio@example.com', PACKAGE_PROVIDER_PAYOUT_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const SERVICE_CANCELLED_PARAMS = {
+  serviceName: 'Cabalgata al atardecer',
+  touristName: 'Ana Pérez',
+  bookingDate: '2026-09-05',
+}
+
+describe('serviceBookingCancelledEmail', () => {
+  it('includes the service name, states no charge was made, and a WhatsApp CTA', () => {
+    const { subject, html } = serviceBookingCancelledEmail(SERVICE_CANCELLED_PARAMS)
+    expect(subject).toBe('Tu reserva de "Cabalgata al atardecer" fue cancelada')
+    expect(html).toContain('No se realizó ningún cobro')
+    expect(html).toContain('https://wa.me/573217203264')
+  })
+
+  it('does not parse booking_date as UTC (no off-by-one day)', () => {
+    const { html } = serviceBookingCancelledEmail({ ...SERVICE_CANCELLED_PARAMS, bookingDate: '2026-09-01' })
+    expect(html).toContain('1 de septiembre de 2026')
+  })
+})
+
+describe('sendServiceBookingCancelledEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendServiceBookingCancelledEmail('turista@example.com', SERVICE_CANCELLED_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'turista@example.com', subject: 'Tu reserva de "Cabalgata al atardecer" fue cancelada' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendServiceBookingCancelledEmail('turista@example.com', SERVICE_CANCELLED_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const GUIDE_TOUR_CANCELLED_PARAMS = {
+  tourName: 'Caminata a Los Pinos',
+  touristName: 'Ana Pérez',
+  bookingDate: '2026-09-05',
+}
+
+describe('guideTourBookingCancelledEmail', () => {
+  it('includes the tour name, states no charge was made, and a WhatsApp CTA', () => {
+    const { subject, html } = guideTourBookingCancelledEmail(GUIDE_TOUR_CANCELLED_PARAMS)
+    expect(subject).toBe('Tu reserva de "Caminata a Los Pinos" fue cancelada')
+    expect(html).toContain('No se realizó ningún cobro')
+    expect(html).toContain('https://wa.me/573217203264')
+  })
+})
+
+describe('sendGuideTourBookingCancelledEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendGuideTourBookingCancelledEmail('turista@example.com', GUIDE_TOUR_CANCELLED_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'turista@example.com', subject: 'Tu reserva de "Caminata a Los Pinos" fue cancelada' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendGuideTourBookingCancelledEmail('turista@example.com', GUIDE_TOUR_CANCELLED_PARAMS)).resolves.toBeUndefined()
+  })
+})
+
+const TRANSPORTER_ROUTE_REQUEST_PENDING_PARAMS = {
+  routeLabel: 'Manaure → Valledupar',
+  touristName: 'Ana Pérez',
+  requestedDatetime: '2026-09-05T14:30:00Z',
+  peopleCount: 2,
+}
+
+describe('transporterRouteRequestPendingEmail', () => {
+  it('includes the route label, tourist, people count, and a link to the panel — never claims the ride is confirmed', () => {
+    const { subject, html } = transporterRouteRequestPendingEmail(TRANSPORTER_ROUTE_REQUEST_PENDING_PARAMS)
+    expect(subject).toBe('Nueva solicitud de traslado pendiente')
+    expect(html).toContain('Manaure → Valledupar')
+    expect(html).toContain('Ana Pérez')
+    expect(html).toContain('Personas:</strong> 2')
+    expect(html).toContain('https://mantur.co/mi-perfil-transporte')
+    expect(html).not.toContain('confirmado')
+  })
+})
+
+describe('sendTransporterRouteRequestPendingEmail', () => {
+  it('sends with the right recipient and subject', async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    await sendTransporterRouteRequestPendingEmail('transportador@example.com', TRANSPORTER_ROUTE_REQUEST_PENDING_PARAMS)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'transportador@example.com', subject: 'Nueva solicitud de traslado pendiente' }),
+    )
+  })
+
+  it('does not throw when Resend rejects the send', async () => {
+    sendMock.mockRejectedValue(new Error('network error'))
+    await expect(sendTransporterRouteRequestPendingEmail('transportador@example.com', TRANSPORTER_ROUTE_REQUEST_PENDING_PARAMS)).resolves.toBeUndefined()
   })
 })

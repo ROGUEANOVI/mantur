@@ -9,6 +9,8 @@ import { normalizeColombianPhone } from '@/lib/phone'
 import { getAttributeFields, parseAttributes } from '@/lib/services/attributeConfig'
 import { DESCRIPTION_MAX_LENGTH, AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES, WEEKDAYS } from '@/lib/validation'
 import { miNegocioCopy } from '@/lib/copy/businesses'
+import { checkRateLimit, providerBookingCancelRateLimit } from '@/lib/rate-limit'
+import { sendServiceBookingCancelledEmail } from '@/lib/email/bookingEmails'
 
 type ActionResult = { error: string } | void
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -356,6 +358,78 @@ export async function toggleBusinessStatus(
   }
 
   return { error: 'No se pudo actualizar el estado del negocio.' }
+}
+
+// A service prereserva auto-confirms with no admin/provider approval step
+// (create_service_prereserva(), 20260921000000_add_service_and_guide_tour_
+// prereserva_rpcs.sql) — this is the only way a business owner can undo one
+// after the fact, e.g. a real-world conflict the calendar didn't catch.
+// Only ever transitions from 'confirmed', guarded on both the ownership
+// read and the update itself. bookings_update RLS is admin-only by design
+// (no client-originated UPDATE is valid), so the admin client is used for
+// the write only after ownership is proven with the RLS-scoped client —
+// same escalation pattern as toggleBusinessStatus above.
+export async function cancelServiceBooking(formData: FormData): Promise<ActionResult> {
+  const { supabase, userId } = await getAuthenticatedOwner()
+  const copy = miNegocioCopy.bookings.errors
+
+  const allowed = await checkRateLimit(providerBookingCancelRateLimit, userId)
+  if (!allowed) return { error: copy.rateLimited }
+
+  const bookingId = formData.get('bookingId') as string
+  if (!UUID_RE.test(bookingId)) return { error: copy.notFound }
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('id, business_id, tourist_id, booking_date, services(name), businesses!inner(owner_id)')
+    .eq('id', bookingId)
+    .eq('status', 'confirmed')
+    .eq('businesses.owner_id', userId)
+    .maybeSingle<{
+      id: string
+      business_id: string
+      tourist_id: string
+      booking_date: string
+      services: { name: string } | null
+    }>()
+
+  if (!booking || !booking.services) return { error: copy.notFound }
+
+  const admin = createAdminClient()
+
+  // Guarded on status='confirmed' again — a second concurrent cancel (or a
+  // booking that moved on between the read above and this write) updates 0
+  // rows instead of double-cancelling or masking a race as success.
+  const { data: updated, error } = await admin
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('id', bookingId)
+    .eq('status', 'confirmed')
+    .select('id')
+
+  if (error || !updated?.length) return { error: copy.generic }
+
+  try {
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', booking.tourist_id)
+      .single<{ full_name: string | null }>()
+
+    const { data: touristUserData } = await admin.auth.admin.getUserById(booking.tourist_id)
+    const touristEmail = touristUserData?.user?.email
+    if (touristEmail) {
+      await sendServiceBookingCancelledEmail(touristEmail, {
+        serviceName: booking.services.name,
+        touristName: touristProfile?.full_name ?? 'Un turista',
+        bookingDate: booking.booking_date,
+      })
+    }
+  } catch (emailError) {
+    console.error('Unexpected error while notifying the tourist of a cancelled service booking', emailError)
+  }
+
+  revalidatePath(`/mi-negocio/${booking.business_id}/reservas`)
 }
 
 // Fase 6 (Paquetes/Tours) self-service counterpart to the admin's

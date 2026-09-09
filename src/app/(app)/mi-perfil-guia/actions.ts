@@ -8,6 +8,8 @@ import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { normalizeColombianPhone } from '@/lib/phone'
 import { AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES, WEEKDAYS } from '@/lib/validation'
+import { checkRateLimit, providerBookingCancelRateLimit } from '@/lib/rate-limit'
+import { sendGuideTourBookingCancelledEmail } from '@/lib/email/bookingEmails'
 
 type ActionResult = { error: string } | void
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -464,6 +466,71 @@ export async function toggleTourStatus(formData: FormData): Promise<void> {
     .from('guide_tours')
     .update({ status: tour.status === 'active' ? 'inactive' : 'active' })
     .eq('id', tourId)
+
+  revalidatePath('/mi-perfil-guia')
+}
+
+// Mirrors cancelServiceBooking (src/app/(app)/mi-negocio/actions.ts) exactly
+// for a guide's tour instead of a business service — see that function's
+// comment for the full rationale (a tour prereserva auto-confirms with no
+// admin/provider approval step, so this is the only way a guide can undo
+// one after the fact). getAuthenticatedGuide() already resolves guideId
+// directly, so ownership only needs a plain eq — no join required.
+export async function cancelGuideTourBooking(formData: FormData): Promise<ActionResult> {
+  const { supabase, guideId } = await getAuthenticatedGuide()
+  const copy = guidesCopy.guidePanel.errors
+
+  const allowed = await checkRateLimit(providerBookingCancelRateLimit, guideId)
+  if (!allowed) return { error: copy.rateLimited }
+
+  const bookingId = formData.get('bookingId') as string
+  if (!UUID_RE.test(bookingId)) return { error: copy.notFound }
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('id, tourist_id, booking_date, guide_tours(name)')
+    .eq('id', bookingId)
+    .eq('guide_id', guideId)
+    .eq('status', 'confirmed')
+    .maybeSingle<{
+      id: string
+      tourist_id: string
+      booking_date: string
+      guide_tours: { name: string } | null
+    }>()
+
+  if (!booking || !booking.guide_tours) return { error: copy.notFound }
+
+  const admin = createAdminClient()
+
+  const { data: updated, error } = await admin
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('id', bookingId)
+    .eq('status', 'confirmed')
+    .select('id')
+
+  if (error || !updated?.length) return { error: copy.generic }
+
+  try {
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', booking.tourist_id)
+      .single<{ full_name: string | null }>()
+
+    const { data: touristUserData } = await admin.auth.admin.getUserById(booking.tourist_id)
+    const touristEmail = touristUserData?.user?.email
+    if (touristEmail) {
+      await sendGuideTourBookingCancelledEmail(touristEmail, {
+        tourName: booking.guide_tours.name,
+        touristName: touristProfile?.full_name ?? 'Un turista',
+        bookingDate: booking.booking_date,
+      })
+    }
+  } catch (emailError) {
+    console.error('Unexpected error while notifying the tourist of a cancelled guide tour booking', emailError)
+  }
 
   revalidatePath('/mi-perfil-guia')
 }
