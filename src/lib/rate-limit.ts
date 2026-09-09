@@ -78,6 +78,17 @@ export const serviceReviewRateLimit = new Ratelimit({
   prefix: 'ratelimit:service-review',
 })
 
+// Provider-initiated cancellation of an already-confirmed service/guide-tour
+// prereserva (business owner or guide) — low-frequency by nature, same
+// posture as refundRequestRateLimit. Shared bucket across both surfaces is
+// fine: keyed by userId, so a business owner and a guide never share a
+// bucket anyway.
+export const providerBookingCancelRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 h'),
+  prefix: 'ratelimit:provider-booking-cancel',
+})
+
 // Change-password current-password verification: keyed by user id. A
 // compromised-but-authenticated session (stolen cookie, shared device)
 // could otherwise throw unlimited current-password guesses at

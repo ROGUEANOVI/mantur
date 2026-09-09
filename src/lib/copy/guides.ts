@@ -58,6 +58,14 @@ export const guidesCopy = {
     people: 'personas',
     total: 'Total',
     notesLabel: 'Notas del turista',
+    cancelButton: 'Cancelar reserva',
+    cancelConfirmTitle: '¿Cancelar esta reserva?',
+    cancelConfirmDescription: 'El turista será notificado por correo. Esta acción no se puede revertir.',
+    errors: {
+      notFound: 'Reserva no encontrada.',
+      generic: 'No se pudo cancelar la reserva. Intenta de nuevo.',
+      rateLimited: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
+    },
   },
 
   editProfile: {

@@ -150,6 +150,85 @@ export async function sendGuideBookingConfirmedEmail(
   }
 }
 
+// Tourist-facing: the business owner cancelled a service prereserva that had
+// already auto-confirmed (see create_service_prereserva() — this flow has no
+// admin/provider approval step, so cancellation is the only way a provider
+// can undo one after the fact, e.g. an overbooked date the calendar didn't
+// catch). No charge was ever made on this flow, so there's nothing to refund.
+export type ServiceBookingCancelledParams = {
+  serviceName: string
+  touristName: string
+  bookingDate: string
+}
+
+export function serviceBookingCancelledEmail(
+  params: ServiceBookingCancelledParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola ${escapeHtml(params.touristName)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      El negocio canceló tu reserva confirmada para <strong>${escapeHtml(params.serviceName)}</strong>
+      el ${formatBookingDate(params.bookingDate)}. No se realizó ningún cobro.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      Escríbenos por WhatsApp si quieres buscar una fecha alternativa.
+    </p>
+    ${button('Escribir por WhatsApp', manturWhatsappUrl(`Hola, mi reserva de "${params.serviceName}" fue cancelada por el negocio. ¿Podemos buscar otra fecha?`))}
+  `)
+
+  return { subject: `Tu reserva de "${params.serviceName}" fue cancelada`, html }
+}
+
+export async function sendServiceBookingCancelledEmail(
+  to: string,
+  params: ServiceBookingCancelledParams,
+): Promise<void> {
+  const { subject, html } = serviceBookingCancelledEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send service booking cancelled email', error)
+  }
+}
+
+// Mirrors serviceBookingCancelledEmail exactly, for a guide's tour instead
+// of a business service.
+export type GuideTourBookingCancelledParams = {
+  tourName: string
+  touristName: string
+  bookingDate: string
+}
+
+export function guideTourBookingCancelledEmail(
+  params: GuideTourBookingCancelledParams,
+): { subject: string; html: string } {
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola ${escapeHtml(params.touristName)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      El guía canceló tu reserva confirmada para el tour <strong>${escapeHtml(params.tourName)}</strong>
+      el ${formatBookingDate(params.bookingDate)}. No se realizó ningún cobro.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      Escríbenos por WhatsApp si quieres buscar una fecha alternativa.
+    </p>
+    ${button('Escribir por WhatsApp', manturWhatsappUrl(`Hola, mi reserva del tour "${params.tourName}" fue cancelada por el guía. ¿Podemos buscar otra fecha?`))}
+  `)
+
+  return { subject: `Tu reserva de "${params.tourName}" fue cancelada`, html }
+}
+
+export async function sendGuideTourBookingCancelledEmail(
+  to: string,
+  params: GuideTourBookingCancelledParams,
+): Promise<void> {
+  const { subject, html } = guideTourBookingCancelledEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send guide tour booking cancelled email', error)
+  }
+}
+
 // Mirrors guideBookingConfirmedEmail exactly — a route (origin → destino)
 // instead of a tour name, and links to the transporter's own panel. Dormant
 // alongside createTransportBooking (src/app/(app)/reservas/actions.ts) —
@@ -201,6 +280,62 @@ export async function sendTransporterBookingConfirmedEmail(
     await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
   } catch (error) {
     console.error('Failed to send transporter booking confirmed email', error)
+  }
+}
+
+// Informational-only notice to the transporter who owns a route a tourist
+// just requested (not "confirmed" — nothing is confirmed yet at this point,
+// unlike businessBookingConfirmedEmail/guideBookingConfirmedEmail, since a
+// transport request still requires the transporter to explicitly accept via
+// acceptTransportRequest(). Only sent when the request references a
+// transporter_route_id — free-text requests have no single addressable
+// transporter to notify.
+export type TransporterRouteRequestPendingParams = {
+  routeLabel: string
+  touristName: string
+  requestedDatetime: string
+  peopleCount: number
+}
+
+export function transporterRouteRequestPendingEmail(
+  params: TransporterRouteRequestPendingParams,
+): { subject: string; html: string } {
+  const requestedDate = new Date(params.requestedDatetime).toLocaleString('es-CO', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    timeZone: 'America/Bogota',
+  })
+
+  const html = emailLayout(`
+    <p style="font-size: 16px; margin: 0 0 12px;">Hola,</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">
+      Tienes una nueva solicitud pendiente para tu ruta <strong>${escapeHtml(params.routeLabel)}</strong>.
+      Revisa tu panel para aceptarla.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Turista:</strong> ${escapeHtml(params.touristName)}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 4px;">
+      <strong>Fecha:</strong> ${requestedDate}
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0;">
+      <strong>Personas:</strong> ${params.peopleCount}
+    </p>
+    ${button('Ver solicitudes', `${APP_URL}/mi-perfil-transporte`)}
+  `)
+
+  return { subject: 'Nueva solicitud de traslado pendiente', html }
+}
+
+export async function sendTransporterRouteRequestPendingEmail(
+  to: string,
+  params: TransporterRouteRequestPendingParams,
+): Promise<void> {
+  const { subject, html } = transporterRouteRequestPendingEmail(params)
+  try {
+    await getResendClient().emails.send({ from: EMAIL_FROM, to, subject, html })
+  } catch (error) {
+    console.error('Failed to send transporter route request pending email', error)
   }
 }
 

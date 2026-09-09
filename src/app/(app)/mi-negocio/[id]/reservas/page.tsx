@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { miNegocioCopy } from '@/lib/copy/businesses'
 import { cn } from '@/lib/utils'
 import PaginationNav from '@/components/shared/PaginationNav'
+import CancelServiceBookingForm from '@/components/mi-negocio/CancelServiceBookingForm'
 
 const VALID_STATUSES = ['all', 'pending_payment', 'confirmed', 'completed', 'cancelled'] as const
 type StatusFilter = (typeof VALID_STATUSES)[number]
@@ -161,6 +162,12 @@ export default async function MiNegocioReservasPage({
                     <div className="rounded-lg bg-muted px-2.5 py-1.5 space-y-0.5">
                       <p className="text-xs font-medium text-muted-foreground">{copy.notesLabel}</p>
                       <p className="text-xs text-foreground leading-relaxed">{booking.notes}</p>
+                    </div>
+                  )}
+
+                  {booking.status === 'confirmed' && (
+                    <div className="pt-1 border-t border-border flex justify-end">
+                      <CancelServiceBookingForm bookingId={booking.id} />
                     </div>
                   )}
                 </div>

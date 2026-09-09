@@ -6,6 +6,7 @@ import { guidesCopy } from '@/lib/copy/guides'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import { cn } from '@/lib/utils'
 import GuideAvailabilityToggle from '@/components/guias/GuideAvailabilityToggle'
+import CancelGuideTourBookingForm from '@/components/guias/CancelGuideTourBookingForm'
 import { toggleTourStatus } from './actions'
 
 type Guide = {
@@ -309,6 +310,12 @@ export default async function MiPerfilGuiaPage() {
                     <div className="rounded-lg bg-muted px-2.5 py-1.5 space-y-0.5">
                       <p className="text-xs font-medium text-muted-foreground">{copy.notesLabel}</p>
                       <p className="text-xs text-foreground leading-relaxed">{b.notes}</p>
+                    </div>
+                  )}
+
+                  {b.status === 'confirmed' && (
+                    <div className="pt-1 border-t border-border flex justify-end">
+                      <CancelGuideTourBookingForm bookingId={b.id} />
                     </div>
                   )}
                 </div>
