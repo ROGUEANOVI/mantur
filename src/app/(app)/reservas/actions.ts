@@ -7,7 +7,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { buildWompiCheckoutUrl } from '@/lib/wompi/checkout'
-import { sendPackagePrereservaRequestedEmail } from '@/lib/email/bookingEmails'
+import {
+  sendPackagePrereservaRequestedEmail,
+  sendBusinessBookingConfirmedEmail,
+  sendGuideBookingConfirmedEmail,
+} from '@/lib/email/bookingEmails'
 
 type BookingResult = { error: string } | void
 
@@ -253,6 +257,145 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
   redirect(`/reservas/${bookingId}/confirmacion`)
 }
 
+// Never throws: an email delivery problem must not break the tourist's own
+// booking flow, same reasoning as notifyAdminsOfPackagePrereserva above and
+// the webhook's own notifyBusinessOfBooking (src/app/api/webhooks/wompi/route.ts),
+// which this mirrors — reusing the exact same sendBusinessBookingConfirmedEmail
+// template, since from the business owner's point of view a service
+// prereserva IS a newly-confirmed booking, same as one paid through Wompi.
+async function notifyBusinessOfServicePrereserva(
+  admin: ReturnType<typeof createAdminClient>,
+  params: {
+    businessId: string
+    serviceName: string
+    touristId: string
+    bookingDate: string
+    quantity: number
+    notes: string | null
+  },
+): Promise<void> {
+  try {
+    const { data: business } = await admin
+      .from('businesses')
+      .select('owner_id')
+      .eq('id', params.businessId)
+      .single<{ owner_id: string }>()
+    if (!business) return
+
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', params.touristId)
+      .single<{ full_name: string | null }>()
+
+    const { data: ownerUserData } = await admin.auth.admin.getUserById(business.owner_id)
+    const ownerEmail = ownerUserData?.user?.email
+    if (!ownerEmail) return
+
+    await sendBusinessBookingConfirmedEmail(ownerEmail, {
+      serviceName: params.serviceName,
+      touristName: touristProfile?.full_name ?? 'Un turista',
+      bookingDate: params.bookingDate,
+      quantity: params.quantity,
+      notes: params.notes,
+    })
+  } catch (error) {
+    console.error('Unexpected error while notifying business of a new service prereserva', error)
+  }
+}
+
+// Business services are WhatsApp-only for coordination/payment (Phase 13
+// manual-ops pivot) — this pre-reserva flow does not reactivate that. It
+// only adds real, checked availability up front (via BlockedDatesPicker on
+// the public detail page and is_item_available() server-side in the RPC),
+// so unlike createPackagePrereserva there is nothing left for an admin to
+// confirm afterward: the booking is inserted directly at 'confirmed', no
+// transactions row (see create_service_prereserva(),
+// 20260921000000_add_service_and_guide_tour_prereserva_rpcs.sql).
+export async function createServicePrereserva(formData: FormData): Promise<BookingResult> {
+  const { supabase, userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(bookingRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
+
+  const serviceId = formData.get('service_id') as string
+  if (!UUID_RE.test(serviceId)) return { error: bookingsCopy.errors.notFound }
+
+  // Price and capacity are NEVER taken from FormData — read from DB, same as
+  // createBooking above.
+  const { data: service } = await supabase
+    .from('services')
+    .select('id, name, base_price, capacity, status, business_id, service_types(slug, pricing_unit)')
+    .eq('id', serviceId)
+    .eq('status', 'active')
+    .single<{
+      id: string
+      name: string
+      base_price: number
+      capacity: number | null
+      status: string
+      business_id: string
+      service_types: { slug: string; pricing_unit: 'per_person' | 'per_night' | 'fixed' } | null
+    }>()
+
+  if (!service || !service.service_types) return { error: bookingsCopy.errors.unavailable }
+
+  const rawQuantity = formData.get('quantity') as string
+  const quantity = parseInt(rawQuantity, 10)
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    return { error: bookingsCopy.errors.invalidQuantity }
+  }
+  if (service.capacity !== null && quantity > service.capacity) {
+    return { error: bookingsCopy.errors.capacityExceeded }
+  }
+
+  const bookingDate = formData.get('booking_date') as string
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate) || bookingDate < today) {
+    return { error: bookingsCopy.errors.invalidDate }
+  }
+
+  const pricingUnit = service.service_types.pricing_unit
+  const totalAmount = pricingUnit === 'fixed' ? Number(service.base_price) : Number(service.base_price) * quantity
+  const storedQuantity = pricingUnit === 'fixed' ? 1 : quantity
+
+  const rawNotes = (formData.get('notes') as string | null)?.trim() || null
+
+  const admin = createAdminClient()
+
+  // is_item_available() re-checks server-side even though the tourist's own
+  // date picker already filtered this option out client-side — defense-in-
+  // depth against a stale read, same reasoning as
+  // confirm_package_prereserva()'s own re-check. A 'date_unavailable'
+  // exception maps to the same generic "not available" copy the rest of
+  // this file already uses for an unbookable item.
+  const { data: bookingId, error: rpcError } = await admin.rpc('create_service_prereserva', {
+    p_tourist_id: userId,
+    p_service_id: serviceId,
+    p_quantity: storedQuantity,
+    p_booking_date: bookingDate,
+    p_total_amount: totalAmount,
+    p_notes: rawNotes,
+  })
+
+  if (rpcError || !bookingId) {
+    if (rpcError?.message === 'date_unavailable') return { error: bookingsCopy.errors.unavailable }
+    return { error: bookingsCopy.errors.generic }
+  }
+
+  await notifyBusinessOfServicePrereserva(admin, {
+    businessId: service.business_id,
+    serviceName: service.name,
+    touristId: userId,
+    bookingDate,
+    quantity: storedQuantity,
+    notes: rawNotes,
+  })
+
+  revalidatePath('/mis-reservas')
+  redirect(`/reservas/${bookingId}/confirmacion`)
+}
+
 export async function createGuideTourBooking(formData: FormData): Promise<BookingResult> {
   const { supabase, userId } = await getAuthenticatedTourist()
 
@@ -320,6 +463,118 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
 
   revalidatePath('/mis-reservas')
   redirect(buildWompiCheckoutUrl({ bookingId, amountInCents, currency: 'COP' }))
+}
+
+// Mirrors notifyBusinessOfServicePrereserva, resolving the recipient through
+// tourist_guides.profile_id instead of businesses.owner_id, and reusing
+// sendGuideBookingConfirmedEmail — same reasoning: from the guide's point of
+// view a tour prereserva IS a newly-confirmed booking.
+async function notifyGuideOfTourPrereserva(
+  admin: ReturnType<typeof createAdminClient>,
+  params: {
+    guideId: string
+    tourName: string
+    touristId: string
+    bookingDate: string
+    quantity: number
+    notes: string | null
+  },
+): Promise<void> {
+  try {
+    const { data: guide } = await admin
+      .from('tourist_guides')
+      .select('profile_id')
+      .eq('id', params.guideId)
+      .single<{ profile_id: string }>()
+    if (!guide) return
+
+    const { data: touristProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', params.touristId)
+      .single<{ full_name: string | null }>()
+
+    const { data: guideUserData } = await admin.auth.admin.getUserById(guide.profile_id)
+    const guideEmail = guideUserData?.user?.email
+    if (!guideEmail) return
+
+    await sendGuideBookingConfirmedEmail(guideEmail, {
+      tourName: params.tourName,
+      touristName: touristProfile?.full_name ?? 'Un turista',
+      bookingDate: params.bookingDate,
+      quantity: params.quantity,
+      notes: params.notes,
+    })
+  } catch (error) {
+    console.error('Unexpected error while notifying guide of a new tour prereserva', error)
+  }
+}
+
+// Same posture as createServicePrereserva above, for guide tours — see that
+// function's comment for the full rationale.
+export async function createGuideTourPrereserva(formData: FormData): Promise<BookingResult> {
+  const { supabase, userId } = await getAuthenticatedTourist()
+
+  const allowed = await checkRateLimit(bookingRateLimit, userId)
+  if (!allowed) return { error: bookingsCopy.errors.rateLimited }
+
+  const guideTourId = formData.get('guide_tour_id') as string
+  if (!UUID_RE.test(guideTourId)) return { error: bookingsCopy.errors.notFound }
+
+  const { data: tour } = await supabase
+    .from('guide_tours')
+    .select('id, name, price, capacity, status, guide_id')
+    .eq('id', guideTourId)
+    .eq('status', 'active')
+    .single()
+
+  if (!tour) return { error: bookingsCopy.errors.unavailable }
+
+  const rawPeople = formData.get('people_count') as string
+  const peopleCount = parseInt(rawPeople, 10)
+  if (!Number.isInteger(peopleCount) || peopleCount < 1) {
+    return { error: bookingsCopy.errors.invalidQuantity }
+  }
+  if (tour.capacity !== null && peopleCount > tour.capacity) {
+    return { error: bookingsCopy.errors.capacityExceeded }
+  }
+
+  const bookingDate = formData.get('booking_date') as string
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate) || bookingDate < today) {
+    return { error: bookingsCopy.errors.invalidDate }
+  }
+
+  const totalAmount = Number(tour.price) * peopleCount
+  const rawNotes = (formData.get('notes') as string | null)?.trim() || null
+
+  const admin = createAdminClient()
+
+  const { data: bookingId, error: rpcError } = await admin.rpc('create_guide_tour_prereserva', {
+    p_tourist_id: userId,
+    p_guide_tour_id: guideTourId,
+    p_quantity: peopleCount,
+    p_booking_date: bookingDate,
+    p_total_amount: totalAmount,
+    p_notes: rawNotes,
+  })
+
+  if (rpcError || !bookingId) {
+    if (rpcError?.message === 'date_unavailable') return { error: bookingsCopy.errors.unavailable }
+    return { error: bookingsCopy.errors.generic }
+  }
+
+  await notifyGuideOfTourPrereserva(admin, {
+    guideId: tour.guide_id,
+    tourName: tour.name,
+    touristId: userId,
+    bookingDate,
+    quantity: peopleCount,
+    notes: rawNotes,
+  })
+
+  revalidatePath('/mis-reservas')
+  redirect(`/reservas/${bookingId}/confirmacion`)
 }
 
 // Builds the in-platform payment flow for a transport ride — kept dormant

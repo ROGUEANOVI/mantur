@@ -16,6 +16,8 @@ import RatingSummary from '@/components/shared/RatingSummary'
 import ReviewsList from '@/components/shared/ReviewsList'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
+import ServicePrereservaForm from '@/components/reservas/ServicePrereservaForm'
+import { getBlockedDates } from '@/lib/availability'
 
 const APP_URL = 'https://mantur.co'
 
@@ -120,6 +122,23 @@ export default async function ServicioDetailPage({
   const reviews = (reviewsData ?? []) as { rating: number; comment: string | null; created_at: string }[]
   const avgRating = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : null
 
+  // Three-state access, same pattern as /guias/[slug] and PackagePrereservaForm.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  let bookingAccess: 'tourist' | 'guest' | 'other_role' = 'guest'
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    bookingAccess = profile?.role === 'tourist' ? 'tourist' : 'other_role'
+  }
+
+  const admin = createAdminClient()
+  const blockedDates = await getBlockedDates(admin, 'service', svc.id, 'business', svc.business_id)
+
   const serviceJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'TouristTrip',
@@ -222,11 +241,21 @@ export default async function ServicioDetailPage({
               </p>
             </div>
 
-            <WhatsappButton
-              className="mt-2"
-              message={`Hola, quiero más información sobre "${svc.name}" de ${svc.businesses.name}.`}
-              label={copy.contactWhatsapp}
-            />
+            <div className="mt-2 space-y-3">
+              <ServicePrereservaForm
+                serviceId={svc.id}
+                price={Number(svc.base_price)}
+                capacity={svc.capacity}
+                pricingUnit={pricingUnit}
+                blockedDates={blockedDates}
+                access={bookingAccess}
+              />
+              <WhatsappButton
+                className={bookingAccess === 'tourist' ? 'bg-transparent border border-[#25D366] text-[#1ebe59] hover:bg-[#25D366]/10 hover:text-[#1ebe59]' : undefined}
+                message={`Hola, quiero más información sobre "${svc.name}" de ${svc.businesses.name}.`}
+                label={copy.contactWhatsapp}
+              />
+            </div>
           </Reveal>
         </DetailSplitLayout>
       </div>

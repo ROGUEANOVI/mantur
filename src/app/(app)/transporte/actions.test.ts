@@ -33,6 +33,7 @@ const profileSingle = vi.fn()
 const transportRequestsInsert = vi.fn()
 const transportRequestsUpdateMock = vi.fn()
 const transportRequestsEqMock = vi.fn()
+const transporterRouteSingle = vi.fn() // select(...).eq(id).eq(status).single() — createTransportRequest's route lookup
 
 function updateChain(payload: unknown) {
   transportRequestsUpdateMock(payload)
@@ -58,6 +59,9 @@ vi.mock('@/lib/supabase/server', () => ({
           insert: (payload: unknown) => transportRequestsInsert(payload),
           update: (payload: unknown) => updateChain(payload),
         }
+      }
+      if (table === 'transporter_routes') {
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: transporterRouteSingle }) }) }) }
       }
       throw new Error(`unexpected table on user client: ${table}`)
     },
@@ -213,6 +217,8 @@ describe('createTransportRequest success path', () => {
       requested_datetime: new Date(dt).toISOString(),
       people_count: 3,
       notes: null,
+      transporter_route_id: null,
+      trip_type: 'one_way',
     })
     expect(revalidatePathMock).toHaveBeenCalledWith('/mis-viajes')
     expect(createAdminClientMock).not.toHaveBeenCalled()
@@ -261,6 +267,79 @@ describe('createTransportRequest success path', () => {
     const result = await createTransportRequest(undefined, fd)
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
     expect(redirectMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('createTransportRequest with a published route', () => {
+  const ROUTE_ID = '33333333-3333-3333-3333-333333333333'
+
+  it('rejects a non-UUID transporter_route_id without querying the DB', async () => {
+    const fd = formData({
+      transporter_route_id: 'not-a-uuid', requested_datetime: futureDatetime(), people_count: '1',
+    })
+    const result = await createTransportRequest(undefined, fd)
+    expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
+    expect(transporterRouteSingle).not.toHaveBeenCalled()
+  })
+
+  it('returns "not found" when the route does not exist or is inactive', async () => {
+    transporterRouteSingle.mockResolvedValue({ data: null })
+    const fd = formData({
+      transporter_route_id: ROUTE_ID, requested_datetime: futureDatetime(), people_count: '1',
+    })
+    const result = await createTransportRequest(undefined, fd)
+    expect(result).toEqual({ error: 'Solicitud no encontrada.' })
+  })
+
+  it('rejects a trip_type the route does not offer', async () => {
+    transporterRouteSingle.mockResolvedValue({
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: false, allows_round_trip: true },
+    })
+    const fd = formData({
+      transporter_route_id: ROUTE_ID, trip_type: 'one_way', requested_datetime: futureDatetime(), people_count: '1',
+    })
+    const result = await createTransportRequest(undefined, fd)
+    expect(result).toEqual({ error: 'Completa todos los campos requeridos.' })
+    expect(transportRequestsInsert).not.toHaveBeenCalled()
+  })
+
+  it('uses the route\'s own origin/destination, ignoring any client-supplied ones', async () => {
+    transporterRouteSingle.mockResolvedValue({
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true },
+    })
+    transportRequestsInsert.mockResolvedValue({ error: null })
+    const fd = formData({
+      transporter_route_id: ROUTE_ID,
+      trip_type: 'round_trip',
+      origin: 'attacker-supplied origin',
+      destination: 'attacker-supplied destination',
+      requested_datetime: futureDatetime(),
+      people_count: '2',
+    })
+
+    await expect(createTransportRequest(undefined, fd)).rejects.toThrow('redirect:/mis-viajes')
+
+    expect(transportRequestsInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: 'Casco urbano',
+        destination: 'Cascada',
+        transporter_route_id: ROUTE_ID,
+        trip_type: 'round_trip',
+      }),
+    )
+  })
+
+  it('defaults trip_type to one_way when the field is absent', async () => {
+    transporterRouteSingle.mockResolvedValue({
+      data: { origin: 'Casco urbano', destination: 'Cascada', allows_one_way: true, allows_round_trip: true },
+    })
+    transportRequestsInsert.mockResolvedValue({ error: null })
+    const fd = formData({
+      transporter_route_id: ROUTE_ID, requested_datetime: futureDatetime(), people_count: '1',
+    })
+
+    await expect(createTransportRequest(undefined, fd)).rejects.toThrow('redirect:/mis-viajes')
+    expect(transportRequestsInsert).toHaveBeenCalledWith(expect.objectContaining({ trip_type: 'one_way' }))
   })
 })
 

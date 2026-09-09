@@ -24,6 +24,11 @@ export const transportCopy = {
   requestForm: {
     pageTitle: 'Solicitar traslado',
     pageSubtitle: 'Un conductor local te llevará a tu destino',
+    routeLabel: 'Ruta (opcional)',
+    customRouteOption: '— Traslado personalizado —',
+    tripTypeLabel: '¿Ida o ida y vuelta?',
+    oneWayLabel: 'Solo ida',
+    roundTripLabel: 'Ida y vuelta',
     origin: 'Punto de recogida',
     originPlaceholder: 'Ej: Hotel El Paraíso, calle 5 #10-20',
     destination: 'Destino',
