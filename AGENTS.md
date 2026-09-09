@@ -54,11 +54,18 @@ packages, guides, transport, or operations.
   `main` directly.
 - Branches: `feat/<description>`, `fix/<description>`, or `chore/<description>`.
 - Use Conventional Commits. Do not mention an AI agent in commits or PR text.
+- Before modifying a file in one of these areas, read the matching tracked rule
+  in full; it is the shared, versioned source of truth for both agents:
+  - `src/app/**/actions.ts`, `src/app/api/**/*.ts`, `src/lib/wompi/**`, or
+    `src/lib/alegra/**` → `.claude/rules/money-and-payments.md`.
+  - `supabase/migrations/**` → `.claude/rules/rls-and-migrations.md`.
+  - `src/**/*.tsx` → `.claude/rules/components.md`.
+  - `**/*.test.ts`, `**/*.test.tsx`, or `e2e/**/*.ts` →
+    `.claude/rules/testing.md`.
+- Apply migrations with `supabase db push`, never a direct Supabase MCP
+  migration tool; direct application causes local/remote migration-history drift.
 - For auth, RLS, payments, money, payouts, refunds, webhooks, or personal-data
   changes: perform an explicit security review before considering the task done.
-- For UI work, follow `.claude/rules/components.md`; for tests, follow
-  `.claude/rules/testing.md`; for money work, follow
-  `.claude/rules/money-and-payments.md`.
 - Do not assume Claude-specific subagents, slash commands, or vendored skills
   are available. Those files are useful project references but not a required
   Codex runtime capability.
