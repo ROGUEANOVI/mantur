@@ -29,7 +29,7 @@ describe('AdminMobileMenu', () => {
     const expected: [string, string][] = [
       ['Dashboard', '/admin'],
       ['Solicitudes', '/admin/solicitudes'],
-      ['Registrar reserva', '/admin/reservas/nueva'],
+      ['Reservas', '/admin/reservas'],
       ['Negocios', '/admin/negocios'],
       ['Categorías', '/admin/categorias'],
       ['Tipos de servicio', '/admin/tipos-servicio'],

@@ -759,7 +759,7 @@ describe('createPackagePrereserva', () => {
 
       expect(sendPackagePrereservaRequestedEmailMock).not.toHaveBeenCalled()
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to look up admin profiles for package prereserva notification',
+        'Failed to look up admin profiles',
         { message: 'connection reset' },
       )
       consoleErrorSpy.mockRestore()
