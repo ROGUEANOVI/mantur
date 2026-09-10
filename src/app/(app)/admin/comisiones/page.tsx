@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import CommissionForm from '@/components/admin/CommissionForm'
@@ -28,6 +29,12 @@ export default async function AdminComisionesPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {adminCopy.comisiones.subtitle}
           </p>
+          <Link
+            href="/admin/comisiones/pendientes"
+            className="mt-2 inline-block text-sm text-primary hover:underline"
+          >
+            {adminCopy.comisiones.viewPending}
+          </Link>
         </div>
 
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5 space-y-6">

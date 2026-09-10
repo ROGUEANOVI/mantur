@@ -221,52 +221,61 @@ export async function toggleAvailability(): Promise<ActionResult> {
   revalidatePath('/transportistas')
 }
 
-export async function acceptTransportRequest(formData: FormData): Promise<void> {
+export async function acceptTransportRequest(formData: FormData): Promise<ActionResult> {
   const { transporterId } = await getAuthenticatedTransporter()
 
   const requestId = formData.get('requestId') as string
-  if (!UUID_RE.test(requestId)) return
+  if (!UUID_RE.test(requestId)) return { error: transportCopy.transporterPanel.errors.notFound }
 
-  // Optional quoted price (pesos, converted to cents) — lets
-  // createTransportBooking charge for this ride once in-platform transport
-  // payment gets wired in (see that Server Action's own comment; it stays
-  // dormant regardless of whether a price is quoted here). Absent/invalid
-  // input is silently treated as "not quoted yet", same as the existing
-  // cash-only flow when this field didn't exist at all.
+  // Quoting a price is mandatory — it's what lets complete_transport_request
+  // compute the commission ManTur is owed when the trip finishes (see that
+  // RPC and provider_commissions,
+  // 20260923100000_add_commission_to_prereserva_and_transport_rpcs.sql).
+  // Before that migration this was optional and silently accepted as
+  // "not quoted yet"; now the RPC itself also enforces it via
+  // transport_requests_price_required_once_accepted.
   const pricePesosRaw = formData.get('price_pesos') as string | null
   const pricePesos = pricePesosRaw ? Number(pricePesosRaw) : null
-  const priceCents =
-    pricePesos !== null && Number.isFinite(pricePesos) && pricePesos > 0 ? Math.round(pricePesos * 100) : null
+  if (pricePesos === null || !Number.isFinite(pricePesos) || pricePesos <= 0) {
+    return { error: transportCopy.acceptForm.errors.priceRequired }
+  }
+  const priceCents = Math.round(pricePesos * 100)
 
   const admin = createAdminClient()
 
-  // Atomic claim: only succeeds if the request is still pending.
-  // Postgres UPDATE is row-level atomic so only one transporter wins the race.
-  // If data is empty, the request was already accepted — revalidate silently
-  // so the transporter sees the updated list without the claimed request.
-  await admin
-    .from('transport_requests')
-    .update({ transporter_id: transporterId, status: 'accepted', price_cents: priceCents })
-    .eq('id', requestId)
-    .eq('status', 'pending')
+  // Atomic claim: the RPC's own WHERE clause only succeeds if the request
+  // is still pending, so only one transporter wins a concurrent race.
+  const { error } = await admin.rpc('accept_transport_request', {
+    p_request_id: requestId,
+    p_transporter_id: transporterId,
+    p_price_cents: priceCents,
+  })
+
+  if (error) {
+    if (error.message === 'not_available') return { error: transportCopy.transporterPanel.errors.alreadyAccepted }
+    return { error: transportCopy.transporterPanel.errors.generic }
+  }
 
   revalidatePath('/mi-perfil-transporte')
 }
 
-export async function markCompleted(formData: FormData): Promise<void> {
+export async function markCompleted(formData: FormData): Promise<ActionResult> {
   const { transporterId } = await getAuthenticatedTransporter()
 
   const requestId = formData.get('requestId') as string
-  if (!UUID_RE.test(requestId)) return
+  if (!UUID_RE.test(requestId)) return { error: transportCopy.transporterPanel.errors.notFound }
 
   const admin = createAdminClient()
 
-  await admin
-    .from('transport_requests')
-    .update({ status: 'completed' })
-    .eq('id', requestId)
-    .eq('transporter_id', transporterId)
-    .eq('status', 'accepted')
+  const { error } = await admin.rpc('complete_transport_request', {
+    p_request_id: requestId,
+    p_transporter_id: transporterId,
+  })
+
+  if (error) {
+    if (error.message === 'not_available') return { error: transportCopy.transporterPanel.errors.notAvailable }
+    return { error: transportCopy.transporterPanel.errors.generic }
+  }
 
   revalidatePath('/mi-perfil-transporte')
 }

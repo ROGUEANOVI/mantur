@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation'
 import { Car, MapPin, Calendar, Users, Phone, FileText, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { transportCopy } from '@/lib/copy/transport'
-import { acceptTransportRequest, markCompleted } from '@/app/(app)/mi-perfil-transporte/actions'
 import AvailabilityToggle from '@/components/transporte/AvailabilityToggle'
+import AcceptTransportRequestForm from '@/components/transporte/AcceptTransportRequestForm'
+import CompleteTransportRequestForm from '@/components/transporte/CompleteTransportRequestForm'
 import { cn } from '@/lib/utils'
 
 type Transporter = {
@@ -200,15 +201,7 @@ export default async function MiPerfilTransportePage() {
                     people={req.people_count}
                     tourist={req.profiles?.full_name}
                   />
-                  <form action={markCompleted} className="mt-3">
-                    <input type="hidden" name="requestId" value={req.id} />
-                    <button
-                      type="submit"
-                      className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
-                    >
-                      {copy.activeRequests.complete}
-                    </button>
-                  </form>
+                  <CompleteTransportRequestForm requestId={req.id} />
                 </div>
               ))}
             </div>
@@ -242,33 +235,7 @@ export default async function MiPerfilTransportePage() {
                       &ldquo;{req.notes}&rdquo;
                     </p>
                   )}
-                  <form action={acceptTransportRequest} className="mt-3 space-y-2">
-                    <input type="hidden" name="requestId" value={req.id} />
-                    <div className="space-y-1">
-                      <label
-                        htmlFor={`price-${req.id}`}
-                        className="text-xs font-medium text-muted-foreground"
-                      >
-                        {transportCopy.acceptForm.priceLabel}
-                      </label>
-                      <input
-                        id={`price-${req.id}`}
-                        type="number"
-                        name="price_pesos"
-                        min="0"
-                        step="1"
-                        inputMode="numeric"
-                        placeholder={transportCopy.acceptForm.pricePlaceholder}
-                        className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="w-full inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-10 px-4 hover:bg-primary/90 transition-colors"
-                    >
-                      {copy.pendingRequests.accept}
-                    </button>
-                  </form>
+                  <AcceptTransportRequestForm requestId={req.id} />
                 </div>
               ))}
             </div>

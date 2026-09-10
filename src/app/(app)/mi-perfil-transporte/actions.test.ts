@@ -93,29 +93,17 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }))
 
-const transportRequestsUpdateMock = vi.fn()
-const transportRequestsEqMock = vi.fn()
-
-function transportRequestsChain(payload: unknown) {
-  transportRequestsUpdateMock(payload)
-  const chain: PromiseLike<{ error: null }> & { eq: (col: string, val: unknown) => typeof chain } = {
-    eq: (col: string, val: unknown) => {
-      transportRequestsEqMock(col, val)
-      return chain
-    },
-    then: (resolve: (v: { error: null }) => unknown) => Promise.resolve(resolve({ error: null })),
-  } as unknown as PromiseLike<{ error: null }> & { eq: (col: string, val: unknown) => typeof chain }
-  return chain
-}
+const acceptTransportRequestRpcMock = vi.fn()
+const completeTransportRequestRpcMock = vi.fn()
+const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
+  if (fn === 'accept_transport_request') return acceptTransportRequestRpcMock(args)
+  if (fn === 'complete_transport_request') return completeTransportRequestRpcMock(args)
+  throw new Error(`unexpected rpc: ${fn}`)
+})
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
-    from: (table: string) => {
-      if (table === 'transport_requests') {
-        return { update: (payload: unknown) => transportRequestsChain(payload) }
-      }
-      throw new Error(`unexpected table on admin client: ${table}`)
-    },
+    rpc: rpcMock,
   })),
 }))
 
@@ -155,6 +143,8 @@ beforeEach(() => {
   userStorageUpload.mockResolvedValue({ error: null })
   userStorageRemove.mockResolvedValue({ error: null })
   toggleUpdateMock.mockResolvedValue({ error: null })
+  acceptTransportRequestRpcMock.mockResolvedValue({ error: null })
+  completeTransportRequestRpcMock.mockResolvedValue({ error: null })
 })
 
 describe('getAuthenticatedTransporter guard (shared by every action in this file)', () => {
@@ -214,67 +204,69 @@ describe('toggleAvailability', () => {
 })
 
 describe('acceptTransportRequest', () => {
-  it('does nothing (no DB call, no revalidation) when requestId is not a UUID', async () => {
+  it('returns an error (no RPC call, no revalidation) when requestId is not a UUID', async () => {
     const fd = formData({ requestId: 'not-a-uuid' })
-    await acceptTransportRequest(fd)
-    expect(transportRequestsUpdateMock).not.toHaveBeenCalled()
+    const result = await acceptTransportRequest(fd)
+    expect(result).toEqual({ error: 'Solicitud no encontrada.' })
+    expect(acceptTransportRequestRpcMock).not.toHaveBeenCalled()
     expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 
-  it('claims the request by filtering on id AND status=pending — the atomicity guarantee', async () => {
-    const fd = formData({ requestId: REQUEST_ID })
-    await acceptTransportRequest(fd)
+  // Quoting a price is now mandatory — this used to silently accept with
+  // price_cents: null (see git history), which made commission uncalculable
+  // once the trip completes.
+  it.each(['0', '-100', 'abc', '', undefined])(
+    'rejects a missing/invalid quoted price %s without calling the RPC',
+    async (pricePesos) => {
+      const fd = formData(pricePesos === undefined ? { requestId: REQUEST_ID } : { requestId: REQUEST_ID, price_pesos: pricePesos })
+      const result = await acceptTransportRequest(fd)
+      expect(result).toEqual({ error: 'Cotiza el precio del traslado para poder aceptarlo.' })
+      expect(acceptTransportRequestRpcMock).not.toHaveBeenCalled()
+    },
+  )
 
-    // No price quoted — price_cents stays null, same as the original
-    // cash-only flow before this field existed.
-    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({
-      transporter_id: TRANSPORTER_ID,
-      status: 'accepted',
-      price_cents: null,
+  it('converts the quoted price in pesos to cents and calls the RPC with the session transporter_id', async () => {
+    const fd = formData({ requestId: REQUEST_ID, price_pesos: '25000' })
+    const result = await acceptTransportRequest(fd)
+
+    expect(result).toBeUndefined()
+    expect(acceptTransportRequestRpcMock).toHaveBeenCalledWith({
+      p_request_id: REQUEST_ID,
+      p_transporter_id: TRANSPORTER_ID,
+      p_price_cents: 2_500_000,
     })
-    // Both filters must be present — dropping the status='pending' filter
-    // would let a transporter "steal" an already-accepted request.
-    expect(transportRequestsEqMock).toHaveBeenCalledWith('id', REQUEST_ID)
-    expect(transportRequestsEqMock).toHaveBeenCalledWith('status', 'pending')
-    expect(transportRequestsEqMock).toHaveBeenCalledTimes(2)
     expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte')
   })
 
-  it('converts a quoted price in pesos to price_cents', async () => {
+  it('maps a not_available RPC error (someone else already claimed it) to the alreadyAccepted copy', async () => {
+    acceptTransportRequestRpcMock.mockResolvedValue({ error: { message: 'not_available' } })
     const fd = formData({ requestId: REQUEST_ID, price_pesos: '25000' })
-    await acceptTransportRequest(fd)
-
-    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({
-      transporter_id: TRANSPORTER_ID,
-      status: 'accepted',
-      price_cents: 2_500_000,
-    })
+    const result = await acceptTransportRequest(fd)
+    expect(result).toEqual({ error: 'Esta solicitud ya fue aceptada por otro transportador.' })
+    expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 
-  it.each(['0', '-100', 'abc', ''])('treats an invalid quoted price %s as not quoted (null)', async (pricePesos) => {
-    const fd = formData({ requestId: REQUEST_ID, price_pesos: pricePesos })
-    await acceptTransportRequest(fd)
-
-    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({
-      transporter_id: TRANSPORTER_ID,
-      status: 'accepted',
-      price_cents: null,
-    })
+  it('returns a generic error for any other RPC failure', async () => {
+    acceptTransportRequestRpcMock.mockResolvedValue({ error: { message: 'boom' } })
+    const fd = formData({ requestId: REQUEST_ID, price_pesos: '25000' })
+    const result = await acceptTransportRequest(fd)
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 
   it('redirects to / when the caller is not a registered transporter', async () => {
     transporterLookupSingle.mockResolvedValue({ data: null })
-    const fd = formData({ requestId: REQUEST_ID })
+    const fd = formData({ requestId: REQUEST_ID, price_pesos: '25000' })
     await expect(acceptTransportRequest(fd)).rejects.toThrow('redirect:/')
-    expect(transportRequestsUpdateMock).not.toHaveBeenCalled()
+    expect(acceptTransportRequestRpcMock).not.toHaveBeenCalled()
   })
 })
 
 describe('markCompleted', () => {
-  it('does nothing (no DB call, no revalidation) when requestId is not a UUID', async () => {
+  it('returns an error (no RPC call, no revalidation) when requestId is not a UUID', async () => {
     const fd = formData({ requestId: 'nope' })
-    await markCompleted(fd)
-    expect(transportRequestsUpdateMock).not.toHaveBeenCalled()
+    const result = await markCompleted(fd)
+    expect(result).toEqual({ error: 'Solicitud no encontrada.' })
+    expect(completeTransportRequestRpcMock).not.toHaveBeenCalled()
     expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 
@@ -282,33 +274,40 @@ describe('markCompleted', () => {
     transporterLookupSingle.mockResolvedValue({ data: null })
     const fd = formData({ requestId: REQUEST_ID })
     await expect(markCompleted(fd)).rejects.toThrow('redirect:/')
-    expect(transportRequestsUpdateMock).not.toHaveBeenCalled()
+    expect(completeTransportRequestRpcMock).not.toHaveBeenCalled()
   })
 
-  it('filters on id, the caller\'s own transporter_id, AND status=accepted — an ownership check', async () => {
-    const fd = formData({ requestId: REQUEST_ID })
-    await markCompleted(fd)
-
-    expect(transportRequestsUpdateMock).toHaveBeenCalledWith({ status: 'completed' })
-    // transporter_id here comes from the authenticated session (getAuthenticatedTransporter),
-    // never from formData — a transporter can't complete a ride that isn't theirs
-    // by passing a different id in the request.
-    expect(transportRequestsEqMock).toHaveBeenCalledWith('id', REQUEST_ID)
-    expect(transportRequestsEqMock).toHaveBeenCalledWith('transporter_id', TRANSPORTER_ID)
-    expect(transportRequestsEqMock).toHaveBeenCalledWith('status', 'accepted')
-    expect(transportRequestsEqMock).toHaveBeenCalledTimes(3)
-  })
-
-  it('ignores a client-supplied transporter_id in formData and still filters by the session transporter', async () => {
-    // The real form never sends this field, but the action must not read
-    // it even if it did — ownership has to come from the authenticated
-    // session, never from client input, or transporter A could complete
-    // transporter B's ride by guessing/spoofing a form field.
+  it('calls the RPC with the request id and the session transporter_id — never one supplied by the client', async () => {
+    // The real form never sends a transporter_id field, but the action must
+    // not read it even if it did — ownership has to come from the
+    // authenticated session (getAuthenticatedTransporter), never from
+    // client input, or transporter A could complete transporter B's ride by
+    // guessing/spoofing a form field. The RPC itself also enforces this
+    // server-side via its own transporter_id match.
     const fd = formData({ requestId: REQUEST_ID, transporterId: 'attacker-controlled-uuid', transporter_id: 'attacker-controlled-uuid' })
-    await markCompleted(fd)
+    const result = await markCompleted(fd)
 
-    expect(transportRequestsEqMock).toHaveBeenCalledWith('transporter_id', TRANSPORTER_ID)
-    expect(transportRequestsEqMock).not.toHaveBeenCalledWith('transporter_id', 'attacker-controlled-uuid')
+    expect(result).toBeUndefined()
+    expect(completeTransportRequestRpcMock).toHaveBeenCalledWith({
+      p_request_id: REQUEST_ID,
+      p_transporter_id: TRANSPORTER_ID,
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/mi-perfil-transporte')
+  })
+
+  it('maps a not_available RPC error to the notAvailable copy', async () => {
+    completeTransportRequestRpcMock.mockResolvedValue({ error: { message: 'not_available' } })
+    const fd = formData({ requestId: REQUEST_ID })
+    const result = await markCompleted(fd)
+    expect(result).toEqual({ error: 'Esta solicitud ya no está disponible.' })
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error for any other RPC failure', async () => {
+    completeTransportRequestRpcMock.mockResolvedValue({ error: { message: 'boom' } })
+    const fd = formData({ requestId: REQUEST_ID })
+    const result = await markCompleted(fd)
+    expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 })
 

@@ -212,6 +212,7 @@ export const adminCopy = {
   comisiones: {
     title: 'Tasas de comisión',
     subtitle: 'Porcentaje que retiene ManTur sobre el monto total de cada transacción.',
+    viewPending: 'Ver comisión pendiente de cobro',
     serviceType: {
       tour_activity: 'Actividades/Tours',
       lodging: 'Hospedaje',
@@ -229,6 +230,30 @@ export const adminCopy = {
       invalidRate: 'La tasa debe ser un número entre 0 y 100.',
       generic: 'Error al guardar. Intenta de nuevo.',
       notFound: 'Configuración no encontrada.',
+    },
+    pending: {
+      title: 'Comisión pendiente de cobro',
+      subtitle: 'Reservas confirmadas y traslados completados cuya comisión todavía no se le ha cobrado al proveedor.',
+      backToRates: 'Ver tasas de comisión',
+      empty: 'No hay comisión pendiente de cobro.',
+      totalLabel: 'Total pendiente',
+      recipientType: {
+        business: 'Negocio',
+        guide: 'Guía',
+        transporter: 'Transportista',
+      } as Record<string, string>,
+      dateLabel: 'Fecha',
+      amountLabel: 'Comisión',
+      rateLabel: 'Tasa',
+      notesLabel: 'Nota (opcional)',
+      notesPlaceholder: 'Ej: pagó por Nequi el 10/09',
+      markCollected: 'Marcar como cobrada',
+      marking: 'Guardando...',
+      success: 'Comisión marcada como cobrada.',
+      errors: {
+        notFound: 'Registro de comisión no encontrado.',
+        generic: 'Ocurrió un error. Intenta de nuevo.',
+      },
     },
   },
 

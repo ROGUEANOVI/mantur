@@ -512,6 +512,16 @@ export async function cancelGuideTourBooking(formData: FormData): Promise<Action
 
   if (error || !updated?.length) return { error: copy.generic }
 
+  // The commission recorded when this booking was confirmed
+  // (create_guide_tour_prereserva) no longer reflects a real debt — void it
+  // rather than delete it, same never-delete-money-rows posture as every
+  // other ledger table.
+  await admin
+    .from('provider_commissions')
+    .update({ status: 'voided' })
+    .eq('booking_id', bookingId)
+    .eq('status', 'pending')
+
   try {
     const { data: touristProfile } = await admin
       .from('profiles')

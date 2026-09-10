@@ -205,6 +205,7 @@ const storageGetPublicUrl = vi.fn()
 const storageRemove = vi.fn()
 const storageCreateSignedUploadUrl = vi.fn()
 const bookingCancelUpdateSelectMock = vi.fn() // bookings.update({status:'cancelled'}).eq(id).eq(status).select('id') — cancelServiceBooking
+const providerCommissionsVoidMock = vi.fn() // provider_commissions.update({status:'voided'}).eq(booking_id).eq(status) — cancelServiceBooking
 const touristProfileSingleMock = vi.fn() // profiles: select('full_name').eq(id).single() — cancelServiceBooking's email lookup
 const getUserByIdMock = vi.fn()
 
@@ -226,6 +227,13 @@ vi.mock('@/lib/supabase/admin', () => ({
       }
       if (table === 'profiles') {
         return { select: () => ({ eq: () => ({ single: touristProfileSingleMock }) }) }
+      }
+      if (table === 'provider_commissions') {
+        return {
+          update: (payload: unknown) => ({
+            eq: (col: string, val: string) => ({ eq: (col2: string, val2: string) => providerCommissionsVoidMock(payload, col, val, col2, val2) }),
+          }),
+        }
       }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
@@ -1913,6 +1921,9 @@ describe('cancelServiceBooking', () => {
 
     expect(result).toBeUndefined()
     expect(bookingCancelUpdateSelectMock).toHaveBeenCalledWith({ status: 'cancelled' })
+    expect(providerCommissionsVoidMock).toHaveBeenCalledWith(
+      { status: 'voided' }, 'booking_id', BOOKING_ID, 'status', 'pending',
+    )
     expect(sendServiceBookingCancelledEmailMock).toHaveBeenCalledWith('turista@example.com', {
       serviceName: 'Cabalgata al atardecer',
       touristName: 'Ana Pérez',
