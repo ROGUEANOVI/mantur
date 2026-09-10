@@ -20,7 +20,7 @@ type BookingDetail = {
   notes: string | null
   services: {
     name: string
-    businesses: { name: string } | null
+    businesses: { name: string; phone: string | null } | null
   } | null
   guide_tours: {
     name: string
@@ -86,7 +86,7 @@ export default async function ConfirmacionPage({
   const { data: booking, error } = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, status, created_at, notes, services(name, businesses(name)), guide_tours(name, tourist_guides(phone, profiles!profile_id(full_name))), packages(name)',
+      'id, booking_date, quantity, total_amount, status, created_at, notes, services(name, businesses(name, phone)), guide_tours(name, tourist_guides(phone, profiles!profile_id(full_name))), packages(name)',
     )
     .eq('id', bookingId)
     .single()
@@ -240,6 +240,34 @@ export default async function ConfirmacionPage({
             )}
             <a
               href={`https://wa.me/57${b.guide_tours.tourist_guides.phone.replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white text-sm font-semibold min-h-11 hover:bg-[#1ebe59] transition-colors"
+            >
+              <MessageCircle className="size-4" aria-hidden="true" />
+              {bookingsCopy.confirmation.whatsappButton}
+            </a>
+          </div>
+        )}
+
+        {/* Business WhatsApp contact — only for business service bookings */}
+        {!isPackage && !isGuideTour && b.services?.businesses?.phone && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="size-5 text-primary shrink-0" strokeWidth={1.5} aria-hidden="true" />
+              <p className="font-semibold text-foreground text-sm">{bookingsCopy.confirmation.businessContact}</p>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {bookingsCopy.confirmation.businessContactHint}
+            </p>
+            {b.notes && (
+              <div className="rounded-xl bg-background border border-border px-3 py-2 space-y-0.5">
+                <p className="text-xs font-medium text-muted-foreground">{bookingsCopy.confirmation.notesLabel}</p>
+                <p className="text-sm text-foreground">{b.notes}</p>
+              </div>
+            )}
+            <a
+              href={`https://wa.me/57${b.services.businesses.phone.replace(/\D/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white text-sm font-semibold min-h-11 hover:bg-[#1ebe59] transition-colors"

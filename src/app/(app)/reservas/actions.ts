@@ -263,7 +263,7 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
 // which this mirrors — reusing the exact same sendBusinessBookingConfirmedEmail
 // template, since from the business owner's point of view a service
 // prereserva IS a newly-confirmed booking, same as one paid through Wompi.
-async function notifyBusinessOfServicePrereserva(
+export async function notifyBusinessOfServicePrereserva(
   admin: ReturnType<typeof createAdminClient>,
   params: {
     businessId: string
@@ -470,7 +470,7 @@ export async function createGuideTourBooking(formData: FormData): Promise<Bookin
 // tourist_guides.profile_id instead of businesses.owner_id, and reusing
 // sendGuideBookingConfirmedEmail — same reasoning: from the guide's point of
 // view a tour prereserva IS a newly-confirmed booking.
-async function notifyGuideOfTourPrereserva(
+export async function notifyGuideOfTourPrereserva(
   admin: ReturnType<typeof createAdminClient>,
   params: {
     guideId: string

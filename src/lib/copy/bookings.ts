@@ -48,6 +48,8 @@ export const bookingsCopy = {
     explore: 'Explorar más negocios',
     guideContact: 'Coordina con tu guía',
     guideContactHint: 'Escríbele por WhatsApp para confirmar el horario y punto de encuentro.',
+    businessContact: 'Coordina con el negocio',
+    businessContactHint: 'Escríbele por WhatsApp para confirmar el horario y los detalles de tu reserva.',
     whatsappButton: 'Escribir por WhatsApp',
     notesLabel: 'Tus notas',
   },
