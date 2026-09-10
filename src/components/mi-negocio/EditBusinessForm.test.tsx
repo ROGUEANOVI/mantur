@@ -59,7 +59,7 @@ describe('EditBusinessForm', () => {
     expect(screen.getByLabelText('Nombre')).toHaveValue('Finca La Esperanza')
     expect(screen.getByLabelText('Descripción')).toHaveValue('Un lugar tranquilo')
     expect(screen.getByLabelText('Dirección')).toHaveValue('Calle 5 #10-20')
-    expect(screen.getByLabelText('Teléfono de contacto')).toHaveValue('3001234567')
+    expect(screen.getByLabelText('WhatsApp del negocio')).toHaveValue('3001234567')
     expect(container.querySelector('input[name="lat"]')).toHaveValue('11.7808')
     expect(container.querySelector('input[name="lng"]')).toHaveValue('-72.9944')
   })
@@ -90,7 +90,7 @@ describe('EditBusinessForm', () => {
 
     expect(screen.getByLabelText('Descripción')).toHaveValue('')
     expect(screen.getByLabelText('Dirección')).toHaveValue('')
-    expect(screen.getByLabelText('Teléfono de contacto')).toHaveValue('')
+    expect(screen.getByLabelText('WhatsApp del negocio')).toHaveValue('')
   })
 
   it('submits changes scoped to the bound businessId', async () => {
@@ -222,7 +222,7 @@ describe('EditBusinessForm', () => {
       />,
     )
 
-    const phoneInput = screen.getByLabelText('Teléfono de contacto')
+    const phoneInput = screen.getByLabelText('WhatsApp del negocio')
     await user.clear(phoneInput)
     await user.type(phoneInput, 'abcdefgh')
     await user.tab()
