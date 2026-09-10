@@ -134,9 +134,14 @@ export default async function AdminComisionesPendientesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">{copy.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{copy.subtitle}</p>
-          <Link href="/admin/comisiones" className="mt-2 inline-block text-sm text-primary hover:underline">
-            {copy.backToRates}
-          </Link>
+          <div className="mt-2 flex items-center gap-4">
+            <Link href="/admin/comisiones" className="text-sm text-primary hover:underline">
+              {copy.backToRates}
+            </Link>
+            <Link href="/admin/comisiones/historial" className="text-sm text-primary hover:underline">
+              {copy.viewHistory}
+            </Link>
+          </div>
         </div>
 
         {commissions.length === 0 ? (

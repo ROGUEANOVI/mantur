@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
@@ -41,6 +43,14 @@ export default async function AdminReservasNuevaPage() {
   return (
     <main className="px-4 py-6 pb-10">
       <div className="mx-auto max-w-lg space-y-5">
+        <Link
+          href="/admin/reservas"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary min-h-11 py-2 hover:underline"
+        >
+          <ChevronLeft className="size-4" aria-hidden="true" />
+          {copy.backToList}
+        </Link>
+
         <h1 className="text-2xl font-bold text-foreground">{copy.title}</h1>
         <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
 

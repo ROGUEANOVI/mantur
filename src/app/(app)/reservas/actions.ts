@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolveAdminEmails } from '@/lib/adminNotifications'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { buildWompiCheckoutUrl } from '@/lib/wompi/checkout'
@@ -46,27 +47,14 @@ async function notifyAdminsOfPackagePrereserva(
   params: { packageName: string; touristId: string; bookingDate: string; quantity: number; notes: string | null },
 ): Promise<void> {
   try {
-    const { data: adminProfiles, error: adminProfilesError } = await admin.from('profiles').select('id').eq('role', 'admin')
-    if (adminProfilesError) {
-      console.error('Failed to look up admin profiles for package prereserva notification', adminProfilesError)
-      return
-    }
-    if (!adminProfiles?.length) return
+    const adminEmails = await resolveAdminEmails(admin)
+    if (!adminEmails.length) return
 
     const { data: touristProfile } = await admin
       .from('profiles')
       .select('full_name')
       .eq('id', params.touristId)
       .single<{ full_name: string | null }>()
-
-    const adminEmails = (
-      await Promise.all(
-        adminProfiles.map(async ({ id }) => {
-          const { data } = await admin.auth.admin.getUserById(id)
-          return data.user?.email ?? null
-        }),
-      )
-    ).filter((email): email is string => !!email)
 
     await Promise.all(
       adminEmails.map((email) =>

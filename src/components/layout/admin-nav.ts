@@ -21,7 +21,7 @@ export const ADMIN_NAV_GROUPS: AdminNavItem[][] = [
     { href: '/admin/solicitudes', label: 'Solicitudes', exact: false, Icon: Users, countKey: 'solicitudes' },
   ],
   [
-    { href: '/admin/reservas/nueva', label: 'Registrar reserva', exact: false, Icon: CalendarPlus },
+    { href: '/admin/reservas', label: 'Reservas', exact: false, Icon: CalendarPlus },
   ],
   [
     { href: '/admin/negocios',       label: 'Negocios',         exact: false, Icon: Building2, countKey: 'negocios' },

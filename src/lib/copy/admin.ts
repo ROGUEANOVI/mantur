@@ -51,6 +51,7 @@ export const adminCopy = {
   reservas: {
     title: 'Registrar reserva',
     subtitle: 'Registra una reserva ya cerrada por WhatsApp para que quede en el sistema.',
+    backToList: 'Volver a reservas',
     typeLabel: '¿Qué vas a reservar?',
     typeService: 'Servicio de negocio',
     typeGuideTour: 'Tour de guía',
@@ -71,6 +72,32 @@ export const adminCopy = {
       touristNotFound: 'Selecciona un turista registrado.',
       itemRequired: 'Selecciona un servicio o tour.',
     },
+  },
+
+  reservasList: {
+    title: 'Reservas',
+    subtitle: 'Todas las reservas de servicios, tours, paquetes y traslados en un solo lugar.',
+    newButton: 'Registrar reserva',
+    empty: 'No hay reservas todavía.',
+    type: {
+      all: 'Todos',
+      service: 'Servicios',
+      guide_tour: 'Tours de guía',
+      package: 'Paquetes',
+      transport: 'Transporte',
+    } as Record<string, string>,
+    touristLabel: 'Turista',
+    providerLabel: 'Proveedor',
+    itemLabel: 'Ítem',
+    dateLabel: 'Fecha',
+    amountLabel: 'Total',
+    commissionLabel: 'Comisión',
+    commissionStatus: {
+      pending: 'Pendiente',
+      collected: 'Cobrada',
+      voided: 'Anulada',
+      none: '—',
+    } as Record<string, string>,
   },
 
   dashboard: {
@@ -235,6 +262,7 @@ export const adminCopy = {
       title: 'Comisión pendiente de cobro',
       subtitle: 'Reservas confirmadas y traslados completados cuya comisión todavía no se le ha cobrado al proveedor.',
       backToRates: 'Ver tasas de comisión',
+      viewHistory: 'Ver historial',
       empty: 'No hay comisión pendiente de cobro.',
       totalLabel: 'Total pendiente',
       recipientType: {
@@ -254,6 +282,37 @@ export const adminCopy = {
         notFound: 'Registro de comisión no encontrado.',
         generic: 'Ocurrió un error. Intenta de nuevo.',
       },
+    },
+    historial: {
+      title: 'Historial de comisión',
+      subtitle: 'Comisión ya cobrada o anulada.',
+      backToRates: 'Ver tasas de comisión',
+      viewPending: 'Ver comisión pendiente',
+      empty: 'Todavía no hay comisión cobrada ni anulada.',
+      totalCollectedLabel: 'Total cobrado',
+      recipientType: {
+        business: 'Negocio',
+        guide: 'Guía',
+        transporter: 'Transportista',
+      } as Record<string, string>,
+      filter: {
+        all: 'Todas',
+        collected: 'Cobradas',
+        voided: 'Anuladas',
+      },
+      statusLabel: {
+        collected: 'Cobrada',
+        voided: 'Anulada',
+      } as Record<string, string>,
+      statusColors: {
+        collected: 'bg-primary/15 text-primary',
+        voided: 'bg-muted text-muted-foreground',
+      } as Record<string, string>,
+      dateLabel: 'Fecha',
+      amountLabel: 'Comisión',
+      rateLabel: 'Tasa',
+      collectedByLabel: 'Cobrada por',
+      notesLabel: 'Nota',
     },
   },
 
