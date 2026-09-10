@@ -125,6 +125,7 @@ export const transportCopy = {
     },
     errors: {
       alreadyAccepted: 'Esta solicitud ya fue aceptada por otro transportador.',
+      notAvailable: 'Esta solicitud ya no está disponible.',
       notFound: 'Solicitud no encontrada.',
       generic: 'Ocurrió un error. Intenta de nuevo.',
       unauthorized: 'Debes tener el rol de transportador.',
@@ -164,8 +165,11 @@ export const transportCopy = {
   },
 
   acceptForm: {
-    priceLabel: 'Precio del traslado (COP, opcional)',
+    priceLabel: 'Precio del traslado (COP)',
     pricePlaceholder: 'Ej: 25000',
+    errors: {
+      priceRequired: 'Cotiza el precio del traslado para poder aceptarlo.',
+    },
   },
 
   editProfile: {
