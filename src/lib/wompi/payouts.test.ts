@@ -215,7 +215,7 @@ describe('listPayoutBanks', () => {
 
 const ACCOUNT_ROW = {
   bank_name: 'Bancolombia',
-  wompi_bank_id: 'bank-uuid-1',
+  wompi_bank_id: 'bank-uuid-1' as string | null,
   account_type: 'ahorros' as const,
   account_number: '00011122233',
   holder_id_type: 'CC' as const,
