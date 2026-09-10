@@ -55,7 +55,7 @@ describe('AdminBusinessForm', () => {
     await user.selectOptions(screen.getByLabelText('Propietario'), 'owner-1')
     await user.type(screen.getByLabelText('Descripción'), 'Un lugar agradable')
     await user.type(screen.getByLabelText('Dirección'), 'Calle 5 #10-20')
-    await user.type(screen.getByLabelText('Teléfono'), '3001234567')
+    await user.type(screen.getByLabelText('WhatsApp del negocio'), '3001234567')
     await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
 
     expect(action).toHaveBeenCalledTimes(1)
@@ -138,7 +138,7 @@ describe('AdminBusinessForm', () => {
     const user = userEvent.setup()
     render(<AdminBusinessForm action={action} owners={OWNERS} />)
 
-    await user.type(screen.getByLabelText('Teléfono'), 'abcdefgh')
+    await user.type(screen.getByLabelText('WhatsApp del negocio'), 'abcdefgh')
     await user.tab()
 
     expect(

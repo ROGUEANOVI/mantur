@@ -13,6 +13,7 @@ describe('AdminSidebar', () => {
     const expected: [string, string][] = [
       ['Dashboard', '/admin'],
       ['Solicitudes', '/admin/solicitudes'],
+      ['Registrar reserva', '/admin/reservas/nueva'],
       ['Negocios', '/admin/negocios'],
       ['Categorías', '/admin/categorias'],
       ['Tipos de servicio', '/admin/tipos-servicio'],
@@ -36,9 +37,9 @@ describe('AdminSidebar', () => {
     expect(screen.getByRole('link', { name: 'Negocios' })).not.toHaveClass('bg-muted')
   })
 
-  it('renders a divider between each of the six nav groups', () => {
+  it('renders a divider between each of the seven nav groups', () => {
     const { container } = render(<AdminSidebar />)
-    // 6 groups → 5 dividers (one before every group after the first)
-    expect(container.querySelectorAll('nav > div > .my-1\\.5.border-t')).toHaveLength(5)
+    // 7 groups → 6 dividers (one before every group after the first)
+    expect(container.querySelectorAll('nav > div > .my-1\\.5.border-t')).toHaveLength(6)
   })
 })

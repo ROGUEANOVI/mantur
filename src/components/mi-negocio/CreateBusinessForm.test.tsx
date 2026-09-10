@@ -115,7 +115,7 @@ describe('CreateBusinessForm', () => {
     render(<CreateBusinessForm categories={CATEGORIES} />)
 
     await user.type(screen.getByLabelText('Nombre'), 'Finca X')
-    await user.type(screen.getByLabelText('Teléfono de contacto'), 'abcdefgh')
+    await user.type(screen.getByLabelText('WhatsApp del negocio'), 'abcdefgh')
     await user.tab()
 
     expect(
