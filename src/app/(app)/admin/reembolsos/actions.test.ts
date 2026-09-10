@@ -37,7 +37,7 @@ const refundSelectSingle = vi.fn()
 const refundRejectUpdateSingle = vi.fn()
 const policyUpdateSelect = vi.fn()
 
-const refundRejectUpdateInMock = vi.fn(() => ({ select: () => ({ single: refundRejectUpdateSingle }) }))
+const refundRejectUpdateInMock = vi.fn((...args: unknown[]) => ({ select: () => ({ single: refundRejectUpdateSingle }) }))
 const refundRejectUpdateMock = vi.fn(() => ({
   eq: () => ({ in: (...args: unknown[]) => refundRejectUpdateInMock(...args) }),
 }))

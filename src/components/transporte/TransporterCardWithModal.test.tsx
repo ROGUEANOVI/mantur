@@ -74,6 +74,7 @@ describe('TransporterCardWithModal', () => {
     const originalLocation = window.location
     // @ts-expect-error — jsdom's location isn't normally reassignable
     delete window.location
+    // @ts-expect-error — window.location's DOM lib type (string & Location) can't be satisfied by a plain object
     window.location = { ...originalLocation, href: '' } as Location
 
     const user = userEvent.setup()
@@ -84,6 +85,7 @@ describe('TransporterCardWithModal', () => {
     expect(window.location.href).toBe('/login?next=/transportistas')
     expect(screen.queryByTestId('transport-request-form')).not.toBeInTheDocument()
 
+    // @ts-expect-error — same DOM lib quirk as the reassignment above
     window.location = originalLocation
   })
 

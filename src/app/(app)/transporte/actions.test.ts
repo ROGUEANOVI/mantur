@@ -85,7 +85,7 @@ const transporterProfileIdSingleMock = vi.fn()
 const routeTouristProfileSingleMock = vi.fn()
 const getUserByIdMock = vi.fn()
 
-const createAdminClientMock = vi.fn(() => ({
+const createAdminClientMock = vi.fn((...args: unknown[]) => ({
   rpc: (fn: string, args: Record<string, unknown>) => {
     if (fn === 'is_item_available') return isItemAvailableRpcMock(args)
     throw new Error(`unexpected rpc: ${fn}`)
