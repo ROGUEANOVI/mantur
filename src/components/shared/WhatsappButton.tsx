@@ -1,20 +1,26 @@
 import { MessageCircle } from 'lucide-react'
-import { manturWhatsappUrl } from '@/lib/whatsapp'
+import { manturWhatsappUrl, directWhatsappUrl } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
 
 type Props = {
   message: string
   label: string
   className?: string
+  // Omit for the default ManTur-mediated inquiry (ServiceCard: the tourist's
+  // question about a bookable service goes through ManTur's own WhatsApp,
+  // per the manual-sales operating model). Pass the provider's own phone to
+  // link directly to them instead — for a business that isn't part of that
+  // flow at all (an informational business's contact card).
+  phone?: string | null
 }
 
 // Same visual pattern already used for the guide-contact WhatsApp button on
 // the booking confirmation page — kept identical here for consistency
 // across the app's WhatsApp touchpoints.
-export default function WhatsappButton({ message, label, className }: Props) {
+export default function WhatsappButton({ message, label, className, phone }: Props) {
   return (
     <a
-      href={manturWhatsappUrl(message)}
+      href={phone ? directWhatsappUrl(phone, message) : manturWhatsappUrl(message)}
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
