@@ -37,29 +37,47 @@ export default function CreateCategoryForm() {
         <p className="text-sm font-semibold text-foreground">{copy.new}</p>
       </div>
 
-      <form ref={formRef} action={action} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="flex-1 space-y-1.5">
-          <label htmlFor="category-name" className="block text-sm font-medium text-foreground">
-            {copy.nameLabel}
-          </label>
-          <input
-            id="category-name"
-            type="text"
-            name="name"
-            placeholder={copy.namePlaceholder}
-            required
-            className="w-full min-h-11 rounded-xl border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+      <form ref={formRef} action={action} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1 space-y-1.5">
+            <label htmlFor="category-name" className="block text-sm font-medium text-foreground">
+              {copy.nameLabel}
+            </label>
+            <input
+              id="category-name"
+              type="text"
+              name="name"
+              placeholder={copy.namePlaceholder}
+              required
+              className="w-full min-h-11 rounded-xl border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={pending}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 min-h-11 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            {pending ? copy.adding : copy.add}
+          </button>
         </div>
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 min-h-11 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          {pending ? copy.adding : copy.add}
-        </button>
+        <div className="space-y-1.5">
+          <label htmlFor="category-listing-mode" className="block text-sm font-medium text-foreground">
+            {copy.defaultListingMode}
+          </label>
+          <select
+            id="category-listing-mode"
+            name="default_listing_mode"
+            defaultValue="bookable"
+            className="w-full min-h-11 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="bookable">{copy.modeBookable}</option>
+            <option value="informational">{copy.modeInformational}</option>
+          </select>
+          <p className="text-xs text-muted-foreground">{copy.defaultListingModeHint}</p>
+        </div>
       </form>
     </div>
   )

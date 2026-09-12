@@ -23,9 +23,18 @@ vi.mock('@/components/shared/LocationPicker', () => ({
   ),
 }))
 
+// Both fixture categories default_listing_mode 'bookable' — these tests
+// exercise the ordinary (RNT-required) path. See the "informational
+// category" describe block below for the notice/RNT-skip behavior, which
+// needs an 'informational' category to trigger.
 const CATEGORIES = [
-  { id: 'cat-1', name: 'Restaurante' },
-  { id: 'cat-2', name: 'Finca' },
+  { id: 'cat-1', name: 'Restaurante', default_listing_mode: 'bookable' as const },
+  { id: 'cat-2', name: 'Finca', default_listing_mode: 'bookable' as const },
+]
+
+const MIXED_CATEGORIES = [
+  { id: 'cat-1', name: 'Restaurante', default_listing_mode: 'informational' as const },
+  { id: 'cat-2', name: 'Finca', default_listing_mode: 'bookable' as const },
 ]
 
 beforeEach(() => {
@@ -125,5 +134,62 @@ describe('CreateBusinessForm', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Restaurante' }))
     await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
     expect(createBusinessMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('CreateBusinessForm — informational category', () => {
+  it('shows no notice and requires RNT before any category is selected', () => {
+    render(<CreateBusinessForm categories={MIXED_CATEGORIES} />)
+    expect(screen.queryByText(/tendrá un perfil informativo/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/número de registro nacional de turismo/i)).toBeRequired()
+  })
+
+  it('shows the informational notice and hides RNT fields when only an informational category is checked', async () => {
+    const user = userEvent.setup()
+    render(<CreateBusinessForm categories={MIXED_CATEGORIES} />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Restaurante' }))
+
+    expect(screen.getByText(/tendrá un perfil informativo/)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/número de registro nacional de turismo/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/certificado rnt/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps requiring RNT and shows no notice when a bookable category is also checked', async () => {
+    const user = userEvent.setup()
+    render(<CreateBusinessForm categories={MIXED_CATEGORIES} />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Restaurante' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Finca' }))
+
+    expect(screen.queryByText(/tendrá un perfil informativo/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/número de registro nacional de turismo/i)).toBeInTheDocument()
+  })
+
+  it('brings the RNT fields back after unchecking the only informational category', async () => {
+    const user = userEvent.setup()
+    render(<CreateBusinessForm categories={MIXED_CATEGORIES} />)
+
+    const restaurante = screen.getByRole('checkbox', { name: 'Restaurante' })
+    await user.click(restaurante)
+    expect(screen.queryByLabelText(/número de registro nacional de turismo/i)).not.toBeInTheDocument()
+
+    await user.click(restaurante)
+    expect(screen.getByLabelText(/número de registro nacional de turismo/i)).toBeInTheDocument()
+  })
+
+  it('submits with no rnt_number/rnt_document when only informational categories are selected', async () => {
+    createBusinessMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<CreateBusinessForm categories={MIXED_CATEGORIES} />)
+
+    await user.type(screen.getByLabelText('Nombre'), 'La Sazón')
+    await user.click(screen.getByRole('checkbox', { name: 'Restaurante' }))
+    await user.click(screen.getByRole('button', { name: 'Crear negocio' }))
+
+    expect(createBusinessMock).toHaveBeenCalledTimes(1)
+    const fd = createBusinessMock.mock.calls[0][0] as FormData
+    expect(fd.get('rnt_number')).toBeNull()
+    expect(fd.get('rnt_document')).toBeNull()
   })
 })

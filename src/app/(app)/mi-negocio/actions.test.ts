@@ -68,6 +68,7 @@ const businessMediaMaybeSingle = vi.fn() // select('id, images, videos')... .may
 const businessVideosMaybeSingle = vi.fn() // select('id, videos')... .maybeSingle() — deleteBusinessVideo
 
 const categoryLinksInsertMock = vi.fn()
+const businessCategoriesSelectMock = vi.fn() // business_categories: select('default_listing_mode').in('id', ids) — createBusiness
 const categoryLinksDeleteMock = vi.fn()
 
 const serviceTypeSingle = vi.fn() // service_types: select('slug').eq(id).eq(is_active).single() — createService
@@ -154,6 +155,16 @@ function categoryLinksUserTable() {
   }
 }
 
+// createBusiness's own (no-override-yet) informational check — see the
+// comment in createBusiness. Defaults to a single 'bookable' category row in
+// beforeEach so every pre-existing test (none of which care about listing
+// mode) keeps requiring RNT exactly as before.
+function businessCategoriesUserTable() {
+  return {
+    select: () => ({ in: (col: string, ids: string[]) => businessCategoriesSelectMock(col, ids) }),
+  }
+}
+
 function bookingsUserTable() {
   return {
     select: () => ({
@@ -175,6 +186,7 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'profiles') return { select: () => ({ eq: () => ({ single: profileSingle }) }) }
       if (table === 'businesses') return businessesUserTable()
       if (table === 'business_category_links') return categoryLinksUserTable()
+      if (table === 'business_categories') return businessCategoriesUserTable()
       if (table === 'services') return servicesUserTable()
       if (table === 'service_types') return serviceTypesUserTable()
       if (table === 'business_payout_accounts') {
@@ -208,6 +220,7 @@ const bookingCancelUpdateSelectMock = vi.fn() // bookings.update({status:'cancel
 const providerCommissionsVoidMock = vi.fn() // provider_commissions.update({status:'voided'}).eq(booking_id).eq(status) — cancelServiceBooking
 const touristProfileSingleMock = vi.fn() // profiles: select('full_name').eq(id).single() — cancelServiceBooking's email lookup
 const getUserByIdMock = vi.fn()
+const businessListingModeRpcMock = vi.fn() // admin.rpc('business_listing_mode', {p_business_id}) — createService
 
 vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
@@ -237,6 +250,7 @@ vi.mock('@/lib/supabase/admin', () => ({
       }
       throw new Error(`unexpected table on admin client: ${table}`)
     },
+    rpc: (name: string, args: unknown) => businessListingModeRpcMock(name, args),
     auth: { admin: { getUserById: getUserByIdMock } },
     storage: {
       from: (bucket: string) => ({
@@ -319,6 +333,8 @@ beforeEach(() => {
   checkRateLimitMock.mockResolvedValue(true)
   touristProfileSingleMock.mockResolvedValue({ data: { full_name: 'Ana Pérez' } })
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'turista@example.com' } } })
+  businessListingModeRpcMock.mockResolvedValue({ data: 'bookable', error: null })
+  businessCategoriesSelectMock.mockResolvedValue({ data: [{ default_listing_mode: 'bookable' }] })
 })
 
 function fakeRntFile(overrides: Partial<{ type: string; size: number }> = {}) {
@@ -470,6 +486,47 @@ describe('createBusiness', () => {
 
     expect(result).toEqual({ error: 'La descripción no puede superar 1200 caracteres.' })
     expect(businessInsertSingle).not.toHaveBeenCalled()
+  })
+
+  describe('informational-only category selection (no RNT required)', () => {
+    it('creates the business with no RNT, without uploading anything, when every selected category is informational', async () => {
+      businessCategoriesSelectMock.mockResolvedValue({ data: [{ default_listing_mode: 'informational' }] })
+      businessInsertSingle.mockResolvedValue({ data: { id: BIZ_ID }, error: null })
+      categoryLinksInsertMock.mockResolvedValue({ error: null })
+
+      const fd = formData({ name: 'La Sazón', category_ids: [CAT_ID_1] })
+      await expect(createBusiness(fd)).rejects.toThrow('redirect:/mi-negocio')
+
+      expect(businessInsertSingle).toHaveBeenCalledWith(
+        expect.objectContaining({ rnt_number: null, rnt_document_path: null }),
+      )
+      expect(userStorageUpload).not.toHaveBeenCalled()
+    })
+
+    it('still requires RNT when at least one selected category is bookable (mixed selection)', async () => {
+      businessCategoriesSelectMock.mockResolvedValue({
+        data: [{ default_listing_mode: 'informational' }, { default_listing_mode: 'bookable' }],
+      })
+
+      const fd = formData({ name: 'La Sazón', category_ids: [CAT_ID_1, CAT_ID_2] })
+      const result = await createBusiness(fd)
+
+      expect(result).toEqual({ error: 'El número de RNT es obligatorio.' })
+      expect(businessInsertSingle).not.toHaveBeenCalled()
+    })
+
+    it('rolls back the business but skips storage cleanup when category linking fails with no RNT to remove', async () => {
+      businessCategoriesSelectMock.mockResolvedValue({ data: [{ default_listing_mode: 'informational' }] })
+      businessInsertSingle.mockResolvedValue({ data: { id: BIZ_ID }, error: null })
+      categoryLinksInsertMock.mockResolvedValue({ error: { message: 'insert failed' } })
+
+      const fd = formData({ name: 'La Sazón', category_ids: [CAT_ID_1] })
+      const result = await createBusiness(fd)
+
+      expect(result).toEqual({ error: 'No se pudo guardar las categorías. Intenta de nuevo.' })
+      expect(businessDeleteEq).toHaveBeenCalledWith('id', BIZ_ID)
+      expect(userStorageRemove).not.toHaveBeenCalled()
+    })
   })
 })
 
@@ -669,6 +726,19 @@ describe('createService', () => {
     const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID })
     const result = await createService(fd)
     expect(result).toEqual({ error: 'Negocio no encontrado.' })
+    expect(serviceInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects publishing a service when the business currently resolves to informational', async () => {
+    businessOwnershipSingle.mockResolvedValue({ data: { id: BIZ_ID } })
+    businessListingModeRpcMock.mockResolvedValue({ data: 'informational', error: null })
+    const fd = formData({ business_id: BIZ_ID, name: 'Tour', base_price: '10000', service_type_id: SERVICE_TYPE_ID })
+    const result = await createService(fd)
+    expect(businessListingModeRpcMock).toHaveBeenCalledWith('business_listing_mode', { p_business_id: BIZ_ID })
+    expect(result).toEqual({
+      error: 'Tu negocio está en modo informativo y no puede publicar servicios reservables en ManTur.',
+    })
+    expect(serviceTypeSingle).not.toHaveBeenCalled()
     expect(serviceInsertMock).not.toHaveBeenCalled()
   })
 

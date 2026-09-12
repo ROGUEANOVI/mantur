@@ -43,23 +43,38 @@ export async function approveBusiness(formData: FormData): Promise<void> {
   const businessId = formData.get('businessId') as string
   if (!UUID_RE.test(businessId)) redirect('/admin/negocios')
 
-  // Hard gate: a business cannot go live without a reviewed RNT document.
-  // The admin opening the signed link in the RNT section before clicking
-  // Aprobar is the verification step, same as approveRoleRequest — so this
-  // action also marks rnt_status verified, not just status/verified.
   const { data: business } = await admin
     .from('businesses')
     .select('rnt_document_path')
     .eq('id', businessId)
     .maybeSingle()
 
-  if (!business?.rnt_document_path) redirect('/admin/negocios?status=pending&error=rnt_missing')
+  if (!business) redirect('/admin/negocios?status=pending&error=rnt_missing')
 
+  // Hard gate: a *bookable* business cannot go live without a reviewed RNT
+  // document. An informational business (restaurant, cafetería...) never
+  // collects one — it isn't a Ley 300 tourism-service provider and can't
+  // publish services either way, see 20260923200000_add_business_listing_mode.sql
+  // — so it skips this gate.
+  const { data: listingMode } = await admin.rpc('business_listing_mode', {
+    p_business_id: businessId,
+  })
+
+  if (listingMode !== 'informational' && !business.rnt_document_path) {
+    redirect('/admin/negocios?status=pending&error=rnt_missing')
+  }
+
+  // The admin opening the signed link in the RNT section before clicking
+  // Aprobar is the verification step, same as approveRoleRequest — so this
+  // action also marks rnt_status verified, but only when there is a document
+  // to have reviewed (an informational business may have none).
   const { data, error } = await admin
     .from('businesses')
     .update({
       status: 'active', verified: true,
-      rnt_status: 'verified', rnt_verified_by: adminId, rnt_verified_at: new Date().toISOString(),
+      ...(business.rnt_document_path
+        ? { rnt_status: 'verified', rnt_verified_by: adminId, rnt_verified_at: new Date().toISOString() }
+        : {}),
     })
     .eq('id', businessId)
     .select('id')
@@ -132,6 +147,48 @@ export async function toggleFeaturedBusiness(formData: FormData): Promise<void> 
 
   revalidatePath('/admin/negocios')
   revalidatePath('/')
+}
+
+const LISTING_MODE_OVERRIDES = ['', 'bookable', 'informational'] as const
+
+// '' clears the override (business_listing_mode() then falls back to the
+// business's categories — see 20260923200000_add_business_listing_mode.sql).
+// Setting 'informational' is refused while the business still has an active
+// service: forcing it off first (mi-negocio, or forceDeactivateBusiness-style
+// admin control) keeps a business from silently losing bookable inventory it
+// didn't ask to lose.
+export async function setBusinessListingModeOverride(formData: FormData): Promise<ActionResult> {
+  const { admin } = await getAuthenticatedAdmin()
+  const copy = adminCopy.negocios.listingMode.errors
+
+  const businessId = formData.get('businessId') as string
+  if (!UUID_RE.test(businessId)) return { error: copy.generic }
+
+  const rawOverride = (formData.get('listingModeOverride') as string | null) ?? ''
+  if (!LISTING_MODE_OVERRIDES.includes(rawOverride as (typeof LISTING_MODE_OVERRIDES)[number])) {
+    return { error: copy.generic }
+  }
+
+  if (rawOverride === 'informational') {
+    const { count } = await admin
+      .from('services')
+      .select('id', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .eq('status', 'active')
+
+    if (count && count > 0) return { error: copy.hasActiveServices }
+  }
+
+  const { error } = await admin
+    .from('businesses')
+    .update({ listing_mode_override: rawOverride || null })
+    .eq('id', businessId)
+
+  if (error) return { error: copy.generic }
+
+  revalidatePath('/admin/negocios')
+  revalidatePath('/negocios')
+  return { success: true }
 }
 
 const BUSINESS_TYPES = ['resort', 'restaurant', 'farm', 'eatery', 'other'] as const

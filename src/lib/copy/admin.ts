@@ -221,6 +221,7 @@ export const adminCopy = {
     } as Record<string, string>,
     rnt: 'RNT',
     rntMissing: 'Sin RNT — no se puede aprobar hasta que el negocio lo suba.',
+    rntNotApplicable: 'No aplica — perfil informativo.',
     rntStatusLabels: {
       pending_review: 'RNT en revisión',
       verified: 'RNT verificado',
@@ -233,6 +234,27 @@ export const adminCopy = {
     } as Record<string, string>,
     errors: {
       rntMissing: 'No se puede aprobar: el negocio todavía no ha subido su certificado RNT.',
+    },
+    listingMode: {
+      label: 'Modo de listado',
+      resolved: {
+        bookable: 'Reservable',
+        informational: 'Informativo',
+      } as Record<string, string>,
+      overridePlaceholder: '— Selecciona un modo —',
+      overrideOptions: {
+        '': 'Heredar de categoría',
+        bookable: 'Reservable',
+        informational: 'Informativo',
+      } as Record<string, string>,
+      save: 'Guardar',
+      saving: 'Guardando...',
+      saved: 'Modo de listado actualizado.',
+      errors: {
+        hasActiveServices:
+          'Este negocio tiene servicios activos. Desactívalos antes de ponerlo en modo informativo.',
+        generic: 'No se pudo actualizar el modo de listado. Intenta de nuevo.',
+      },
     },
   },
 
@@ -599,6 +621,12 @@ export const adminCopy = {
     activate: 'Activar',
     deactivate: 'Desactivar',
     delete: 'Eliminar',
+    defaultListingMode: 'Modo de listado por defecto',
+    defaultListingModeHint: 'Informativo: solo perfil, sin servicios reservables. Reservable: puede vender por ManTur.',
+    modeBookable: 'Reservable',
+    modeInformational: 'Informativo',
+    setToInformational: 'Marcar informativo',
+    setToBookable: 'Marcar reservable',
     errors: {
       nameRequired: 'El nombre es obligatorio.',
       slugRequired: 'El slug es obligatorio.',

@@ -9,11 +9,15 @@ export default async function NuevoNegocioPage() {
   const supabase = await createClient()
   const { data: categoriesData } = await supabase
     .from('business_categories')
-    .select('id, name')
+    .select('id, name, default_listing_mode')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
 
-  const categories = (categoriesData ?? []) as { id: string; name: string }[]
+  const categories = (categoriesData ?? []) as {
+    id: string
+    name: string
+    default_listing_mode: 'informational' | 'bookable'
+  }[]
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 pb-10">

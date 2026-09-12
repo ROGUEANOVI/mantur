@@ -13,6 +13,8 @@ import {
 import { cn } from '@/lib/utils'
 import AdminDocumentLink from '@/components/admin/AdminDocumentLink'
 import WompiBankIdForm from '@/components/admin/WompiBankIdForm'
+import BusinessListingModeForm from '@/components/admin/BusinessListingModeForm'
+import type { BusinessListingMode } from '@/lib/businesses/listingMode'
 
 type BusinessRow = {
   id: string
@@ -26,6 +28,7 @@ type BusinessRow = {
   rnt_number: string | null
   rnt_status: string
   rnt_document_path: string | null
+  listing_mode_override: BusinessListingMode | null
   profiles: { full_name: string | null } | null
   business_payout_accounts: { bank_name: string; wompi_bank_id: string | null } | null
 }
@@ -56,11 +59,23 @@ export default async function AdminNegociosPage({
 
   const { data: businesses } = await admin
     .from('businesses')
-    .select('id, name, type, address, phone, status, is_featured, created_at, rnt_number, rnt_status, rnt_document_path, profiles!owner_id(full_name), business_payout_accounts(bank_name, wompi_bank_id)')
+    .select('id, name, type, address, phone, status, is_featured, created_at, rnt_number, rnt_status, rnt_document_path, listing_mode_override, profiles!owner_id(full_name), business_payout_accounts(bank_name, wompi_bank_id)')
     .eq('status', statusFilter)
     .order('created_at', { ascending: true })
 
   const items = (businesses ?? []) as unknown as BusinessRow[]
+
+  // business_listing_mode() (20260923200000_add_business_listing_mode.sql) is
+  // the single resolution rule — resolved here per row via RPC rather than
+  // re-implemented in TypeScript, same posture as every other call site.
+  const listingModes = new Map<string, BusinessListingMode>(
+    await Promise.all(
+      items.map(async (biz): Promise<[string, BusinessListingMode]> => {
+        const { data } = await admin.rpc('business_listing_mode', { p_business_id: biz.id })
+        return [biz.id, (data as BusinessListingMode | null) ?? 'bookable']
+      }),
+    ),
+  )
 
   return (
     <main className="px-4 py-6 pb-10">
@@ -205,9 +220,35 @@ export default async function AdminNegociosPage({
                     </div>
                     {biz.rnt_document_path ? (
                       <AdminDocumentLink label={adminCopy.negocios.rnt} path={biz.rnt_document_path} />
+                    ) : listingModes.get(biz.id) === 'informational' ? (
+                      <p className="text-xs text-muted-foreground">{adminCopy.negocios.rntNotApplicable}</p>
                     ) : (
                       <p className="text-xs text-destructive">{adminCopy.negocios.rntMissing}</p>
                     )}
+                  </div>
+
+                  {/* Listing mode — informational (profile-only) vs bookable.
+                      See 20260923200000_add_business_listing_mode.sql. */}
+                  <div className="rounded-xl bg-muted/30 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-xs font-medium text-foreground">
+                        {adminCopy.negocios.listingMode.label}
+                      </span>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                          listingModes.get(biz.id) === 'informational'
+                            ? 'bg-muted text-muted-foreground'
+                            : 'bg-primary/15 text-primary',
+                        )}
+                      >
+                        {adminCopy.negocios.listingMode.resolved[listingModes.get(biz.id) ?? 'bookable']}
+                      </span>
+                    </div>
+                    <BusinessListingModeForm
+                      businessId={biz.id}
+                      currentOverride={biz.listing_mode_override}
+                    />
                   </div>
 
                   {/* Payout account — only meaningful once the business is active */}

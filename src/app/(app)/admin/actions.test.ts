@@ -56,6 +56,8 @@ const categoriesSelect = vi.fn()
 const categoryLinksInsert = vi.fn()
 const transportersInsert = vi.fn()
 const touristGuidesInsert = vi.fn()
+const businessListingModeRpc = vi.fn() // .rpc('business_listing_mode', {...}) — approveBusiness, setBusinessListingModeOverride
+const servicesActiveCountSelect = vi.fn() // .select('id', {count:'exact', head:true}).eq(business_id).eq(status) — setBusinessListingModeOverride
 
 const placeInsertAwait = vi.fn()
 const placeUpdateSelect = vi.fn()
@@ -154,10 +156,19 @@ vi.mock('@/lib/supabase/admin', () => ({
             delete: () => ({ eq: (col: string, val: string) => placeDeleteEq(col, val) }),
             select: () => ({ eq: () => ({ maybeSingle: placeImagesMaybeSingle }) }),
           }
+        case 'services':
+          return {
+            select: (col: string, opts: unknown) => ({
+              eq: (col1: string, val1: string) => ({
+                eq: (col2: string, val2: string) => servicesActiveCountSelect(col, opts, col1, val1, col2, val2),
+              }),
+            }),
+          }
         default:
           throw new Error(`unexpected table on admin client: ${table}`)
       }
     },
+    rpc: (name: string, args: unknown) => businessListingModeRpc(name, args),
     storage: {
       from: (bucket: string) => ({
         upload: (path: string, file: unknown, opts: unknown) => storageUpload(bucket, path, file, opts),
@@ -187,6 +198,7 @@ const {
   forceDeactivateBusiness,
   forceActivateBusiness,
   toggleFeaturedBusiness,
+  setBusinessListingModeOverride,
   createBusinessAsAdmin,
   updateCommissionRate,
   approveRoleRequest,
@@ -231,6 +243,8 @@ beforeEach(() => {
   getUserByIdMock.mockResolvedValue({ data: { user: { email: 'applicant@example.com' } } })
   roleRequestUpdateSingle.mockResolvedValue({ data: { user_id: USER_ID, requested_role: 'transporter' }, error: null })
   businessRntDocumentMaybeSingle.mockResolvedValue({ data: { rnt_document_path: 'owner-1/rnt-1.pdf' } })
+  businessListingModeRpc.mockResolvedValue({ data: 'bookable', error: null })
+  servicesActiveCountSelect.mockResolvedValue({ count: 0, error: null })
 })
 
 describe('getAuthenticatedAdmin guard (shared by every action in this file)', () => {
@@ -276,6 +290,18 @@ describe('approveBusiness / rejectBusiness', () => {
     await expect(approveBusiness(fd)).rejects.toThrow('redirect:/admin/negocios?status=pending&error=rnt_missing')
 
     expect(businessesUpdateSelect).not.toHaveBeenCalled()
+  })
+
+  it('approveBusiness approves an informational business with no RNT document, without touching rnt_status', async () => {
+    businessRntDocumentMaybeSingle.mockResolvedValue({ data: { rnt_document_path: null } })
+    businessListingModeRpc.mockResolvedValue({ data: 'informational', error: null })
+    businessesUpdateSelect.mockResolvedValue({ data: [{ id: BIZ_ID }], error: null })
+    const fd = formData({ businessId: BIZ_ID })
+
+    await approveBusiness(fd)
+
+    expect(businessListingModeRpc).toHaveBeenCalledWith('business_listing_mode', { p_business_id: BIZ_ID })
+    expect(businessesUpdateSelect).toHaveBeenCalledWith({ status: 'active', verified: true }, 'id', BIZ_ID)
   })
 
   it('approveBusiness redirects without updating when the business row itself is not found', async () => {
@@ -1068,6 +1094,75 @@ describe('toggleFeaturedBusiness', () => {
     adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
     const fd = formData({ businessId: BIZ_ID, featured: 'true' })
     await expect(toggleFeaturedBusiness(fd)).rejects.toThrow('redirect:/')
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+})
+
+describe('setBusinessListingModeOverride', () => {
+  it('rejects a non-UUID businessId without touching the DB', async () => {
+    const fd = formData({ businessId: 'not-a-uuid', listingModeOverride: 'bookable' })
+    const result = await setBusinessListingModeOverride(fd)
+    expect(result).toEqual({ error: 'No se pudo actualizar el modo de listado. Intenta de nuevo.' })
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+
+  it('rejects an override value outside the allowed set', async () => {
+    const fd = formData({ businessId: BIZ_ID, listingModeOverride: 'nonsense' })
+    const result = await setBusinessListingModeOverride(fd)
+    expect(result).toEqual({ error: 'No se pudo actualizar el modo de listado. Intenta de nuevo.' })
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+
+  it('sets listing_mode_override to bookable', async () => {
+    businessesUpdateAwait.mockResolvedValue({ error: null })
+    const fd = formData({ businessId: BIZ_ID, listingModeOverride: 'bookable' })
+    const result = await setBusinessListingModeOverride(fd)
+    expect(result).toEqual({ success: true })
+    expect(businessesUpdateAwait).toHaveBeenCalledWith({ listing_mode_override: 'bookable' }, 'id', BIZ_ID)
+    expect(revalidatePathMock).toHaveBeenCalledWith('/admin/negocios')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/negocios')
+  })
+
+  it('clears the override (empty selection) to null, without checking active services', async () => {
+    businessesUpdateAwait.mockResolvedValue({ error: null })
+    const fd = formData({ businessId: BIZ_ID, listingModeOverride: '' })
+    const result = await setBusinessListingModeOverride(fd)
+    expect(result).toEqual({ success: true })
+    expect(servicesActiveCountSelect).not.toHaveBeenCalled()
+    expect(businessesUpdateAwait).toHaveBeenCalledWith({ listing_mode_override: null }, 'id', BIZ_ID)
+  })
+
+  it('refuses to set informational while the business has an active service', async () => {
+    servicesActiveCountSelect.mockResolvedValue({ count: 2, error: null })
+    const fd = formData({ businessId: BIZ_ID, listingModeOverride: 'informational' })
+    const result = await setBusinessListingModeOverride(fd)
+    expect(result).toEqual({
+      error: 'Este negocio tiene servicios activos. Desactívalos antes de ponerlo en modo informativo.',
+    })
+    expect(servicesActiveCountSelect).toHaveBeenCalledWith('id', { count: 'exact', head: true }, 'business_id', BIZ_ID, 'status', 'active')
+    expect(businessesUpdateAwait).not.toHaveBeenCalled()
+  })
+
+  it('allows setting informational when the business has no active services', async () => {
+    servicesActiveCountSelect.mockResolvedValue({ count: 0, error: null })
+    businessesUpdateAwait.mockResolvedValue({ error: null })
+    const fd = formData({ businessId: BIZ_ID, listingModeOverride: 'informational' })
+    const result = await setBusinessListingModeOverride(fd)
+    expect(result).toEqual({ success: true })
+    expect(businessesUpdateAwait).toHaveBeenCalledWith({ listing_mode_override: 'informational' }, 'id', BIZ_ID)
+  })
+
+  it('maps an update error to the generic copy', async () => {
+    businessesUpdateAwait.mockResolvedValue({ error: { message: 'boom' } })
+    const fd = formData({ businessId: BIZ_ID, listingModeOverride: 'bookable' })
+    const result = await setBusinessListingModeOverride(fd)
+    expect(result).toEqual({ error: 'No se pudo actualizar el modo de listado. Intenta de nuevo.' })
+  })
+
+  it('redirects to / when a non-admin calls setBusinessListingModeOverride', async () => {
+    adminProfileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({ businessId: BIZ_ID, listingModeOverride: 'bookable' })
+    await expect(setBusinessListingModeOverride(fd)).rejects.toThrow('redirect:/')
     expect(businessesUpdateAwait).not.toHaveBeenCalled()
   })
 })
