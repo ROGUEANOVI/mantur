@@ -22,6 +22,7 @@ async function getAuthenticatedAdmin() {
 }
 
 const SLUG_RE = /^[a-z0-9_]+$/
+const LISTING_MODES = new Set(['bookable', 'informational'])
 
 export async function createCategory(formData: FormData): Promise<ActionResult> {
   const admin = await getAuthenticatedAdmin()
@@ -51,9 +52,15 @@ export async function createCategory(formData: FormData): Promise<ActionResult> 
 
   const sortOrder = ((maxRow?.sort_order as number | null) ?? 0) + 1
 
+  // Defaults to 'bookable' for any unexpected value — same posture as every
+  // other enum-shaped form field in this codebase (see PRICING_UNITS in
+  // admin/paquetes/actions.ts), never silently accepting an invalid mode.
+  const rawListingMode = formData.get('default_listing_mode') as string | null
+  const defaultListingMode = LISTING_MODES.has(rawListingMode ?? '') ? rawListingMode : 'bookable'
+
   const { error } = await admin
     .from('business_categories')
-    .insert({ name, slug, sort_order: sortOrder })
+    .insert({ name, slug, sort_order: sortOrder, default_listing_mode: defaultListingMode })
 
   if (error) {
     if (error.code === '23505') return { error: copy.errors.slugTaken }
@@ -75,6 +82,28 @@ export async function toggleCategoryActive(formData: FormData): Promise<void> {
   await admin
     .from('business_categories')
     .update({ is_active: !isActive })
+    .eq('id', id)
+
+  revalidatePath('/admin/categorias')
+}
+
+// Only a display-side hint on /admin/negocios ('Reservable' vs
+// 'Informativo' resolved badge) and a gate in mi-negocio's createService —
+// changing an existing category's default never retroactively touches any
+// business's own listing_mode_override, so this is safe to flip at any time.
+export async function toggleCategoryListingMode(formData: FormData): Promise<void> {
+  const admin = await getAuthenticatedAdmin()
+
+  const id = formData.get('id') as string | null
+  const currentMode = formData.get('default_listing_mode') as string | null
+
+  if (!id) return
+
+  const nextMode = currentMode === 'bookable' ? 'informational' : 'bookable'
+
+  await admin
+    .from('business_categories')
+    .update({ default_listing_mode: nextMode })
     .eq('id', id)
 
   revalidatePath('/admin/categorias')

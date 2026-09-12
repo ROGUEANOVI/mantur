@@ -16,7 +16,7 @@ import TextareaWithCounter from '@/components/shared/TextareaWithCounter'
 import ComplianceDocumentField from '@/components/shared/ComplianceDocumentField'
 
 type FormState = { error: string | null }
-type Category = { id: string; name: string }
+type Category = { id: string; name: string; default_listing_mode: 'informational' | 'bookable' }
 
 const INVALID_PHONE = 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).'
 
@@ -24,6 +24,13 @@ const copy = miNegocioCopy
 
 export default function CreateBusinessForm({ categories }: { categories: Category[] }) {
   const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+
+  // Mirrors the simplified (no-override-yet) rule in createBusiness — see the
+  // comment there. Purely a UI hint (notice + optional RNT); the server
+  // action re-derives this itself and never trusts the client.
+  const selected = categories.filter((c) => selectedCategoryIds.includes(c.id))
+  const isInformational = selected.length > 0 && !selected.some((c) => c.default_listing_mode === 'bookable')
 
   function handlePhoneBlur(e: React.FocusEvent<HTMLInputElement>) {
     const raw = e.target.value.trim()
@@ -87,11 +94,22 @@ export default function CreateBusinessForm({ categories }: { categories: Categor
                 name="category_ids"
                 value={cat.id}
                 className="accent-primary"
+                onChange={(e) =>
+                  setSelectedCategoryIds((prev) =>
+                    e.target.checked ? [...prev, cat.id] : prev.filter((id) => id !== cat.id),
+                  )
+                }
               />
               {cat.name}
             </label>
           ))}
         </div>
+
+        {isInformational && (
+          <p className="rounded-xl bg-accent/10 px-3 py-2.5 text-xs text-accent-foreground">
+            {copy.informational.notice}
+          </p>
+        )}
       </div>
 
       {/* Description */}
@@ -157,24 +175,34 @@ export default function CreateBusinessForm({ categories }: { categories: Categor
         hint={copy.form.locationHint}
       />
 
-      {/* RNT */}
-      <div className="space-y-1.5">
-        <Label htmlFor="biz-rnt-number" className="text-sm font-medium">
-          {copy.form.rntNumber}
-        </Label>
-        <Input
-          id="biz-rnt-number"
-          type="text"
-          name="rnt_number"
-          required
-          placeholder={copy.form.rntNumberPlaceholder}
-        />
-      </div>
-      <ComplianceDocumentField
-        label={copy.form.rntDocument}
-        name="rnt_document"
-        hint={copy.form.rntDocumentHint}
-      />
+      {/* RNT — skipped for an informational-only category selection, since
+          that kind of business isn't a Ley 300 tourism-service provider and
+          never publishes bookable services either way (see createBusiness). */}
+      {isInformational ? (
+        <p className="rounded-xl bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
+          {copy.informational.rntSkippedNotice}
+        </p>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="biz-rnt-number" className="text-sm font-medium">
+              {copy.form.rntNumber}
+            </Label>
+            <Input
+              id="biz-rnt-number"
+              type="text"
+              name="rnt_number"
+              required
+              placeholder={copy.form.rntNumberPlaceholder}
+            />
+          </div>
+          <ComplianceDocumentField
+            label={copy.form.rntDocument}
+            name="rnt_document"
+            hint={copy.form.rntDocumentHint}
+          />
+        </>
+      )}
 
       {/* Submit */}
       <Button

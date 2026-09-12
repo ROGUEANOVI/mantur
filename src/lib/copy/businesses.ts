@@ -88,6 +88,13 @@ export const miNegocioCopy = {
     invalidDocument: 'Formato no válido. Usa PDF, JPEG, PNG o WebP.',
     documentTooLarge: 'El archivo no puede superar 8 MB.',
     uploadFailed: 'No se pudo subir el documento. Intenta de nuevo.',
+    informationalNoServices:
+      'Tu negocio está en modo informativo y no puede publicar servicios reservables en ManTur.',
+  },
+  informational: {
+    notice:
+      'Con estas categorías, tu negocio tendrá un perfil informativo: los turistas te encuentran y te contactan por WhatsApp, pero no podrás publicar servicios reservables en ManTur.',
+    rntSkippedNotice: 'Al ser un perfil informativo, no necesitas registrar tu RNT.',
   },
   bookings: {
     title: 'Reservas',
@@ -241,6 +248,11 @@ export const businessesCopy = {
     minutes: 'min',
     people: 'personas',
     price: 'Precio',
+    informational: {
+      sectionTitle: 'Contacto directo',
+      message: 'Este negocio no gestiona reservas por ManTur. Contáctalo directamente para más información.',
+      contactWhatsapp: 'Contactar por WhatsApp',
+    },
     reviews: {
       noReviewsYet: 'Aún no tiene reseñas.',
       reviewCount: (n: number) => (n === 1 ? '1 reseña' : `${n} reseñas`),

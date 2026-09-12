@@ -107,27 +107,49 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
   const phone = rawPhone ? normalizeColombianPhone(rawPhone) : null
   if (rawPhone && !phone) return { error: 'Escribe un número de celular colombiano válido (10 dígitos, ej: 300 123 4567).' }
 
+  // business_listing_mode() (20260923200000_add_business_listing_mode.sql)
+  // needs an existing businesses row to read listing_mode_override from, and
+  // this one doesn't exist yet — there's no override at creation time, so the
+  // simplified rule applies directly: 'bookable' if any selected category
+  // defaults to bookable, else 'informational' if every selected category is
+  // informational-only (restaurant, cafetería...). An informational business
+  // never collects an RNT — it isn't a Ley 300 tourism-service provider.
+  const { data: selectedCategories } = await supabase
+    .from('business_categories')
+    .select('default_listing_mode')
+    .in('id', categoryIds)
+
+  const isInformational =
+    (selectedCategories ?? []).length > 0 &&
+    !(selectedCategories ?? []).some((c) => c.default_listing_mode === 'bookable')
+
   const rntNumber = (formData.get('rnt_number') as string | null)?.trim()
   const rntFile = formData.get('rnt_document') as File | null
-  if (!rntNumber) return { error: 'El número de RNT es obligatorio.' }
-  const rntFileError = validateComplianceFile(rntFile)
-  if (rntFileError) return { error: rntFileError }
 
-  const rntUpload = await uploadComplianceDocument(supabase, userId, rntFile!)
-  if ('error' in rntUpload) return { error: rntUpload.error }
+  let rntPath: string | null = null
+  if (!isInformational) {
+    if (!rntNumber) return { error: 'El número de RNT es obligatorio.' }
+    const rntFileError = validateComplianceFile(rntFile)
+    if (rntFileError) return { error: rntFileError }
+
+    const rntUpload = await uploadComplianceDocument(supabase, userId, rntFile!)
+    if ('error' in rntUpload) return { error: rntUpload.error }
+    rntPath = rntUpload.path
+  }
 
   const { data: newBusiness, error } = await supabase
     .from('businesses')
     .insert({
       owner_id: userId, name, description, type: 'other', address, phone, lat, lng,
       verified: false, status: 'pending',
-      rnt_number: rntNumber, rnt_document_path: rntUpload.path,
+      rnt_number: isInformational ? null : rntNumber,
+      rnt_document_path: rntPath,
     })
     .select('id')
     .single()
 
   if (error || !newBusiness) {
-    await supabase.storage.from(COMPLIANCE_BUCKET).remove([rntUpload.path])
+    if (rntPath) await supabase.storage.from(COMPLIANCE_BUCKET).remove([rntPath])
     return { error: 'No se pudo crear el negocio. Intenta de nuevo.' }
   }
 
@@ -137,7 +159,7 @@ export async function createBusiness(formData: FormData): Promise<ActionResult> 
 
   if (linksError) {
     await supabase.from('businesses').delete().eq('id', newBusiness.id)
-    await supabase.storage.from(COMPLIANCE_BUCKET).remove([rntUpload.path])
+    if (rntPath) await supabase.storage.from(COMPLIANCE_BUCKET).remove([rntPath])
     return { error: 'No se pudo guardar las categorías. Intenta de nuevo.' }
   }
 
@@ -599,6 +621,14 @@ export async function createService(formData: FormData): Promise<ActionResult> {
     .single()
 
   if (!business) return { error: 'Negocio no encontrado.' }
+
+  // A business currently resolving to 'informational' (restaurant, cafetería...
+  // see 20260923200000_add_business_listing_mode.sql) never publishes bookable
+  // services. The services table trigger enforces this for real; this is just
+  // the friendly early error instead of a generic insert failure.
+  const admin = createAdminClient()
+  const { data: listingMode } = await admin.rpc('business_listing_mode', { p_business_id: businessId })
+  if (listingMode === 'informational') return { error: miNegocioCopy.errors.informationalNoServices }
 
   const serviceTypeId = formData.get('service_type_id') as string
   if (!UUID_RE.test(serviceTypeId)) return { error: 'Tipo de servicio no válido.' }

@@ -55,7 +55,7 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }))
 
-const { createCategory, toggleCategoryActive, deleteCategory } = await import('./actions')
+const { createCategory, toggleCategoryActive, toggleCategoryListingMode, deleteCategory } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
   const fd = new FormData()
@@ -189,6 +189,56 @@ describe('createCategory — sort order and errors', () => {
     const result = await createCategory(fd)
     expect(result).toEqual({ success: true })
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/categorias')
+  })
+})
+
+describe('createCategory — default_listing_mode', () => {
+  it('defaults to bookable when the field is absent', async () => {
+    categoryInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Cabaña' })
+    await createCategory(fd)
+    expect(categoryInsertMock).toHaveBeenCalledWith(expect.objectContaining({ default_listing_mode: 'bookable' }))
+  })
+
+  it('accepts an explicit informational value', async () => {
+    categoryInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Restaurante', default_listing_mode: 'informational' })
+    await createCategory(fd)
+    expect(categoryInsertMock).toHaveBeenCalledWith(expect.objectContaining({ default_listing_mode: 'informational' }))
+  })
+
+  it('falls back to bookable for an unrecognized value', async () => {
+    categoryInsertMock.mockResolvedValue({ error: null })
+    const fd = formData({ name: 'Cabaña', default_listing_mode: 'nonsense' })
+    await createCategory(fd)
+    expect(categoryInsertMock).toHaveBeenCalledWith(expect.objectContaining({ default_listing_mode: 'bookable' }))
+  })
+})
+
+describe('toggleCategoryListingMode', () => {
+  it('does nothing when id is missing', async () => {
+    const fd = formData({ default_listing_mode: 'bookable' })
+    await toggleCategoryListingMode(fd)
+    expect(toggleUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('flips bookable to informational', async () => {
+    const fd = formData({ id: 'cat-1', default_listing_mode: 'bookable' })
+    await toggleCategoryListingMode(fd)
+    expect(toggleUpdateMock).toHaveBeenCalledWith({ default_listing_mode: 'informational' }, 'id', 'cat-1')
+  })
+
+  it('flips informational to bookable', async () => {
+    const fd = formData({ id: 'cat-1', default_listing_mode: 'informational' })
+    await toggleCategoryListingMode(fd)
+    expect(toggleUpdateMock).toHaveBeenCalledWith({ default_listing_mode: 'bookable' }, 'id', 'cat-1')
+  })
+
+  it('redirects to / when a non-admin calls toggleCategoryListingMode', async () => {
+    profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
+    const fd = formData({ id: 'cat-1', default_listing_mode: 'bookable' })
+    await expect(toggleCategoryListingMode(fd)).rejects.toThrow('redirect:/')
+    expect(toggleUpdateMock).not.toHaveBeenCalled()
   })
 })
 

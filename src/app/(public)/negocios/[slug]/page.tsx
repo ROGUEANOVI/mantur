@@ -128,6 +128,14 @@ export default async function NegocioDetailPage({
 
   const activeServices = (b.services ?? []).filter((s) => s.status === 'active')
 
+  // business_listing_mode() (20260923200000_add_business_listing_mode.sql)
+  // is the single resolution rule — resolved here via RPC, never
+  // re-implemented in TypeScript. An informational business (restaurant,
+  // cafetería...) never gets a "Servicios disponibles" section, even if it
+  // somehow still has active service rows — see the services table trigger.
+  const { data: listingMode } = await supabase.rpc('business_listing_mode', { p_business_id: b.id })
+  const isInformational = listingMode === 'informational'
+
   let isFavorited = false
   if (user) {
     const { data: favorite } = await supabase
@@ -254,10 +262,25 @@ export default async function NegocioDetailPage({
             </div>
           )}
 
-          {/* Services */}
+          {/* Services — or, for an informational business (restaurant,
+              cafetería...), a direct-contact block instead. See
+              20260923200000_add_business_listing_mode.sql. */}
           <section className="mt-8">
-            <h2 className="text-base font-semibold text-foreground mb-3">{copySvc.sectionTitle}</h2>
-            {activeServices.length === 0 ? (
+            <h2 className="text-base font-semibold text-foreground mb-3">
+              {isInformational ? copySvc.informational.sectionTitle : copySvc.sectionTitle}
+            </h2>
+            {isInformational ? (
+              <div className="rounded-2xl border border-border p-6 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">{copySvc.informational.message}</p>
+                {b.phone && (
+                  <WhatsappButton
+                    className="justify-center"
+                    message={`Hola, quiero más información sobre ${b.name}.`}
+                    label={copySvc.informational.contactWhatsapp}
+                  />
+                )}
+              </div>
+            ) : activeServices.length === 0 ? (
               <div className="rounded-2xl border border-border p-6 text-center">
                 <p className="text-sm text-muted-foreground">{copySvc.empty}</p>
               </div>
