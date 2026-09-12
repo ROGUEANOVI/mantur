@@ -277,6 +277,7 @@ export default async function NegocioDetailPage({
                     className="justify-center"
                     message={`Hola, quiero más información sobre ${b.name}.`}
                     label={copySvc.informational.contactWhatsapp}
+                    phone={b.phone}
                   />
                 )}
               </div>
