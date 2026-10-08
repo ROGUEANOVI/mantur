@@ -16,7 +16,7 @@ describe('SocialLinks', () => {
     )
     expect(screen.getByRole('link', { name: /whatsapp/i })).toHaveAttribute(
       'href',
-      'https://wa.me/573217203264',
+      'https://wa.me/573001006725',
     )
     expect(screen.getByRole('link', { name: /tiktok/i })).toHaveAttribute(
       'href',

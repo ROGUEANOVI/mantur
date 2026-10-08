@@ -9,7 +9,7 @@ describe('WhatsappButton', () => {
     const link = screen.getByRole('link', { name: 'Escríbenos' })
     expect(link).toHaveAttribute(
       'href',
-      'https://wa.me/573217203264?text=' + encodeURIComponent('Hola, ¿está disponible?'),
+      'https://wa.me/573001006725?text=' + encodeURIComponent('Hola, ¿está disponible?'),
     )
   })
 
@@ -33,6 +33,6 @@ describe('WhatsappButton', () => {
   it("falls back to ManTur's number when phone is null", () => {
     render(<WhatsappButton message="hola" label="Escríbenos" phone={null} />)
     const link = screen.getByRole('link', { name: 'Escríbenos' })
-    expect(link).toHaveAttribute('href', expect.stringContaining('wa.me/573217203264'))
+    expect(link).toHaveAttribute('href', expect.stringContaining('wa.me/573001006725'))
   })
 })
