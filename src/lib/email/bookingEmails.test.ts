@@ -208,7 +208,7 @@ describe('packagePrereservaConfirmedEmail', () => {
     expect(html).toContain('Ruta Serranía del Perijá')
     expect(html).toContain('Ana Pérez')
     expect(html).toContain('sábado, 5 de septiembre de 2026')
-    expect(html).toContain('https://wa.me/573217203264')
+    expect(html).toContain('https://wa.me/573001006725')
   })
 
   it('escapes the tourist name', () => {
@@ -244,7 +244,7 @@ describe('packagePrereservaCancelledEmail', () => {
     const { subject, html } = packagePrereservaCancelledEmail(PACKAGE_CANCELLED_PARAMS)
     expect(subject).toBe('Tu solicitud de "Ruta Serranía del Perijá" fue cancelada')
     expect(html).toContain('No se realizó ningún cobro')
-    expect(html).toContain('https://wa.me/573217203264')
+    expect(html).toContain('https://wa.me/573001006725')
   })
 })
 
@@ -391,7 +391,7 @@ describe('serviceBookingCancelledEmail', () => {
     const { subject, html } = serviceBookingCancelledEmail(SERVICE_CANCELLED_PARAMS)
     expect(subject).toBe('Tu reserva de "Cabalgata al atardecer" fue cancelada')
     expect(html).toContain('No se realizó ningún cobro')
-    expect(html).toContain('https://wa.me/573217203264')
+    expect(html).toContain('https://wa.me/573001006725')
   })
 
   it('does not parse booking_date as UTC (no off-by-one day)', () => {
@@ -426,7 +426,7 @@ describe('guideTourBookingCancelledEmail', () => {
     const { subject, html } = guideTourBookingCancelledEmail(GUIDE_TOUR_CANCELLED_PARAMS)
     expect(subject).toBe('Tu reserva de "Caminata a Los Pinos" fue cancelada')
     expect(html).toContain('No se realizó ningún cobro')
-    expect(html).toContain('https://wa.me/573217203264')
+    expect(html).toContain('https://wa.me/573001006725')
   })
 })
 

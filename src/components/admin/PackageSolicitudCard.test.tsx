@@ -54,7 +54,7 @@ describe('PackageSolicitudCard — shared header', () => {
   it('renders a WhatsApp link when the tourist has a phone', () => {
     render(<PackageSolicitudCard {...BASE_PROPS} />)
     const link = screen.getByRole('link', { name: 'Escribir por WhatsApp' })
-    expect(link).toHaveAttribute('href', expect.stringContaining('https://wa.me/573217203264'))
+    expect(link).toHaveAttribute('href', expect.stringContaining('https://wa.me/573001006725'))
   })
 
   it('omits the WhatsApp link when the tourist has no phone', () => {

@@ -44,7 +44,7 @@ describe.each(['tourist', 'guest'] as const)('TourBookingForm — access="%s"', 
     )
 
     const link = screen.getByRole('link', { name: 'Consultar por WhatsApp' })
-    expect(link).toHaveAttribute('href', expect.stringContaining('https://wa.me/573217203264?text='))
+    expect(link).toHaveAttribute('href', expect.stringContaining('https://wa.me/573001006725?text='))
     const decodedHref = decodeURIComponent(link.getAttribute('href')!)
     expect(decodedHref).toContain('Chorro de la Vela')
     expect(decodedHref).toContain('María Guía')
