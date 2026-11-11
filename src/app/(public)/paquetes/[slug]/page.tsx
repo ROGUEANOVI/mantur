@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { packagesCopy } from '@/lib/copy/packages'
 import { breadcrumbsCopy } from '@/lib/copy/breadcrumbs'
-import { PRICING_UNIT_LABELS, type PricingUnit } from '@/lib/services/attributeConfig'
+import type { PricingUnit } from '@/lib/services/attributeConfig'
 import { resolvePackageItemLabel, type PackageIncludedItemRow } from '@/lib/packages/labels'
 import MediaGallery from '@/components/shared/MediaGallery'
 import DetailSplitLayout from '@/components/shared/DetailSplitLayout'
@@ -14,7 +14,8 @@ import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import RatingSummary from '@/components/shared/RatingSummary'
 import ReviewsList from '@/components/shared/ReviewsList'
 import PackagePrereservaForm from '@/components/paquetes/PackagePrereservaForm'
-import WhatsappButton from '@/components/shared/WhatsappButton'
+import PackageWhatsappCta from '@/components/paquetes/PackageWhatsappCta'
+import { packagePriceParts, packagePriceText } from '@/lib/packages/price'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
 
@@ -29,7 +30,7 @@ export async function generateMetadata({
 
   const { data } = await createAdminClient()
     .from('packages')
-    .select('slug, name, description, images')
+    .select('slug, name, description, base_price, pricing_unit, images')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
@@ -37,7 +38,10 @@ export async function generateMetadata({
   if (!data) return {}
 
   const title = data.name
-  const description = data.description ?? `Descubre este paquete en Manaure Balcón del Cesar.`
+  const description = buildMetaDescription(
+    packagePriceText(data.base_price, data.pricing_unit),
+    data.description ?? 'Descubre este paquete en Manaure Balcón del Cesar.',
+  )
   const image = (data.images as string[] | null)?.[0]
   const url = `${APP_URL}/paquetes/${data.slug}`
 
@@ -58,6 +62,19 @@ export async function generateMetadata({
       images: image ? [image] : undefined,
     },
   }
+}
+
+// Search/link-preview snippet: "Desde $X por persona. <first sentence>",
+// capped near Google's ~155-char display limit. The free-text description
+// is long and emoji-heavy, so only its first meaningful line is used.
+function buildMetaDescription(priceText: string, description: string): string {
+  const firstLine =
+    description
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? ''
+  const text = `${priceText}. ${firstLine}`
+  return text.length > 155 ? `${text.slice(0, 152).trimEnd()}...` : text
 }
 
 type PackageDetail = {
@@ -100,6 +117,7 @@ export default async function PaqueteDetailPage({
 
   const pkg = pkgRow as PackageDetail
   const copy = packagesCopy.detail
+  const price = packagePriceParts(pkg.base_price, pkg.pricing_unit)
 
   // Packages keep a real in-app pre-reserva flow (unlike services/guide
   // tours, WhatsApp-only since the manual-ops pivot) — same tourist/guest/
@@ -181,7 +199,9 @@ export default async function PaqueteDetailPage({
   }
 
   return (
-    <main className="min-h-screen bg-background pb-10">
+    <main className="min-h-screen bg-background pb-28 lg:pb-10">
+      {/* pb-28 below lg so the sticky WhatsApp bar never covers the last
+          content block. */}
       <script {...jsonLdScriptProps(packageJsonLd)} />
       <div className="max-w-5xl mx-auto px-4">
         <DetailSplitLayout
@@ -200,14 +220,18 @@ export default async function PaqueteDetailPage({
               <div className="mt-4">
                 <div className="flex items-start justify-between gap-3">
                   <h1 className="text-2xl font-bold text-foreground leading-tight">{pkg.name}</h1>
-                  <RatingSummary
-                    avgRating={avgRating}
-                    count={reviews.length}
-                    noReviewsText={packagesCopy.reviews.noReviewsYet}
-                    reviewCountText={packagesCopy.reviews.reviewCount}
-                  />
+                  {/* No "Aún no tiene reseñas" on a sales page: an empty
+                      rating reads as negative social proof. */}
+                  {reviews.length > 0 && (
+                    <RatingSummary
+                      avgRating={avgRating}
+                      count={reviews.length}
+                      noReviewsText=""
+                      reviewCountText={packagesCopy.reviews.reviewCount}
+                    />
+                  )}
                 </div>
-                {pkg.description && <ExpandableText text={pkg.description} className="mt-4" />}
+                {pkg.description && <ExpandableText text={pkg.description} clampLines={8} className="mt-4" />}
               </div>
             </>
           }
@@ -227,6 +251,10 @@ export default async function PaqueteDetailPage({
 
           <Reveal className="space-y-3">
             <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                {price.from} <span className="text-2xl font-extrabold text-accent tabular-nums">{price.amount}</span>
+                {price.unit && <span> {price.unit}</span>}
+              </p>
               {pkg.capacity != null && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Users className="size-4 shrink-0 text-primary" aria-hidden="true" />
@@ -235,19 +263,27 @@ export default async function PaqueteDetailPage({
                   </span>
                 </div>
               )}
-              <p className="text-sm text-muted-foreground">
-                {PRICING_UNIT_LABELS[pkg.pricing_unit]}:{' '}
-                <span className="text-base font-semibold text-accent">
-                  ${Number(pkg.base_price).toLocaleString('es-CO')} COP
-                </span>
-              </p>
             </div>
 
-            <section className="pt-2">
-              <h2 className="text-base font-semibold text-foreground mb-2">{copy.includedTitle}</h2>
-              {includedItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{copy.includedEmpty}</p>
-              ) : (
+            {/* WhatsApp is the primary contact for every visitor, signed in
+                or not — closed sales are registered manually from the admin
+                panel. The in-app pre-reserva stays below as a secondary path
+                for tourists who prefer it. */}
+            <div className="pt-1">
+              <PackageWhatsappCta
+                packageName={pkg.name}
+                slug={pkg.slug}
+                price={price}
+                capacity={pkg.capacity}
+              />
+            </div>
+
+            {/* Only real package_items — the free-text description already
+                carries the "¿Qué incluye?" list while items aren't loaded,
+                so no "se está actualizando" placeholder. */}
+            {includedItems.length > 0 && (
+              <section className="pt-2">
+                <h2 className="text-base font-semibold text-foreground mb-2">{copy.includedTitle}</h2>
                 <ul className="space-y-1.5">
                   {includedItems.map((item) => {
                     const itemRating = itemRatingsById.get(item.id)
@@ -256,9 +292,7 @@ export default async function PaqueteDetailPage({
                         <span className="text-primary">•</span>
                         <span className="flex-1">
                           {item.label}
-                          {item.quantity > 1 && (
-                            <span className="text-muted-foreground"> ×{item.quantity}</span>
-                          )}
+                          {item.quantity > 1 && <span className="text-muted-foreground"> ×{item.quantity}</span>}
                         </span>
                         {itemRating && (
                           <RatingSummary
@@ -272,23 +306,14 @@ export default async function PaqueteDetailPage({
                     )
                   })}
                 </ul>
-              )}
-            </section>
+              </section>
+            )}
 
             {reviews.length > 0 && (
               <section className="pt-2">
                 <ReviewsList reviews={reviews} />
               </section>
             )}
-
-            {/* WhatsApp is the primary contact for every visitor, signed in
-                or not — closed sales are registered manually from the admin
-                panel. The in-app pre-reserva stays below as a secondary path
-                for tourists who prefer it. */}
-            <div className="space-y-2 pt-2">
-              <WhatsappButton message={packagesCopy.whatsapp.message(pkg.name)} label={packagesCopy.whatsapp.cta} />
-              <p className="text-xs text-muted-foreground">{copy.whatsappHint}</p>
-            </div>
 
             {bookingAccess !== 'other_role' && (
               <div className="space-y-3 pt-2">

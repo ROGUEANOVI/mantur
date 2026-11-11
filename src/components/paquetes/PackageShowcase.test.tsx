@@ -55,17 +55,18 @@ describe('PackageShowcase', () => {
     render(<PackageShowcase packages={[pkg()]} />)
     const link = screen.getByRole('link', { name: 'Consultar por WhatsApp' })
     expect(link.getAttribute('href')).toMatch(/^https:\/\/wa\.me\/573001006725\?/)
-    expect(decodedWhatsappText(link)).toBe('Hola, quiero más información sobre el paquete "FullDay Manaure".')
+    expect(decodedWhatsappText(link)).toBe('Hola ManTur, quiero información del paquete: FullDay Manaure (ref: fullday-manaure)')
   })
 
-  it('formats the price with its pricing unit', () => {
+  it('shows every price as a "Desde" floor with its pricing unit', () => {
     render(
       <PackageShowcase
         packages={[pkg(), pkg({ id: '2', slug: 'cascada', name: 'Cascada', base_price: 150000, pricing_unit: 'per_person' })]}
       />,
     )
     expect(screen.getByText('$280.000')).toBeInTheDocument()
-    expect(screen.getByText('precio total')).toBeInTheDocument()
+    expect(screen.getByText('por grupo')).toBeInTheDocument()
+    expect(screen.getAllByText('Desde')).toHaveLength(2)
     expect(screen.getByText('$150.000')).toBeInTheDocument()
     expect(screen.getByText('por persona')).toBeInTheDocument()
   })
