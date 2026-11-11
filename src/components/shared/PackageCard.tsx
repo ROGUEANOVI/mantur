@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Package } from 'lucide-react'
+import { packagePriceParts } from '@/lib/packages/price'
 
 export type PackageCardRow = {
   id: string
@@ -8,11 +9,13 @@ export type PackageCardRow = {
   name: string
   description: string | null
   base_price: number | string
+  pricing_unit: string
   images: string[] | null
 }
 
 export default function PackageCard({ pkg }: { pkg: PackageCardRow }) {
   const imageUrl = pkg.images?.[0]
+  const price = packagePriceParts(pkg.base_price, pkg.pricing_unit)
 
   return (
     <div className="group relative h-full rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5 has-[a:active]:scale-[0.98] transition-all">
@@ -49,8 +52,9 @@ export default function PackageCard({ pkg }: { pkg: PackageCardRow }) {
             {pkg.description}
           </p>
         )}
-        <p className="text-base font-semibold text-accent">
-          ${Number(pkg.base_price).toLocaleString('es-CO')} COP
+        <p className="text-sm text-muted-foreground">
+          {price.from} <span className="text-base font-semibold text-accent tabular-nums">{price.amount}</span>
+          {price.unit && ` ${price.unit}`}
         </p>
       </div>
     </div>

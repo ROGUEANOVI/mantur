@@ -8,6 +8,7 @@ const PACKAGE: PackageCardRow = {
   name: 'Ruta Serranía del Perijá',
   description: 'Dos días de caminata y hospedaje.',
   base_price: 450000,
+  pricing_unit: 'per_person',
   images: ['https://x/a.webp'],
 }
 
@@ -17,7 +18,7 @@ describe('PackageCard', () => {
 
     expect(screen.getByRole('heading', { name: 'Ruta Serranía del Perijá' })).toBeInTheDocument()
     expect(screen.getByText('Dos días de caminata y hospedaje.')).toBeInTheDocument()
-    expect(screen.getByText('$450.000 COP')).toBeInTheDocument()
+    expect(screen.getByText('$450.000')).toBeInTheDocument()
   })
 
   it('links to the package detail page', () => {
@@ -41,6 +42,6 @@ describe('PackageCard', () => {
 
   it('formats a string base_price the same way as a numeric one', () => {
     render(<PackageCard pkg={{ ...PACKAGE, base_price: '450000' }} />)
-    expect(screen.getByText('$450.000 COP')).toBeInTheDocument()
+    expect(screen.getByText('$450.000')).toBeInTheDocument()
   })
 })

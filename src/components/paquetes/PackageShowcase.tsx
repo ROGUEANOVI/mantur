@@ -5,6 +5,7 @@ import { packagesCopy } from '@/lib/copy/packages'
 import { cn } from '@/lib/utils'
 import Reveal from '@/components/shared/Reveal'
 import WhatsappButton from '@/components/shared/WhatsappButton'
+import { packagePriceParts } from '@/lib/packages/price'
 
 export type ShowcasePackage = {
   id: string
@@ -75,14 +76,10 @@ export default function PackageShowcase({ packages }: { packages: ShowcasePackag
   )
 }
 
-function formatPrice(value: number | string) {
-  return `$${Number(value).toLocaleString('es-CO')}`
-}
-
 function ShowcaseCard({ pkg, priority }: { pkg: ShowcasePackage; priority: boolean }) {
   const copy = packagesCopy.showcase
   const imageUrl = pkg.images?.[0]
-  const unit = copy.unitSuffix[pkg.pricing_unit]
+  const price = packagePriceParts(pkg.base_price, pkg.pricing_unit)
 
   return (
     <article
@@ -131,10 +128,9 @@ function ShowcaseCard({ pkg, priority }: { pkg: ShowcasePackage; priority: boole
 
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <p className="text-white">
-            <span className="text-xl font-extrabold tabular-nums">
-              {formatPrice(pkg.base_price)}
-            </span>
-            {unit && <span className="ml-1.5 text-xs text-white/75">{unit}</span>}
+            <span className="mr-1 text-xs text-white/75">{price.from}</span>
+            <span className="text-xl font-extrabold tabular-nums">{price.amount}</span>
+            {price.unit && <span className="ml-1.5 text-xs text-white/75">{price.unit}</span>}
           </p>
           {pkg.capacity != null && (
             <span className="flex items-center gap-1 text-xs text-white/75">
@@ -163,7 +159,7 @@ function ShowcaseCard({ pkg, priority }: { pkg: ShowcasePackage; priority: boole
             />
           </Link>
           <WhatsappButton
-            message={packagesCopy.whatsapp.message(pkg.name)}
+            message={packagesCopy.whatsapp.message(pkg.name, pkg.slug)}
             label={packagesCopy.whatsapp.cta}
             iconOnly
             className="pointer-events-auto shadow-md"

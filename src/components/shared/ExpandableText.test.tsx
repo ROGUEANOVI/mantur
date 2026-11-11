@@ -47,3 +47,25 @@ describe('ExpandableText — long text (clamped)', () => {
     expect(paragraph).not.toHaveClass('line-clamp-4')
   })
 })
+
+describe('ExpandableText — author formatting', () => {
+  it('keeps line breaks (including \r\n from the DB) with whitespace-pre-line', () => {
+    mockOverflow(40, 40)
+    const { container } = render(<ExpandableText text={'¿Qué incluye?:\r\nTransporte\r\nGuía'} />)
+    const paragraph = container.querySelector('p')!
+    expect(paragraph).toHaveClass('whitespace-pre-line')
+    expect(paragraph.textContent).toBe('¿Qué incluye?:\nTransporte\nGuía')
+  })
+
+  it('turns a typed WhatsApp number into a link', () => {
+    mockOverflow(40, 40)
+    render(<ExpandableText text="Escríbenos al 3001006725" />)
+    expect(screen.getByRole('link', { name: '3001006725' })).toBeInTheDocument()
+  })
+
+  it('supports a taller clamp for long package descriptions', () => {
+    mockOverflow(400, 80)
+    const { container } = render(<ExpandableText text="Texto largo" clampLines={8} />)
+    expect(container.querySelector('p')).toHaveClass('line-clamp-8')
+  })
+})
