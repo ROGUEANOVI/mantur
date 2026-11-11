@@ -26,6 +26,7 @@ import { getSidebarPendingCounts, STUCK_PAYOUT_HOURS } from './pendingCounts'
 import StatCard from '@/components/admin/StatCard'
 import AttentionQueue, { type PendingQueueItem } from '@/components/admin/AttentionQueue'
 import { cn } from '@/lib/utils'
+import { firstEmbedded } from '@/lib/packages/manualSale'
 
 type PendingBusiness = {
   id: string
@@ -42,7 +43,10 @@ type RecentBooking = {
   booking_date: string
   created_at: string
   services: { name: string } | null
+  guide_tours: { name: string } | null
+  packages: { name: string } | null
   profiles: { full_name: string | null } | null
+  booking_guest_contacts: { full_name: string } | { full_name: string }[] | null
 }
 
 type ProfileRoleRow = { role: string } | null
@@ -139,7 +143,10 @@ export default async function AdminPage() {
       .limit(3),
     admin
       .from('bookings')
-      .select('id, total_amount, status, booking_date, created_at, services(name), profiles!tourist_id(full_name)')
+      .select(
+        'id, total_amount, status, booking_date, created_at, services(name), guide_tours(name), packages(name), ' +
+          'profiles!tourist_id(full_name), booking_guest_contacts(full_name)',
+      )
       .order('created_at', { ascending: false })
       .limit(5),
     admin.from('bookings').select('id', { count: 'exact', head: true }).eq('status', 'pending_payment'),
@@ -467,10 +474,11 @@ export default async function AdminPage() {
                       <div className="flex items-center gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground line-clamp-1">
-                            {booking.services?.name ?? '—'}
+                            {booking.services?.name ?? booking.guide_tours?.name ?? booking.packages?.name ?? '—'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {booking.profiles?.full_name ?? '—'} · {formatDate(booking.booking_date)}
+                            {booking.profiles?.full_name ?? firstEmbedded(booking.booking_guest_contacts)?.full_name ?? '—'} ·{' '}
+                            {formatDate(booking.booking_date)}
                           </p>
                         </div>
                         <div className="shrink-0 text-right">

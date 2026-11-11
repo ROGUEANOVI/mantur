@@ -10,13 +10,11 @@ import {
   sendPackagePrereservaCancelledEmail,
   sendPackageBookingPaidEmail,
 } from '@/lib/email/bookingEmails'
-import { enqueueAndSendProviderPayout } from '@/lib/wompi/payouts'
 import { AVAILABILITY_DATE_RE, AVAILABILITY_STATUSES } from '@/lib/validation'
-import { resolvePackageProviders } from '@/lib/packages/providers'
+import { parseManualPayment } from '@/lib/packages/manualSale'
 import {
   notifyPackageProvidersOfConfirmation,
   notifyPackageProvidersOfCancellation,
-  notifyPackageProvidersOfPayout,
 } from '@/lib/email/packageProviderNotifications'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -48,7 +46,8 @@ async function getAuthenticatedAdmin() {
 type BookingWithNames = {
   id: string
   package_id: string | null
-  tourist_id: string
+  // NULL for an account-less customer of a manual package sale.
+  tourist_id: string | null
   booking_date: string
   packages: { name: string } | null
   profiles: { full_name: string | null } | null
@@ -67,10 +66,13 @@ async function loadBookingWithNames(
   return (data as unknown as BookingWithNames) ?? null
 }
 
+// Account-less customers (manual package sales) get no automatic email —
+// ManTur already talks to them over WhatsApp.
 async function getTouristEmail(
   admin: ReturnType<typeof createAdminClient>,
-  touristId: string,
+  touristId: string | null,
 ): Promise<string | null> {
+  if (!touristId) return null
   const { data } = await admin.auth.admin.getUserById(touristId)
   return data.user?.email ?? null
 }
@@ -222,25 +224,6 @@ export async function cancelPackagePrereserva(formData: FormData): Promise<{ err
   revalidatePath('/admin/paquetes/solicitudes')
 }
 
-// Fase 5: una fila de provider_payouts por cada proveedor ÚNICO de
-// package_items del paquete, pagando la suma de sus internal_cost_cents —
-// no un split de comisión (packages no usan commission_config; el margen de
-// ManTur ya vive en base_price - Σinternal_cost_cents). Nunca falla la
-// acción de "marcar pagada" — errores solo se loguean, misma postura que el
-// envío de correo justo al lado (enqueueAndSendProviderPayout ya no lanza
-// excepciones).
-async function payoutPackageProviders(
-  admin: ReturnType<typeof createAdminClient>,
-  packageId: string,
-  transactionId: string,
-): Promise<void> {
-  const providers = await resolvePackageProviders(admin, packageId)
-
-  for (const provider of providers) {
-    await enqueueAndSendProviderPayout(admin, { transactionId, ...provider })
-  }
-}
-
 export async function markPackageBookingPaid(formData: FormData): Promise<{ error: string } | void> {
   const { admin } = await getAuthenticatedAdmin()
   const copy = adminCopy.paquetes.solicitudes.errors
@@ -248,36 +231,28 @@ export async function markPackageBookingPaid(formData: FormData): Promise<{ erro
   const bookingId = formData.get('bookingId') as string
   if (!UUID_RE.test(bookingId)) return { error: copy.notFound }
 
+  const payment = parseManualPayment(formData)
+  if ('error' in payment) return { error: payment.error }
+
   const booking = await loadBookingWithNames(admin, bookingId)
   if (!booking || !booking.package_id) return { error: copy.notFound }
 
-  const { error: rpcError } = await admin.rpc('mark_package_booking_paid', { p_booking_id: bookingId })
+  const { error: rpcError } = await admin.rpc('mark_package_booking_paid', {
+    p_booking_id: bookingId,
+    p_payment_method: payment.method,
+    p_payment_reference: payment.reference,
+    p_paid_at: payment.paidAt,
+  })
 
   if (rpcError) {
     if (rpcError.message === 'invalid_booking_state') return { error: copy.invalidBookingState }
     return { error: copy.generic }
   }
 
-  const { data: transaction } = await admin
-    .from('transactions')
-    .select('id')
-    .eq('booking_id', bookingId)
-    .maybeSingle()
-
-  if (transaction?.id) {
-    await payoutPackageProviders(admin, booking.package_id, transaction.id)
-    // Only claim "tu pago ya está en camino" to providers when a payout was
-    // actually enqueued above — otherwise (no transaction found, logged
-    // below) it would misrepresent payment state to a business/guide partner.
-    await notifyPackageProvidersOfPayout(admin, {
-      bookingId: booking.id,
-      packageName: booking.packages?.name ?? '',
-      bookingDate: booking.booking_date,
-    })
-  } else {
-    console.error('markPackageBookingPaid: no transaction found to pay providers out from', { bookingId })
-  }
-
+  // Manual-sales mode (2026-11-11): marking a package paid only records the
+  // payment. Providers are paid by hand — no automatic Wompi payouts
+  // (enqueueAndSendProviderPayout) and no "tu pago va en camino" emails.
+  // Both remain in src/lib for the return to automated operations.
   const email = await getTouristEmail(admin, booking.tourist_id)
   if (email) {
     await sendPackageBookingPaidEmail(email, {

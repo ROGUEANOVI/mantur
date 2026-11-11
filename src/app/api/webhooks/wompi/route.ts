@@ -120,9 +120,11 @@ async function syncAlegraInvoice(
       .from('bookings')
       .select('tourist_id')
       .eq('id', params.bookingId)
-      .single<{ tourist_id: string }>()
+      .single<{ tourist_id: string | null }>()
 
-    if (!booking) return
+    // An account-less package sale (registered manually by an admin) has no
+    // profile to attach an Alegra contact to — it's invoiced by hand.
+    if (!booking?.tourist_id) return
 
     const { data: profile } = await admin
       .from('profiles')

@@ -51,10 +51,19 @@ describe('PackageSolicitudCard — shared header', () => {
     expect(screen.getByText(/\$\s?200[.,]000/)).toBeInTheDocument()
   })
 
-  it('renders a WhatsApp link when the tourist has a phone', () => {
+  // Regression: the link used to open ManTur's own number instead of the
+  // tourist's, so the admin could never actually reach the customer.
+  it("links to the tourist's own WhatsApp, not ManTur's number", () => {
     render(<PackageSolicitudCard {...BASE_PROPS} />)
     const link = screen.getByRole('link', { name: 'Escribir por WhatsApp' })
-    expect(link).toHaveAttribute('href', expect.stringContaining('https://wa.me/573001006725'))
+    expect(link).toHaveAttribute('href', expect.stringContaining('https://wa.me/573001234567?text='))
+  })
+
+  it('marks an account-less customer with a "Sin cuenta" badge', () => {
+    const { rerender } = render(<PackageSolicitudCard {...BASE_PROPS} />)
+    expect(screen.queryByText('Sin cuenta')).not.toBeInTheDocument()
+    rerender(<PackageSolicitudCard {...BASE_PROPS} isGuest />)
+    expect(screen.getByText('Sin cuenta')).toBeInTheDocument()
   })
 
   it('omits the WhatsApp link when the tourist has no phone', () => {
@@ -191,5 +200,14 @@ describe('PackageSolicitudCard — pending_payment stage (no items prop)', () =>
   it('renders the "Marcar como pagada" trigger', () => {
     render(<PackageSolicitudCard {...BASE_PROPS} />)
     expect(screen.getByRole('button', { name: 'Marcar como pagada' })).toBeInTheDocument()
+  })
+
+  it('asks for the manual payment data (method, date, receipt) before marking paid', () => {
+    render(<PackageSolicitudCard {...BASE_PROPS} />)
+    expect(screen.getByLabelText('Método de pago')).toHaveValue('')
+    expect(screen.getByRole('option', { name: '— Selecciona un método de pago —' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Nequi / Daviplata' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Fecha del pago')).toBeInTheDocument()
+    expect(screen.getByLabelText('Número de comprobante (opcional)')).toBeInTheDocument()
   })
 })

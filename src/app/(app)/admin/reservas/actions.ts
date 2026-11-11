@@ -3,9 +3,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { adminCopy } from '@/lib/copy/admin'
 import { getBlockedDates } from '@/lib/availability'
+import { parseManualPackageSale, type PricingUnit } from '@/lib/packages/manualSale'
 import {
   notifyBusinessOfServicePrereserva,
   notifyGuideOfTourPrereserva,
@@ -17,7 +19,7 @@ const copy = adminCopy.reservas
 
 type BookingResult = { error: string } | { success: true }
 
-async function getAuthenticatedAdmin() {
+async function getAuthenticatedAdminWithId() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -29,7 +31,11 @@ async function getAuthenticatedAdmin() {
     .eq('id', user.id)
     .single()
   if (profile?.role !== 'admin') redirect('/')
-  return createAdminClient()
+  return { admin: createAdminClient(), adminId: user.id }
+}
+
+async function getAuthenticatedAdmin() {
+  return (await getAuthenticatedAdminWithId()).admin
 }
 
 // Validates the admin-picked touristId against profiles rather than trusting
@@ -284,5 +290,72 @@ export async function createManualGuideTourBooking(formData: FormData): Promise<
     notes: rawNotes,
   })
 
+  return { success: true }
+}
+
+// Registers a package sale closed over WhatsApp (manual-sales mode,
+// 2026-11-11). Unlike the service/tour variants above this is not a
+// pre-reserva: the sale is already agreed, so it lands as 'confirmed'
+// (paid) or 'pending_payment', with its transaction row, in one RPC call.
+// The customer is either a registered tourist or an account-less guest
+// whose contact/billing data is stored admin-only (booking_guest_contacts).
+// No emails and no Wompi payouts: ManTur handles providers by hand.
+export async function createManualPackageSale(formData: FormData): Promise<BookingResult> {
+  const { admin, adminId } = await getAuthenticatedAdminWithId()
+
+  const packageId = formData.get('package_id') as string
+  if (!UUID_RE.test(packageId ?? '')) return { error: copy.errors.packageRequired }
+
+  // Price, pricing unit and capacity always come from the DB, never FormData.
+  const { data: pkg } = await admin
+    .from('packages')
+    .select('id, base_price, pricing_unit, capacity')
+    .eq('id', packageId)
+    .eq('is_active', true)
+    .single<{ id: string; base_price: number | string; pricing_unit: PricingUnit; capacity: number | null }>()
+
+  if (!pkg) return { error: copy.errors.packageNotFound }
+
+  const customerMode = formData.get('customer_mode') === 'guest' ? 'guest' : 'registered'
+
+  let touristId: string | null = null
+  if (customerMode === 'registered') {
+    touristId = formData.get('tourist_id') as string
+    if (!touristId) return { error: copy.errors.touristRequired }
+    if (!(await validateTourist(admin, touristId))) return { error: copy.errors.touristNotFound }
+  }
+
+  const parsed = parseManualPackageSale(formData, pkg, customerMode)
+  if ('error' in parsed) return { error: parsed.error }
+  const { sale } = parsed
+
+  const { data: bookingId, error: rpcError } = await admin.rpc('create_manual_package_sale', {
+    p_registered_by: adminId,
+    p_package_id: pkg.id,
+    p_tourist_id: touristId,
+    p_guest_full_name: sale.guest?.fullName ?? null,
+    p_guest_phone: sale.guest?.phone ?? null,
+    p_guest_document_type: sale.guest?.documentType ?? null,
+    p_guest_document_number: sale.guest?.documentNumber ?? null,
+    p_guest_email: sale.guest?.email ?? null,
+    p_quantity: sale.quantity,
+    p_booking_date: sale.bookingDate,
+    p_catalog_total_amount: sale.catalogTotal,
+    p_total_amount: sale.totalAmount,
+    p_price_adjustment_reason: sale.priceAdjustmentReason,
+    p_notes: sale.notes,
+    p_is_paid: sale.isPaid,
+    p_payment_method: sale.paymentMethod,
+    p_payment_reference: sale.paymentReference,
+    p_paid_at: sale.paidAt,
+  })
+
+  if (rpcError || !bookingId) {
+    console.error('createManualPackageSale: RPC failed', rpcError)
+    return { error: copy.errors.generic }
+  }
+
+  revalidatePath('/admin/reservas')
+  revalidatePath('/admin/paquetes/solicitudes')
   return { success: true }
 }

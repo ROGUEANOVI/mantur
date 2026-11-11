@@ -68,10 +68,13 @@ const servicesSingleMock = vi.fn()
 const guideToursSingleMock = vi.fn()
 const businessOwnerSingleMock = vi.fn() // notifyBusinessOfServicePrereserva
 const guideProfileIdSingleMock = vi.fn() // notifyGuideOfTourPrereserva
+const packagesSingleMock = vi.fn() // createManualPackageSale
 
 const createServicePrereservaRpcMock = vi.fn()
 const createGuideTourPrereservaRpcMock = vi.fn()
+const createManualPackageSaleRpcMock = vi.fn()
 const rpcMock = vi.fn((fn: string, args: Record<string, unknown>) => {
+  if (fn === 'create_manual_package_sale') return createManualPackageSaleRpcMock(args)
   if (fn === 'create_service_prereserva') return createServicePrereservaRpcMock(args)
   if (fn === 'create_guide_tour_prereserva') return createGuideTourPrereservaRpcMock(args)
   throw new Error(`unexpected rpc: ${fn}`)
@@ -89,6 +92,7 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'guide_tours') return builder(guideToursSingleMock)
       if (table === 'businesses') return builder(businessOwnerSingleMock)
       if (table === 'tourist_guides') return builder(guideProfileIdSingleMock)
+      if (table === 'packages') return builder(packagesSingleMock)
       throw new Error(`unexpected table on admin client: ${table}`)
     },
     auth: { admin: { getUserById: getUserByIdMock } },
@@ -122,6 +126,7 @@ const {
   getItemBlockedDates,
   createManualServiceBooking,
   createManualGuideTourBooking,
+  createManualPackageSale,
 } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
@@ -341,5 +346,136 @@ describe('createManualGuideTourBooking', () => {
     )
 
     expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
+  })
+})
+
+describe('createManualPackageSale', () => {
+  const PACKAGE_ID = '33333333-3333-3333-3333-333333333333'
+  const PAST_DATE = '2020-01-01'
+
+  function packageRow(overrides: Partial<{ base_price: number; capacity: number | null; pricing_unit: string }> = {}) {
+    return {
+      id: PACKAGE_ID,
+      base_price: overrides.base_price ?? 150000,
+      pricing_unit: overrides.pricing_unit ?? 'per_person',
+      capacity: 'capacity' in overrides ? overrides.capacity : 12,
+    }
+  }
+
+  const GUEST_SALE = {
+    package_id: PACKAGE_ID,
+    customer_mode: 'guest',
+    guest_full_name: 'Ana Pérez',
+    guest_phone: '3001234567',
+    quantity: '2',
+    booking_date: PAST_DATE,
+    payment_status: 'paid',
+    payment_method: 'bank_transfer',
+    paid_date: '2026-01-15',
+    payment_reference: 'TRX-9',
+  }
+
+  beforeEach(() => {
+    packagesSingleMock.mockResolvedValue({ data: packageRow() })
+    createManualPackageSaleRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
+  })
+
+  it('rejects a missing or malformed package id without querying', async () => {
+    const result = await createManualPackageSale(formData({ ...GUEST_SALE, package_id: 'nope' }))
+    expect(result).toEqual({ error: 'Selecciona un paquete.' })
+    expect(packagesSingleMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a package that does not exist or is inactive', async () => {
+    packagesSingleMock.mockResolvedValue({ data: null })
+    const result = await createManualPackageSale(formData(GUEST_SALE))
+    expect(result).toEqual({ error: 'El paquete seleccionado no existe o está inactivo.' })
+    expect(createManualPackageSaleRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('registers a paid guest sale with server-computed amounts and the admin as registrant', async () => {
+    const result = await createManualPackageSale(formData(GUEST_SALE))
+
+    expect(result).toEqual({ success: true })
+    expect(createManualPackageSaleRpcMock).toHaveBeenCalledWith({
+      p_registered_by: ADMIN_ID,
+      p_package_id: PACKAGE_ID,
+      p_tourist_id: null,
+      p_guest_full_name: 'Ana Pérez',
+      p_guest_phone: '3001234567',
+      p_guest_document_type: null,
+      p_guest_document_number: null,
+      p_guest_email: null,
+      p_quantity: 2,
+      p_booking_date: PAST_DATE,
+      p_catalog_total_amount: 300000,
+      p_total_amount: 300000,
+      p_price_adjustment_reason: null,
+      p_notes: null,
+      p_is_paid: true,
+      p_payment_method: 'bank_transfer',
+      p_payment_reference: 'TRX-9',
+      p_paid_at: '2026-01-15T12:00:00-05:00',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/admin/reservas')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/admin/paquetes/solicitudes')
+  })
+
+  it('never trusts a client-sent price — only the DB package price', async () => {
+    await createManualPackageSale(formData({ ...GUEST_SALE, base_price: '1', total_amount: '1' }))
+    expect(createManualPackageSaleRpcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ p_catalog_total_amount: 300000, p_total_amount: 300000 }),
+    )
+  })
+
+  it('registers a pending sale for a registered tourist, validated against profiles', async () => {
+    const result = await createManualPackageSale(
+      formData({
+        package_id: PACKAGE_ID,
+        customer_mode: 'registered',
+        tourist_id: TOURIST_ID,
+        guest_full_name: 'ignored',
+        quantity: '1',
+        booking_date: PAST_DATE,
+        payment_status: 'pending',
+      }),
+    )
+
+    expect(result).toEqual({ success: true })
+    expect(createManualPackageSaleRpcMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_tourist_id: TOURIST_ID,
+        p_guest_full_name: null,
+        p_is_paid: false,
+        p_payment_method: null,
+        p_paid_at: null,
+      }),
+    )
+  })
+
+  it('requires a tourist in registered mode', async () => {
+    const result = await createManualPackageSale(formData({ ...GUEST_SALE, customer_mode: 'registered' }))
+    expect(result).toEqual({ error: 'Selecciona un turista.' })
+  })
+
+  it('rejects an unknown tourist id in registered mode', async () => {
+    profilesSingleMock.mockResolvedValue({ data: null })
+    const result = await createManualPackageSale(
+      formData({ ...GUEST_SALE, customer_mode: 'registered', tourist_id: TOURIST_ID }),
+    )
+    expect(result).toEqual({ error: 'Selecciona un turista registrado.' })
+    expect(createManualPackageSaleRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces field validation errors before calling the RPC', async () => {
+    const result = await createManualPackageSale(formData({ ...GUEST_SALE, guest_phone: '123' }))
+    expect(result).toEqual({ error: 'El teléfono debe ser un celular colombiano de 10 dígitos.' })
+    expect(createManualPackageSaleRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('maps an RPC failure to the generic sale error', async () => {
+    createManualPackageSaleRpcMock.mockResolvedValue({ data: null, error: { message: 'missing_customer' } })
+    const result = await createManualPackageSale(formData(GUEST_SALE))
+    expect(result).toEqual({ error: 'No se pudo registrar la venta. Intenta de nuevo.' })
   })
 })

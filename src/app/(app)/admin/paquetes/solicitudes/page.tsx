@@ -14,9 +14,11 @@ type BookingRow = {
   notes: string | null
   status: string
   package_id: string
-  tourist_id: string
+  // NULL for an account-less customer of a manual package sale.
+  tourist_id: string | null
   packages: { name: string } | null
   profiles: { full_name: string | null } | null
+  booking_guest_contacts: { full_name: string; phone: string } | null
 }
 
 type PackageItemRow = {
@@ -29,6 +31,22 @@ type PackageItemRow = {
     guide_id: string
     tourist_guides: { profiles: { full_name: string | null } | null } | null
   } | null
+}
+
+// A registered tourist's name/phone, or the account-less guest's.
+function customerProps(b: BookingRow, phoneByTourist: Map<string, string | null>) {
+  if (b.tourist_id) {
+    return {
+      touristName: b.profiles?.full_name ?? '—',
+      touristPhone: phoneByTourist.get(b.tourist_id) ?? null,
+      isGuest: false,
+    }
+  }
+  return {
+    touristName: b.booking_guest_contacts?.full_name ?? '—',
+    touristPhone: b.booking_guest_contacts?.phone ?? null,
+    isGuest: true,
+  }
 }
 
 async function loadAvailabilityItems(
@@ -84,7 +102,7 @@ export default async function AdminPaquetesSolicitudesPage() {
   const { data } = await admin
     .from('bookings')
     .select(
-      'id, booking_date, quantity, total_amount, notes, status, package_id, tourist_id, packages(name), profiles!tourist_id(full_name)',
+      'id, booking_date, quantity, total_amount, notes, status, package_id, tourist_id, packages(name), profiles!tourist_id(full_name), booking_guest_contacts(full_name, phone)',
     )
     .not('package_id', 'is', null)
     .in('status', ['pending_availability', 'pending_payment'])
@@ -95,7 +113,7 @@ export default async function AdminPaquetesSolicitudesPage() {
   const pendingAvailability = bookings.filter((b) => b.status === 'pending_availability')
   const pendingPayment = bookings.filter((b) => b.status === 'pending_payment')
 
-  const touristIds = [...new Set(bookings.map((b) => b.tourist_id))]
+  const touristIds = [...new Set(bookings.map((b) => b.tourist_id).filter((id): id is string => id !== null))]
   const phoneByTourist = new Map<string, string | null>()
   if (touristIds.length > 0) {
     const { data: contactRows } = await admin
@@ -144,8 +162,7 @@ export default async function AdminPaquetesSolicitudesPage() {
                   key={b.id}
                   bookingId={b.id}
                   packageName={b.packages?.name ?? ''}
-                  touristName={b.profiles?.full_name ?? '—'}
-                  touristPhone={phoneByTourist.get(b.tourist_id) ?? null}
+                  {...customerProps(b, phoneByTourist)}
                   bookingDate={b.booking_date}
                   quantity={b.quantity}
                   totalAmount={Number(b.total_amount)}
@@ -171,8 +188,7 @@ export default async function AdminPaquetesSolicitudesPage() {
                   key={b.id}
                   bookingId={b.id}
                   packageName={b.packages?.name ?? ''}
-                  touristName={b.profiles?.full_name ?? '—'}
-                  touristPhone={phoneByTourist.get(b.tourist_id) ?? null}
+                  {...customerProps(b, phoneByTourist)}
                   bookingDate={b.booking_date}
                   quantity={b.quantity}
                   totalAmount={Number(b.total_amount)}
