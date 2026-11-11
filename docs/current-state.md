@@ -23,6 +23,12 @@ decision rather than a rollback.
   secondary path for signed-in tourists and still confirms provider
   availability before charging. Packages lead the home page (admin-curated
   via `is_featured` + `sort_order`). Package reviews are live.
+- Manual package sales: admins register WhatsApp deals from
+  `/admin/reservas/nueva` (type "Paquete ManTur"), for a registered tourist
+  or an account-less guest (`booking_guest_contacts`, admin-only), as paid
+  (`confirmed`, with manual payment method/date/receipt on `transactions`)
+  or `pending_payment`. Marking a package paid does NOT trigger Wompi
+  provider payouts — providers are paid by hand while in manual mode.
 
 ## Dormant customer payment paths
 
