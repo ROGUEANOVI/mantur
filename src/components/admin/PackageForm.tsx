@@ -22,6 +22,8 @@ type Package = {
   base_price: number | string
   pricing_unit: string
   capacity: number | null
+  is_featured: boolean
+  sort_order: number
 }
 
 type Props = {
@@ -132,6 +134,45 @@ export default function PackageForm({ action, package: pkg }: Props) {
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
         />
       </div>
+
+      <fieldset className="space-y-4 rounded-xl border border-border p-4">
+        <legend className="px-1 text-sm font-semibold text-foreground">{copy.showcaseTitle}</legend>
+
+        <label htmlFor="is_featured" className="flex cursor-pointer items-start gap-3">
+          <input
+            id="is_featured"
+            name="is_featured"
+            type="checkbox"
+            defaultChecked={pkg?.is_featured ?? false}
+            className="mt-0.5 size-5 shrink-0 cursor-pointer rounded border-input accent-primary"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-sm font-medium text-foreground">{copy.isFeatured}</span>
+            <span className="block text-xs text-muted-foreground">{copy.isFeaturedHint}</span>
+          </span>
+        </label>
+
+        <div className="space-y-1.5">
+          <label htmlFor="sort_order" className="block text-sm font-medium text-foreground">
+            {copy.sortOrder}
+          </label>
+          <input
+            id="sort_order"
+            name="sort_order"
+            type="number"
+            min="0"
+            max="9999"
+            step="1"
+            inputMode="numeric"
+            defaultValue={pkg?.sort_order ?? 0}
+            aria-describedby="sort_order_hint"
+            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-11"
+          />
+          <p id="sort_order_hint" className="text-xs text-muted-foreground">
+            {copy.sortOrderHint}
+          </p>
+        </div>
+      </fieldset>
 
       <div className="flex gap-3 pt-1">
         <button

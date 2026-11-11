@@ -15,6 +15,8 @@ const PACKAGE = {
   base_price: 450000,
   pricing_unit: 'per_person',
   capacity: 10,
+  is_featured: true,
+  sort_order: 3,
 }
 
 beforeEach(() => {
@@ -42,6 +44,18 @@ describe('PackageForm', () => {
     expect(screen.getByLabelText('Precio de venta al turista (COP)', { exact: false })).toHaveValue(450000)
     expect(screen.getByLabelText('Se cobra', { exact: false })).toHaveValue('per_person')
     expect(screen.getByLabelText('Cupo máximo (opcional)')).toHaveValue(10)
+  })
+
+  it('prefills the showcase fields in edit mode', () => {
+    render(<PackageForm action={vi.fn()} package={PACKAGE} />)
+    expect(screen.getByLabelText('Recomendado', { exact: false })).toBeChecked()
+    expect(screen.getByLabelText('Orden en el inicio')).toHaveValue(3)
+  })
+
+  it('defaults the showcase fields to not featured and order 0 in create mode', () => {
+    render(<PackageForm action={vi.fn()} />)
+    expect(screen.getByLabelText('Recomendado', { exact: false })).not.toBeChecked()
+    expect(screen.getByLabelText('Orden en el inicio')).toHaveValue(0)
   })
 
   it('falls back to empty values for null description/capacity in edit mode', () => {

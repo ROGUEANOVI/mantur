@@ -35,4 +35,17 @@ describe('WhatsappButton', () => {
     const link = screen.getByRole('link', { name: 'Escríbenos' })
     expect(link).toHaveAttribute('href', expect.stringContaining('wa.me/573001006725'))
   })
+
+  it('renders the label as visible text by default', () => {
+    render(<WhatsappButton message="hola" label="Escríbenos" />)
+    expect(screen.getByText('Escríbenos')).toBeInTheDocument()
+    expect(screen.getByRole('link')).not.toHaveAttribute('aria-label')
+  })
+
+  it('keeps the label as the accessible name when iconOnly hides the text', () => {
+    render(<WhatsappButton message="hola" label="Consultar por WhatsApp" iconOnly />)
+    const link = screen.getByRole('link', { name: 'Consultar por WhatsApp' })
+    expect(link).toHaveAttribute('title', 'Consultar por WhatsApp')
+    expect(screen.queryByText('Consultar por WhatsApp')).not.toBeInTheDocument()
+  })
 })

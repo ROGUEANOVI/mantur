@@ -14,6 +14,7 @@ type PackageRow = {
   base_price: number
   pricing_unit: string
   is_active: boolean
+  is_featured: boolean
 }
 
 function formatCOP(amount: number) {
@@ -30,7 +31,13 @@ export default async function AdminPaquetesPage() {
   const solicitudesCopy = adminCopy.paquetes.solicitudes
 
   const [{ data }, pendingCounts] = await Promise.all([
-    admin.from('packages').select('id, name, base_price, pricing_unit, is_active').order('name'),
+    // Same order as the landing showcase, so the list reads as a preview of it.
+    admin
+      .from('packages')
+      .select('id, name, base_price, pricing_unit, is_active, is_featured')
+      .order('is_featured', { ascending: false })
+      .order('sort_order', { ascending: true })
+      .order('name'),
     getSidebarPendingCounts(),
   ])
 
@@ -94,14 +101,21 @@ export default async function AdminPaquetesPage() {
                     </div>
                   </div>
 
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
-                      pkg.is_active ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground',
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {pkg.is_featured && (
+                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
+                        {copy.featuredBadge}
+                      </span>
                     )}
-                  >
-                    {pkg.is_active ? copy.statusLabels.active : copy.statusLabels.inactive}
-                  </span>
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                        pkg.is_active ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {pkg.is_active ? copy.statusLabels.active : copy.statusLabels.inactive}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 mt-3">

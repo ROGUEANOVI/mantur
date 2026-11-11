@@ -17,7 +17,8 @@ type Props = {
   capacity: number | null
   pricingUnit: PricingUnit
   // Same three-state access gate used by the pre-pivot TourBookingForm:
-  // 'tourist' renders the real form, 'guest' points to /login, 'other_role'
+  // 'tourist' renders the real form, 'guest' points to /login (a secondary,
+  // outlined link — WhatsApp is the primary CTA on the page), 'other_role'
   // hides the whole thing (a business owner/admin account has no reason to
   // request a package).
   access: 'tourist' | 'guest' | 'other_role'
@@ -45,7 +46,7 @@ export default function PackagePrereservaForm({ packageId, price, capacity, pric
     return (
       <Link
         href="/login"
-        className="inline-flex w-full items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-11 hover:bg-primary/90 transition-colors"
+        className="inline-flex w-full items-center justify-center rounded-xl border border-border text-foreground text-sm font-semibold min-h-11 hover:bg-muted transition-colors"
       >
         {bookingsCopy.form.loginToRequest}
       </Link>

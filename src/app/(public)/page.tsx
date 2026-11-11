@@ -23,6 +23,7 @@ import {
   TreePine,
   Car,
   Compass,
+  Package,
 } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { landingCopy } from '@/lib/copy/landing'
@@ -31,14 +32,15 @@ import Reveal from '@/components/shared/Reveal'
 import { cn } from '@/lib/utils'
 import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
 import HeroSlideshow from '@/components/shared/HeroSlideshow'
+import PackageShowcase, { type ShowcasePackage } from '@/components/paquetes/PackageShowcase'
 
 export const metadata: Metadata = {
   title: 'ManTur — Turismo con alma local',
-  description: 'Descubre Manaure Balcón del Cesar. Reserva servicios en negocios locales, contrata guías turísticos y encuentra transporte con alma local.',
+  description: 'Descubre Manaure Balcón del Cesar con paquetes turísticos organizados por ManTur, negocios locales, guías turísticos y transporte con alma local.',
   alternates: { canonical: 'https://mantur.co' },
   openGraph: {
     title: 'ManTur — Turismo con alma local',
-    description: 'Descubre Manaure Balcón del Cesar. Reserva servicios, guías y transporte local.',
+    description: 'Descubre Manaure Balcón del Cesar con paquetes turísticos, guías y transporte local.',
     url: 'https://mantur.co',
   },
 }
@@ -124,7 +126,13 @@ export default async function LandingPage() {
   const admin = createAdminClient()
   const copy = landingCopy
 
-  const [{ data: featured }, { data: places }, { data: categoriesData }, { data: categoryLinks }] = await Promise.all([
+  const [
+    { data: featured },
+    { data: places },
+    { data: categoriesData },
+    { data: categoryLinks },
+    { data: packagesData },
+  ] = await Promise.all([
     admin
       .from('businesses')
       .select('id, slug, name, description, type, images, address')
@@ -146,11 +154,24 @@ export default async function LandingPage() {
       .eq('is_active', true)
       .order('sort_order', { ascending: true }),
     admin.from('business_category_links').select('category_id'),
+    // Admin-curated order: featured first, then sort_order, then name.
+    // Read in full (a handful of rows) so the hero's "desde" price covers
+    // every active package, not only the ones shown in the showcase.
+    admin
+      .from('packages')
+      .select('id, slug, name, description, base_price, pricing_unit, capacity, images, is_featured')
+      .eq('is_active', true)
+      .order('is_featured', { ascending: false })
+      .order('sort_order', { ascending: true })
+      .order('name'),
   ])
 
   const featuredList = (featured ?? []) as FeaturedBusiness[]
   const allPlaces = (places ?? []) as PlacePreview[]
   const placesList = allPlaces.slice(0, 6)
+  const packagesList = (packagesData ?? []) as ShowcasePackage[]
+  const minPackagePrice =
+    packagesList.length > 0 ? Math.min(...packagesList.map((p) => Number(p.base_price))) : null
 
   // Show only the categories with actual listings — an active-but-empty
   // category (e.g. Estanco today) is a dead end as a landing shortcut, even
@@ -223,12 +244,28 @@ export default async function LandingPage() {
               Explorar
             </button>
           </form>
+
+          {minPackagePrice != null && (
+            <Link
+              href="/paquetes"
+              className="animate-fade-up [animation-delay:400ms] group mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-black/35 px-4 text-sm font-semibold text-white underline-offset-4 backdrop-blur-sm transition-colors hover:bg-black/50 hover:underline"
+            >
+              <Package className="size-4" aria-hidden="true" strokeWidth={1.75} />
+              {copy.hero.packagesLink(`$${minPackagePrice.toLocaleString('es-CO')}`)}
+              <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
+            </Link>
+          )}
         </div>
       </section>
 
+      {/* ── Paquetes ─────────────────────────────────────────── */}
+      {/* First section, overlapping the hero: packages are what sells today. */}
+      <PackageShowcase packages={packagesList} />
+
       {/* ── Categorías ───────────────────────────────────────── */}
+      {/* Takes the hero overlap back only when there's no package showcase. */}
       {categories.length > 0 && (
-        <section className="relative -mt-14 px-4">
+        <section className={cn('relative px-4', packagesList.length > 0 ? 'pt-12' : '-mt-14')}>
           <div className="mx-auto max-w-5xl">
             <Reveal>
               <h2 className="mb-4 text-lg font-bold text-foreground">

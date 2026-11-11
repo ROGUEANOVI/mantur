@@ -14,6 +14,7 @@ import Breadcrumbs from '@/components/shared/Breadcrumbs'
 import RatingSummary from '@/components/shared/RatingSummary'
 import ReviewsList from '@/components/shared/ReviewsList'
 import PackagePrereservaForm from '@/components/paquetes/PackagePrereservaForm'
+import WhatsappButton from '@/components/shared/WhatsappButton'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
 
@@ -280,15 +281,31 @@ export default async function PaqueteDetailPage({
               </section>
             )}
 
-            <div className="pt-2">
-              <PackagePrereservaForm
-                packageId={pkg.id}
-                price={Number(pkg.base_price)}
-                capacity={pkg.capacity}
-                pricingUnit={pkg.pricing_unit}
-                access={bookingAccess}
-              />
+            {/* WhatsApp is the primary contact for every visitor, signed in
+                or not — closed sales are registered manually from the admin
+                panel. The in-app pre-reserva stays below as a secondary path
+                for tourists who prefer it. */}
+            <div className="space-y-2 pt-2">
+              <WhatsappButton message={packagesCopy.whatsapp.message(pkg.name)} label={packagesCopy.whatsapp.cta} />
+              <p className="text-xs text-muted-foreground">{copy.whatsappHint}</p>
             </div>
+
+            {bookingAccess !== 'other_role' && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-3" aria-hidden="true">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-xs text-muted-foreground">{copy.prereservaDivider}</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <PackagePrereservaForm
+                  packageId={pkg.id}
+                  price={Number(pkg.base_price)}
+                  capacity={pkg.capacity}
+                  pricingUnit={pkg.pricing_unit}
+                  access={bookingAccess}
+                />
+              </div>
+            )}
           </Reveal>
         </DetailSplitLayout>
       </div>

@@ -16,8 +16,13 @@ decision rather than a rollback.
 - Transport request lifecycle: a tourist requests a ride; a transporter accepts
   it, can quote a price, and marks it complete. Transport reviews are eligible
   after `transport_requests.status = 'completed'`.
-- ManTur packages: the pre-reservation flow confirms provider availability
-  before charging the tourist. Package reviews are live.
+- ManTur packages: the primary contact is ManTur's WhatsApp, open to every
+  visitor without login (since 2026-11-11 — the login-gated pre-reserva was
+  too much friction for social-media traffic); closed sales are registered
+  manually from the admin panel. The in-app pre-reservation flow stays as a
+  secondary path for signed-in tourists and still confirms provider
+  availability before charging. Packages lead the home page (admin-curated
+  via `is_featured` + `sort_order`). Package reviews are live.
 
 ## Dormant customer payment paths
 

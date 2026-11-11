@@ -204,6 +204,26 @@ describe('createPackage', () => {
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/paquetes')
   })
 
+  it('defaults is_featured to false and sort_order to 0 when absent', async () => {
+    packageInsertMock.mockResolvedValue({ error: null })
+    await expect(createPackage(formData(VALID_PACKAGE_FIELDS))).rejects.toThrow('redirect:/admin/paquetes')
+    expect(packageInsertMock).toHaveBeenCalledWith(expect.objectContaining({ is_featured: false, sort_order: 0 }))
+  })
+
+  it('saves is_featured and sort_order when provided', async () => {
+    packageInsertMock.mockResolvedValue({ error: null })
+    await expect(
+      createPackage(formData({ ...VALID_PACKAGE_FIELDS, is_featured: 'on', sort_order: '2' })),
+    ).rejects.toThrow('redirect:/admin/paquetes')
+    expect(packageInsertMock).toHaveBeenCalledWith(expect.objectContaining({ is_featured: true, sort_order: 2 }))
+  })
+
+  it.each(['-1', '1.5', 'abc', '10000'])('rejects an invalid sort_order (%s)', async (sortOrder) => {
+    const result = await createPackage(formData({ ...VALID_PACKAGE_FIELDS, sort_order: sortOrder }))
+    expect(result).toEqual({ error: 'El orden debe ser un número entero entre 0 y 9999.' })
+    expect(packageInsertMock).not.toHaveBeenCalled()
+  })
+
   it('maps an insert error to the generic copy', async () => {
     packageInsertMock.mockResolvedValue({ error: { code: '99999' } })
     const result = await createPackage(formData(VALID_PACKAGE_FIELDS))

@@ -37,7 +37,13 @@ type ParsedPackageFields = {
   base_price: number
   pricing_unit: string
   capacity: number | null
+  is_featured: boolean
+  sort_order: number
 }
+
+// Upper bound only guards against garbage input; real values are small
+// (a handful of curated packages ordered 0, 1, 2...).
+const MAX_SORT_ORDER = 9999
 
 function parsePackageFields(
   formData: FormData,
@@ -68,8 +74,25 @@ function parsePackageFields(
     if (!Number.isInteger(capacity) || capacity <= 0) return { error: copy.invalidCapacity }
   }
 
+  // Unchecked checkboxes are absent from FormData — absence means false.
+  const isFeatured = formData.get('is_featured') === 'on'
+
+  const rawSortOrder = ((formData.get('sort_order') as string | null) ?? '').trim()
+  const sortOrder = rawSortOrder ? Number(rawSortOrder) : 0
+  if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > MAX_SORT_ORDER) {
+    return { error: copy.invalidSortOrder }
+  }
+
   return {
-    fields: { name, description, base_price: basePrice, pricing_unit: pricingUnit, capacity },
+    fields: {
+      name,
+      description,
+      base_price: basePrice,
+      pricing_unit: pricingUnit,
+      capacity,
+      is_featured: isFeatured,
+      sort_order: sortOrder,
+    },
   }
 }
 

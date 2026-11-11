@@ -37,7 +37,7 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
   const [{ data: pkg }, { data: itemsData }, { data: servicesData }, { data: guideToursData }] = await Promise.all([
     admin
       .from('packages')
-      .select('id, name, description, base_price, pricing_unit, capacity, images, videos')
+      .select('id, name, description, base_price, pricing_unit, capacity, is_featured, sort_order, images, videos')
       .eq('id', id)
       .single(),
     admin
