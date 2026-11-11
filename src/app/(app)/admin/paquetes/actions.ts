@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
+import { parsePackageContent, parsePriceTier } from '@/lib/packages/content'
 
 type ActionResult = { error: string } | { success: true }
 
@@ -164,6 +165,71 @@ export async function deletePackage(formData: FormData): Promise<{ error: string
   }
 
   revalidatePath('/admin/paquetes')
+}
+
+// ── Structured content & price tiers (spec phases 2 and 1.2) ─────────────────
+
+export async function updatePackageContent(formData: FormData): Promise<ActionResult> {
+  const admin = await getAuthenticatedAdmin()
+  const copy = adminCopy.paquetes.content.errors
+
+  const packageId = formData.get('packageId') as string
+  if (!UUID_RE.test(packageId ?? '')) return { error: adminCopy.paquetes.errors.notFound }
+
+  // Capacity from the DB, so the min-group check can't be bypassed.
+  const { data: pkg } = await admin.from('packages').select('id, slug, capacity').eq('id', packageId).maybeSingle()
+  if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  const parsed = parsePackageContent(formData, pkg.capacity)
+  if ('error' in parsed) return { error: parsed.error }
+
+  const { error } = await admin.from('packages').update(parsed.fields).eq('id', packageId)
+  if (error) return { error: copy.generic }
+
+  revalidatePath(`/admin/paquetes/${packageId}/editar`)
+  revalidatePath(`/paquetes/${pkg.slug}`)
+  revalidatePath('/paquetes')
+  revalidatePath('/')
+  return { success: true }
+}
+
+export async function addPackagePriceTier(formData: FormData): Promise<{ error: string } | void> {
+  const admin = await getAuthenticatedAdmin()
+  const copy = adminCopy.paquetes.tiers.errors
+
+  const packageId = formData.get('packageId') as string
+  if (!UUID_RE.test(packageId ?? '')) return { error: adminCopy.paquetes.errors.notFound }
+
+  const parsed = parsePriceTier(formData)
+  if ('error' in parsed) return { error: parsed.error }
+
+  const { data: pkg } = await admin.from('packages').select('id, slug').eq('id', packageId).maybeSingle()
+  if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  const { error } = await admin.from('package_price_tiers').insert({ package_id: packageId, ...parsed.tier })
+  if (error) {
+    // 23505 = unique_violation on (package_id, min_people).
+    if (error.code === '23505') return { error: copy.duplicateMin }
+    return { error: copy.generic }
+  }
+
+  revalidatePath(`/admin/paquetes/${packageId}/editar`)
+  revalidatePath(`/paquetes/${pkg.slug}`)
+}
+
+export async function removePackagePriceTier(formData: FormData): Promise<void> {
+  const admin = await getAuthenticatedAdmin()
+
+  const tierId = formData.get('tierId') as string | null
+  const packageId = formData.get('packageId') as string | null
+  if (!tierId || !UUID_RE.test(tierId) || !packageId || !UUID_RE.test(packageId)) return
+
+  // Scoped to the package too, so a tampered tierId can't touch another one.
+  await admin.from('package_price_tiers').delete().eq('id', tierId).eq('package_id', packageId)
+
+  const { data: pkg } = await admin.from('packages').select('slug').eq('id', packageId).maybeSingle()
+  revalidatePath(`/admin/paquetes/${packageId}/editar`)
+  if (pkg?.slug) revalidatePath(`/paquetes/${pkg.slug}`)
 }
 
 // ── package_items ────────────────────────────────────────────────────────────

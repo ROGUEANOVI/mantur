@@ -8,6 +8,8 @@ export type PackageCardRow = {
   slug: string
   name: string
   description: string | null
+  // Structured 1-2 sentence pitch; preferred over the long description.
+  summary?: string | null
   base_price: number | string
   pricing_unit: string
   images: string[] | null
@@ -47,9 +49,9 @@ export default function PackageCard({ pkg }: { pkg: PackageCardRow }) {
         <h3 className="font-semibold text-foreground text-base leading-snug line-clamp-1">
           {pkg.name}
         </h3>
-        {pkg.description && (
+        {(pkg.summary ?? pkg.description) && (
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-            {pkg.description}
+            {pkg.summary ?? pkg.description}
           </p>
         )}
         <p className="text-sm text-muted-foreground">

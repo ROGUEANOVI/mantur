@@ -12,6 +12,8 @@ export type ShowcasePackage = {
   slug: string
   name: string
   description: string | null
+  // Structured 1-2 sentence pitch; preferred over the long description.
+  summary?: string | null
   base_price: number | string
   pricing_unit: string
   capacity: number | null
@@ -123,7 +125,9 @@ function ShowcaseCard({ pkg, priority }: { pkg: ShowcasePackage; priority: boole
           <h3 className="line-clamp-2 text-balance text-lg font-bold leading-snug text-white">
             {pkg.name}
           </h3>
-          {pkg.description && <p className="line-clamp-2 text-sm text-white/80">{pkg.description}</p>}
+          {(pkg.summary ?? pkg.description) && (
+            <p className="line-clamp-2 text-sm text-white/80">{pkg.summary ?? pkg.description}</p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

@@ -13,6 +13,9 @@ import {
 } from '@/app/(app)/admin/paquetes/actions'
 import PackageForm from '@/components/admin/PackageForm'
 import PackageItemsManager from '@/components/admin/PackageItemsManager'
+import PackageContentForm from '@/components/admin/PackageContentForm'
+import PackagePriceTiersManager from '@/components/admin/PackagePriceTiersManager'
+import type { PackageContentFields, PriceTier } from '@/lib/packages/content'
 import MediaManager from '@/components/shared/MediaManager'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -34,37 +37,60 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
   const admin = createAdminClient()
   const copy = adminCopy.paquetes
 
-  const [{ data: pkg }, { data: itemsData }, { data: servicesData }, { data: guideToursData }] = await Promise.all([
-    admin
-      .from('packages')
-      .select('id, name, description, base_price, pricing_unit, capacity, is_featured, sort_order, images, videos')
-      .eq('id', id)
-      .single(),
-    admin
-      .from('package_items')
-      .select(
-        'id, internal_cost_cents, quantity_included, service_id, guide_tour_id, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name)))',
-      )
-      .eq('package_id', id)
-      .order('created_at', { ascending: true }),
-    // !inner + filtering on the joined columns so an admin never even sees
-    // a service/tour whose owning business/guide isn't in good standing as
-    // an addable option — same predicate addPackageItem() enforces
-    // server-side (see its own comment), kept in sync here for UX only.
-    admin
-      .from('services')
-      .select('id, name, businesses!inner(name, status, verified)')
-      .eq('status', 'active')
-      .eq('businesses.status', 'active')
-      .eq('businesses.verified', true)
-      .order('name'),
-    admin
-      .from('guide_tours')
-      .select('id, name, tourist_guides!inner(is_available, profiles!profile_id(full_name))')
-      .eq('status', 'active')
-      .eq('tourist_guides.is_available', true)
-      .order('name'),
-  ])
+  const [{ data: pkg }, { data: itemsData }, { data: servicesData }, { data: guideToursData }, { data: tiersData }] =
+    await Promise.all([
+      admin
+        .from('packages')
+        .select(
+          'id, name, description, base_price, pricing_unit, capacity, is_featured, sort_order, images, videos, ' +
+            'summary, itinerary, includes, what_to_bring, duration_label, meeting_point, difficulty, min_people, ' +
+            'payment_info, cancellation_policy',
+        )
+        .eq('id', id)
+        .single<
+          {
+            id: string
+            name: string
+            description: string | null
+            base_price: number
+            pricing_unit: string
+            capacity: number | null
+            is_featured: boolean
+            sort_order: number
+            images: string[] | null
+            videos: string[] | null
+          } & PackageContentFields
+        >(),
+      admin
+        .from('package_items')
+        .select(
+          'id, internal_cost_cents, quantity_included, service_id, guide_tour_id, services(name, businesses(name)), guide_tours(name, tourist_guides(profiles!profile_id(full_name)))',
+        )
+        .eq('package_id', id)
+        .order('created_at', { ascending: true }),
+      // !inner + filtering on the joined columns so an admin never even sees
+      // a service/tour whose owning business/guide isn't in good standing as
+      // an addable option — same predicate addPackageItem() enforces
+      // server-side (see its own comment), kept in sync here for UX only.
+      admin
+        .from('services')
+        .select('id, name, businesses!inner(name, status, verified)')
+        .eq('status', 'active')
+        .eq('businesses.status', 'active')
+        .eq('businesses.verified', true)
+        .order('name'),
+      admin
+        .from('guide_tours')
+        .select('id, name, tourist_guides!inner(is_available, profiles!profile_id(full_name))')
+        .eq('status', 'active')
+        .eq('tourist_guides.is_available', true)
+        .order('name'),
+      admin
+        .from('package_price_tiers')
+        .select('id, min_people, max_people, amount, amount_basis')
+        .eq('package_id', id)
+        .order('min_people', { ascending: true }),
+    ])
 
   if (!pkg) notFound()
 
@@ -74,7 +100,7 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
   const boundConfirmVideo = confirmPackageVideoUpload.bind(null, pkg.id)
   const boundDeleteVideo = deletePackageVideo.bind(null, pkg.id)
 
-  const items =((itemsData ?? []) as unknown as ItemRow[]).map((row) => {
+  const items = ((itemsData ?? []) as unknown as ItemRow[]).map((row) => {
     const label = row.services
       ? `${row.services.name} (${row.services.businesses?.name ?? ''})`
       : `${row.guide_tours?.name ?? ''} (${row.guide_tours?.tourist_guides?.profiles?.full_name ?? ''})`
@@ -86,9 +112,9 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
     }
   })
 
-  const services = ((servicesData ?? []) as unknown as { id: string; name: string; businesses: { name: string } | null }[]).map(
-    (s) => ({ id: s.id, label: `${s.name} (${s.businesses?.name ?? ''})` }),
-  )
+  const services = (
+    (servicesData ?? []) as unknown as { id: string; name: string; businesses: { name: string } | null }[]
+  ).map((s) => ({ id: s.id, label: `${s.name} (${s.businesses?.name ?? ''})` }))
 
   const guideTours = (
     (guideToursData ?? []) as unknown as {
@@ -115,6 +141,14 @@ export default async function EditarPaquetePage({ params }: { params: Promise<{ 
 
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
           <PackageForm action={updatePackage} package={pkg} />
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
+          <PackageContentForm packageId={pkg.id} content={pkg} />
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
+          <PackagePriceTiersManager packageId={pkg.id} tiers={(tiersData ?? []) as (PriceTier & { id: string })[]} />
         </div>
 
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5 space-y-3">
