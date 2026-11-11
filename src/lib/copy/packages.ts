@@ -22,7 +22,6 @@ export const packagesCopy = {
   // manually from the admin panel.
   whatsapp: {
     cta: 'Consultar por WhatsApp',
-    ctaShort: 'WhatsApp',
     message: (packageName: string) => `Hola, quiero más información sobre el paquete "${packageName}".`,
     customMessage: 'Hola, quiero armar un paquete a mi medida en Manaure.',
   },

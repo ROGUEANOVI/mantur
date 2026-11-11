@@ -539,7 +539,7 @@ export const adminCopy = {
       isFeatured: 'Recomendado',
       isFeaturedHint: 'Aparece primero en el inicio, con la etiqueta "Recomendado".',
       sortOrder: 'Orden en el inicio',
-      sortOrderHint: 'Los números menores aparecen primero. El primero se muestra en grande.',
+      sortOrderHint: 'Los números menores aparecen primero.',
       submit: 'Guardar paquete',
       submitting: 'Guardando...',
       cancel: 'Cancelar',

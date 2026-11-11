@@ -35,10 +35,20 @@ describe('PackageShowcase', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('links each card to its package detail page', () => {
+  it('offers a visible "Ver paquete" link to the detail page as the main action', () => {
     render(<PackageShowcase packages={[pkg()]} />)
-    expect(screen.getByRole('link', { name: 'FullDay Manaure' })).toHaveAttribute('href', '/paquetes/fullday-manaure')
+    expect(screen.getByRole('link', { name: 'Ver paquete: FullDay Manaure' })).toHaveAttribute(
+      'href',
+      '/paquetes/fullday-manaure',
+    )
+    expect(screen.getByText('Ver paquete')).toBeVisible()
     expect(screen.getByRole('link', { name: /Ver todos los paquetes/ })).toHaveAttribute('href', '/paquetes')
+  })
+
+  it('keeps the whole-card click target out of the accessibility tree', () => {
+    const { container } = render(<PackageShowcase packages={[pkg()]} />)
+    const overlay = container.querySelector('a[aria-hidden="true"][href="/paquetes/fullday-manaure"]')
+    expect(overlay).toHaveAttribute('tabindex', '-1')
   })
 
   it('opens a ManTur WhatsApp chat prefilled with the package name, without requiring login', () => {
@@ -77,7 +87,7 @@ describe('PackageShowcase', () => {
     expect(screen.getAllByText('Recomendado')).toHaveLength(1)
   })
 
-  it('shows the description only on the lead card', () => {
+  it('gives every card the same content — no lead card', () => {
     render(
       <PackageShowcase
         packages={[
@@ -87,17 +97,18 @@ describe('PackageShowcase', () => {
       />,
     )
     expect(screen.getByText('Un día completo recorriendo Manaure.')).toBeInTheDocument()
-    expect(screen.queryByText('Descripción secundaria.')).not.toBeInTheDocument()
+    expect(screen.getByText('Descripción secundaria.')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Consultar por WhatsApp' })).toHaveLength(2)
   })
 
-  it('caps the showcase at four packages plus the custom-package tile', () => {
+  it('caps the showcase at four packages', () => {
     const many = Array.from({ length: 6 }, (_, i) =>
       pkg({ id: String(i), slug: `p-${i}`, name: `Paquete ${i}`, is_featured: false }),
     )
     render(<PackageShowcase packages={many} />)
     const list = screen.getByRole('list')
-    expect(within(list).getAllByRole('listitem')).toHaveLength(5)
-    expect(screen.queryByRole('link', { name: 'Paquete 4' })).not.toBeInTheDocument()
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4)
+    expect(screen.queryByRole('link', { name: 'Ver paquete: Paquete 4' })).not.toBeInTheDocument()
   })
 
   it('offers a custom-package WhatsApp contact', () => {
@@ -109,6 +120,6 @@ describe('PackageShowcase', () => {
   it('falls back to a placeholder when the package has no photo', () => {
     render(<PackageShowcase packages={[pkg({ images: [] })]} />)
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'FullDay Manaure' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ver paquete: FullDay Manaure' })).toBeInTheDocument()
   })
 })
