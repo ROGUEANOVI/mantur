@@ -34,10 +34,11 @@ export const landingCopy = {
       'Balnearios, miradores, restaurantes y guías locales que conocen cada rincón de Manaure.',
     ctaPrimary: 'Explorar Manaure',
     ctaSecondary: 'Imperdibles',
+    packagesLink: (formattedPrice: string) => `Paquetes desde ${formattedPrice}`,
   },
 
   featured: {
-    title: 'Destacados',
+    title: 'Negocios destacados',
     badge: 'Destacado',
   },
 
