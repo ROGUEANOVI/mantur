@@ -24,6 +24,8 @@ type UnifiedRow = {
   isGuest: boolean
   // Billing data for manual package sales (guest ID/contact + payment).
   billingLine: string | null
+  // "Origen: Anuncio de Meta · mt_ventas_fullday_202611"
+  originLine: string | null
   providerName: string
   itemLabel: string
   dateLabel: string
@@ -37,6 +39,12 @@ type UnifiedRow = {
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function originSummary(source: string | null, campaign: string | null): string | null {
+  if (!source && !campaign) return null
+  const parts = [source ? (adminCopy.reservas.acquisitionSources[source] ?? source) : null, campaign].filter(Boolean)
+  return `${copy.originLabel}: ${parts.join(' · ')}`
 }
 
 function formatCOP(amount: number): string {
@@ -61,6 +69,8 @@ type BookingRow = {
   packages: { name: string } | null
   booking_guest_contacts: GuestContactRow | GuestContactRow[] | null
   transactions: ManualPaymentRow | ManualPaymentRow[] | null
+  acquisition_source: string | null
+  acquisition_campaign: string | null
 }
 
 type TransportRow = {
@@ -96,7 +106,7 @@ export default async function AdminReservasPage({
           'profiles!tourist_id(full_name), services(name, businesses(name)), ' +
           'guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(name), ' +
           'booking_guest_contacts(full_name, phone, document_type, document_number, email), ' +
-          'transactions(manual_payment_method, manual_payment_reference, paid_at)',
+          'transactions(manual_payment_method, manual_payment_reference, paid_at), acquisition_source, acquisition_campaign',
       )
       .order('created_at', { ascending: false }),
     admin
@@ -147,6 +157,7 @@ export default async function AdminReservasPage({
       touristName: customer.name,
       isGuest: customer.isGuest,
       billingLine: type === 'package' ? billingSummary(guest, firstEmbedded(b.transactions)) : null,
+      originLine: originSummary(b.acquisition_source, b.acquisition_campaign),
       providerName,
       itemLabel,
       dateLabel: formatDate(b.booking_date),
@@ -169,6 +180,7 @@ export default async function AdminReservasPage({
       touristName: t.profiles?.full_name ?? '—',
       isGuest: false,
       billingLine: null,
+      originLine: null,
       providerName: t.transporters?.profiles?.full_name ?? '—',
       itemLabel: `${t.origin} → ${t.destination}`,
       dateLabel: formatDate(t.requested_datetime),
@@ -259,6 +271,7 @@ export default async function AdminReservasPage({
                   </span>
                 </div>
                 {row.billingLine && <p className="text-xs text-muted-foreground">{row.billingLine}</p>}
+                {row.originLine && <p className="text-xs text-muted-foreground">{row.originLine}</p>}
               </div>
             ))}
           </div>

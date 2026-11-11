@@ -10,12 +10,16 @@ import { QUANTITY_LABELS, type PricingUnit } from '@/lib/services/attributeConfi
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { track } from '@/lib/analytics/track'
+import { cleanCampaign, readAttribution, sourceFromAttribution } from '@/lib/analytics/attribution'
 
 type Props = {
   packageId: string
   price: number
   capacity: number | null
   pricingUnit: PricingUnit
+  // Same id the other package events use (view_item, whatsapp_click).
+  packageSlug?: string
   // Same three-state access gate used by the pre-pivot TourBookingForm:
   // 'tourist' renders the real form, 'guest' points to /login (a secondary,
   // outlined link — WhatsApp is the primary CTA on the page), 'other_role'
@@ -39,7 +43,14 @@ async function prereservaFormAction(
   return (await createPackagePrereserva(formData)) ?? undefined
 }
 
-export default function PackagePrereservaForm({ packageId, price, capacity, pricingUnit, access }: Props) {
+export default function PackagePrereservaForm({
+  packageId,
+  packageSlug,
+  price,
+  capacity,
+  pricingUnit,
+  access,
+}: Props) {
   if (access === 'other_role') return null
 
   if (access === 'guest') {
@@ -53,17 +64,37 @@ export default function PackagePrereservaForm({ packageId, price, capacity, pric
     )
   }
 
-  return <PrereservaFormFields packageId={packageId} price={price} capacity={capacity} pricingUnit={pricingUnit} />
+  return (
+    <PrereservaFormFields
+      packageId={packageId}
+      packageSlug={packageSlug}
+      price={price}
+      capacity={capacity}
+      pricingUnit={pricingUnit}
+    />
+  )
 }
 
 function PrereservaFormFields({
   packageId,
+  packageSlug,
   price,
   capacity,
   pricingUnit,
 }: Omit<Props, 'access'>) {
   const today = new Date().toISOString().split('T')[0]
   const [quantity, setQuantity] = useState(1)
+  // First-touch campaign (sessionStorage), read after mount so server and
+  // client render the same empty inputs.
+  const [acquisition, setAcquisition] = useState<{ source: string; campaign: string }>({ source: '', campaign: '' })
+
+  useEffect(() => {
+    const attribution = readAttribution()
+    setAcquisition({
+      source: sourceFromAttribution(attribution) ?? '',
+      campaign: cleanCampaign(attribution.utm_campaign) ?? '',
+    })
+  }, [])
 
   const [state, formAction, isPending] = useActionState<FormState, FormData>(
     prereservaFormAction,
@@ -85,8 +116,17 @@ function PrereservaFormFields({
   }
 
   return (
-    <form action={formAction} className="space-y-5" noValidate>
+    <form
+      action={formAction}
+      onSubmit={() =>
+        track('request_submit', { paquete_id: packageSlug ?? packageId, value: total, currency: 'COP' })
+      }
+      className="space-y-5"
+      noValidate
+    >
       <input type="hidden" name="package_id" value={packageId} />
+      <input type="hidden" name="acquisition_source" value={acquisition.source} />
+      <input type="hidden" name="acquisition_campaign" value={acquisition.campaign} />
 
       <div className="space-y-1.5">
         <Label htmlFor="prereserva-date" className="text-sm font-medium">

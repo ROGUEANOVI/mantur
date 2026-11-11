@@ -8,6 +8,8 @@ import { bookingsCopy } from '@/lib/copy/bookings'
 import { adminCopy } from '@/lib/copy/admin'
 import { getBlockedDates } from '@/lib/availability'
 import { parseManualPackageSale, type PricingUnit } from '@/lib/packages/manualSale'
+import { parseAcquisition } from '@/lib/analytics/attribution'
+import { saveAcquisition } from '@/lib/analytics/saveAcquisition'
 import {
   notifyBusinessOfServicePrereserva,
   notifyGuideOfTourPrereserva,
@@ -354,6 +356,9 @@ export async function createManualPackageSale(formData: FormData): Promise<Booki
     console.error('createManualPackageSale: RPC failed', rpcError)
     return { error: copy.errors.generic }
   }
+
+  // "¿Cómo nos conoció?" + the campaign tag the WhatsApp message carried.
+  await saveAcquisition(admin, bookingId, parseAcquisition(formData))
 
   revalidatePath('/admin/reservas')
   revalidatePath('/admin/paquetes/solicitudes')

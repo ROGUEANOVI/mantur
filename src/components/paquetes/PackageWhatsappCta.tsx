@@ -12,6 +12,9 @@ type Props = {
   // From packagePriceParts(): { from: 'Desde', amount: '$X', unit: 'por persona' }.
   price: { from: string; amount: string; unit: string }
   capacity: number | null
+  // For the whatsapp_click lead value (estimate: catalog floor × group).
+  basePrice: number
+  pricingUnit: string
 }
 
 const DEFAULT_PEOPLE = 2
@@ -24,7 +27,7 @@ const FALLBACK_MAX_PEOPLE = 30
 // needed. Below `lg`, the inline block sits after the gallery and the
 // description, so a sticky bottom bar carries the same CTA whenever the
 // inline one is out of view.
-export default function PackageWhatsappCta({ packageName, slug, price, capacity }: Props) {
+export default function PackageWhatsappCta({ packageName, slug, price, capacity, basePrice, pricingUnit }: Props) {
   const copy = packagesCopy.detail
   const max = capacity ?? FALLBACK_MAX_PEOPLE
   const [people, setPeople] = useState(Math.min(DEFAULT_PEOPLE, max))
@@ -49,6 +52,12 @@ export default function PackageWhatsappCta({ packageName, slug, price, capacity 
   }, [])
 
   const message = packagesCopy.whatsapp.reserveMessage(packageName, slug, people)
+  const trackingBase = {
+    paquete_id: slug,
+    paquete_nombre: packageName,
+    value: pricingUnit === 'fixed' ? basePrice : basePrice * people,
+    currency: 'COP' as const,
+  }
 
   return (
     <>
@@ -85,7 +94,11 @@ export default function PackageWhatsappCta({ packageName, slug, price, capacity 
           </div>
         </div>
 
-        <WhatsappButton message={message} label={packagesCopy.whatsapp.ctaReserve} />
+        <WhatsappButton
+          message={message}
+          label={packagesCopy.whatsapp.ctaReserve}
+          tracking={{ ...trackingBase, ubicacion: 'package_detail' }}
+        />
 
         <p className="text-xs text-muted-foreground">
           {copy.groupPricingHint} {copy.whatsappHint}
@@ -113,6 +126,7 @@ export default function PackageWhatsappCta({ packageName, slug, price, capacity 
               <WhatsappButton
                 message={message}
                 label={packagesCopy.whatsapp.ctaReserve}
+                tracking={{ ...trackingBase, ubicacion: 'package_detail_sticky' }}
                 className="w-auto shrink-0 whitespace-nowrap px-4 shadow-md"
               />
             </div>

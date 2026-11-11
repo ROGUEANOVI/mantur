@@ -30,6 +30,8 @@ const PROPS = {
   slug: 'fullday-manaure',
   price: { from: 'Desde', amount: '$280.000', unit: 'por grupo' },
   capacity: null,
+  basePrice: 280000,
+  pricingUnit: 'fixed',
 }
 
 function inlineWhatsappLink() {

@@ -165,6 +165,13 @@ function ShowcaseCard({ pkg, priority }: { pkg: ShowcasePackage; priority: boole
           <WhatsappButton
             message={packagesCopy.whatsapp.message(pkg.name, pkg.slug)}
             label={packagesCopy.whatsapp.cta}
+            tracking={{
+              paquete_id: pkg.slug,
+              paquete_nombre: pkg.name,
+              value: Number(pkg.base_price),
+              currency: 'COP',
+              ubicacion: 'home_showcase',
+            }}
             iconOnly
             className="pointer-events-auto shadow-md"
           />
@@ -189,6 +196,7 @@ function CustomPackageBanner() {
       <WhatsappButton
         message={packagesCopy.whatsapp.customMessage}
         label={copy.customCta}
+        tracking={{ ubicacion: 'home_custom_package' }}
         className="shadow-md sm:w-auto sm:shrink-0 sm:px-6"
       />
     </div>

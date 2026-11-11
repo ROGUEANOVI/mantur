@@ -9,6 +9,7 @@ import Reveal from '@/components/shared/Reveal'
 import HeroControlCard from '@/components/shared/HeroControlCard'
 import AuroraHero from '@/components/shared/AuroraHero'
 import PackageCard, { type PackageCardRow } from '@/components/shared/PackageCard'
+import TrackView from '@/components/analytics/TrackView'
 
 export const metadata: Metadata = {
   title: 'Paquetes y tours',
@@ -86,6 +87,14 @@ export default async function PaquetesPage({
             <EmptyState message={search ? `Sin resultados para "${search}"` : copy.empty} />
           ) : (
             <>
+              <TrackView
+                event="view_item_list"
+                dedupeKey={`paquetes:${page}:${search}`}
+                params={{
+                  item_list_name: 'paquetes',
+                  items: packageRows.map((p) => ({ item_id: p.slug, item_name: p.name })),
+                }}
+              />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {packageRows.map((pkg, i) => (
                   <Reveal key={pkg.id} delay={Math.min(i, 8) * 50}>

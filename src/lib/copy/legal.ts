@@ -80,7 +80,7 @@ export const legalCopy = {
       {
         title: '2. Qué datos recolectamos',
         body:
-          'Nombre, correo electrónico, teléfono y foto de perfil al crear tu cuenta; datos de reservas (fechas, número de personas, notas de coordinación); y, según tu rol, información de negocio, vehículo o experiencia turística. Los datos de pago (número de tarjeta, etc.) los procesa Wompi directamente — ManTur no los almacena.',
+          'Nombre, correo electrónico, teléfono y foto de perfil al crear tu cuenta; datos de reservas (fechas, número de personas, notas de coordinación); y, según tu rol, información de negocio, vehículo o experiencia turística. Si compras un paquete por WhatsApp sin crear cuenta, registramos tu nombre y teléfono y, si nos los das, tu documento y correo, para gestionar la venta y emitir la factura. Los datos de pago (número de tarjeta, etc.) los procesa Wompi directamente — ManTur no los almacena.',
       },
       {
         title: '3. Para qué usamos tus datos',
@@ -95,7 +95,12 @@ export const legalCopy = {
       {
         title: '5. Con quién compartimos datos',
         body:
-          'Usamos Supabase como proveedor de infraestructura (base de datos, autenticación y almacenamiento) y Wompi como pasarela de pago. No vendemos ni compartimos tus datos personales con terceros para fines publicitarios.',
+          'Usamos Supabase como proveedor de infraestructura (base de datos, autenticación y almacenamiento) y Wompi como pasarela de pago. Si aceptas las cookies de analítica y publicidad, Google y Meta reciben datos de navegación (páginas visitadas, clics en botones como "Reservar por WhatsApp" y el anuncio por el que llegaste) para medir y mejorar nuestras campañas; ver la sección "Cookies y analítica". No vendemos tus datos personales.',
+      },
+      {
+        title: '5.1 Cookies y analítica',
+        body:
+          'Con tu autorización, usamos Google Tag Manager, Google Analytics y el Píxel de Meta, que instalan cookies para medir cómo se usa el sitio y qué anuncios funcionan. Estas herramientas solo se activan si aceptas en el aviso de cookies; si las rechazas, el sitio funciona igual. Puedes cambiar tu decisión cuando quieras desde "Preferencias de cookies", al final de cualquier página. También guardamos en tu navegador, sin datos personales, los parámetros de la campaña por la que llegaste (por ejemplo utm_campaign) para saber qué anuncio te trajo si nos escribes.',
       },
       {
         title: '6. Tus derechos (Habeas Data)',
@@ -123,6 +128,20 @@ export const legalCopy = {
           'Podemos actualizar esta política de privacidad para reflejar cambios en la plataforma o en la normativa aplicable. Los cambios importantes se reflejarán en esta página con una nueva fecha de actualización.',
       },
     ],
+  },
+
+  // Cookie consent banner (src/components/analytics/Analytics.tsx).
+  consent: {
+    title: 'Cookies en ManTur',
+    body: 'Usamos cookies de Google y Meta para medir visitas y mejorar nuestros anuncios. Solo se activan si aceptas.',
+    policyLink: 'Política de privacidad',
+    accept: 'Aceptar',
+    reject: 'Rechazar',
+    preferences: 'Preferencias de cookies',
+    current: {
+      granted: 'Ahora mismo tienes las cookies aceptadas.',
+      denied: 'Ahora mismo tienes las cookies rechazadas.',
+    },
   },
 
   about: {

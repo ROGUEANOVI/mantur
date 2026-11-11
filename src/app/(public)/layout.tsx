@@ -3,6 +3,9 @@ import PublicNav from '@/components/layout/PublicNav'
 import { landingCopy } from '@/lib/copy/landing'
 import ManturLogo from '@/components/shared/ManturLogo'
 import SocialLinks from '@/components/shared/SocialLinks'
+import CookiePreferencesButton from '@/components/analytics/CookiePreferencesButton'
+import Analytics from '@/components/analytics/Analytics'
+import { legalCopy } from '@/lib/copy/legal'
 
 export default function PublicLayout({
   children,
@@ -14,6 +17,9 @@ export default function PublicLayout({
     <div className="min-h-screen bg-background flex flex-col">
       <PublicNav />
       <div className="flex-1">{children}</div>
+      {/* Public pages only: admin/panel traffic must not reach analytics.
+          GTM id is set in Vercel for production; local/preview stay clean. */}
+      <Analytics gtmId={process.env.NEXT_PUBLIC_GTM_ID} />
       <footer className="bg-[#0a2b1e] text-white/90">
         <div className="mx-auto max-w-5xl px-4 py-12">
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-[1.3fr_1fr_1fr]">
@@ -44,6 +50,12 @@ export default function PublicLayout({
                 <li><Link href="/acerca-de-nosotros" className="text-white/75 transition-colors hover:text-white">Acerca de nosotros</Link></li>
                 <li><Link href="/terminos-y-condiciones" className="text-white/75 transition-colors hover:text-white">Términos y condiciones</Link></li>
                 <li><Link href="/politica-de-privacidad" className="text-white/75 transition-colors hover:text-white">Política de privacidad</Link></li>
+                <li>
+                  <CookiePreferencesButton
+                    label={legalCopy.consent.preferences}
+                    className="text-left text-white/75 transition-colors hover:text-white"
+                  />
+                </li>
               </ul>
             </nav>
           </div>

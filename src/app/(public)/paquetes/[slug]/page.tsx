@@ -17,6 +17,7 @@ import PackagePrereservaForm from '@/components/paquetes/PackagePrereservaForm'
 import PackageWhatsappCta from '@/components/paquetes/PackageWhatsappCta'
 import { packagePriceParts, packagePriceText } from '@/lib/packages/price'
 import PackageDetailSections from '@/components/paquetes/PackageDetailSections'
+import TrackView from '@/components/analytics/TrackView'
 import type { PackageContentFields, PriceTier } from '@/lib/packages/content'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
@@ -249,6 +250,11 @@ export default async function PaqueteDetailPage({
       {/* pb-28 below lg so the sticky WhatsApp bar never covers the last
           content block. */}
       <script {...jsonLdScriptProps(packageJsonLd)} />
+      <TrackView
+        event="view_item"
+        dedupeKey={pkg.slug}
+        params={{ paquete_id: pkg.slug, paquete_nombre: pkg.name, value: Number(pkg.base_price), currency: 'COP' }}
+      />
       <div className="max-w-5xl mx-auto px-4">
         <DetailSplitLayout
           gallery={
@@ -319,7 +325,14 @@ export default async function PaqueteDetailPage({
                 panel. The in-app pre-reserva stays below as a secondary path
                 for tourists who prefer it. */}
             <div className="pt-1">
-              <PackageWhatsappCta packageName={pkg.name} slug={pkg.slug} price={price} capacity={pkg.capacity} />
+              <PackageWhatsappCta
+                packageName={pkg.name}
+                slug={pkg.slug}
+                price={price}
+                capacity={pkg.capacity}
+                basePrice={Number(pkg.base_price)}
+                pricingUnit={pkg.pricing_unit}
+              />
             </div>
 
             <div className="pt-4">
@@ -370,6 +383,7 @@ export default async function PaqueteDetailPage({
                 </div>
                 <PackagePrereservaForm
                   packageId={pkg.id}
+                  packageSlug={pkg.slug}
                   price={Number(pkg.base_price)}
                   capacity={pkg.capacity}
                   pricingUnit={pkg.pricing_unit}
