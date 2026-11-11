@@ -4,6 +4,13 @@ import { adminCopy } from '@/lib/copy/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { transportCopy } from '@/lib/copy/transport'
 import { cn } from '@/lib/utils'
+import {
+  billingSummary,
+  customerName,
+  firstEmbedded,
+  type GuestContactRow,
+  type ManualPaymentRow,
+} from '@/lib/packages/manualSale'
 
 const copy = adminCopy.reservasList
 
@@ -14,6 +21,9 @@ type UnifiedRow = {
   id: string
   type: RowType
   touristName: string
+  isGuest: boolean
+  // Billing data for manual package sales (guest ID/contact + payment).
+  billingLine: string | null
   providerName: string
   itemLabel: string
   dateLabel: string
@@ -40,7 +50,8 @@ type BookingRow = {
   booking_date: string
   status: string
   created_at: string
-  tourist_id: string
+  // NULL for an account-less customer of a manual package sale.
+  tourist_id: string | null
   service_id: string | null
   guide_tour_id: string | null
   package_id: string | null
@@ -48,6 +59,8 @@ type BookingRow = {
   services: { name: string; businesses: { name: string } | null } | null
   guide_tours: { name: string; tourist_guides: { profiles: { full_name: string | null } | null } | null } | null
   packages: { name: string } | null
+  booking_guest_contacts: GuestContactRow | GuestContactRow[] | null
+  transactions: ManualPaymentRow | ManualPaymentRow[] | null
 }
 
 type TransportRow = {
@@ -81,7 +94,9 @@ export default async function AdminReservasPage({
       .select(
         'id, quantity, total_amount, booking_date, status, created_at, tourist_id, service_id, guide_tour_id, package_id, ' +
           'profiles!tourist_id(full_name), services(name, businesses(name)), ' +
-          'guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(name)',
+          'guide_tours(name, tourist_guides(profiles!profile_id(full_name))), packages(name), ' +
+          'booking_guest_contacts(full_name, phone, document_type, document_number, email), ' +
+          'transactions(manual_payment_method, manual_payment_reference, paid_at)',
       )
       .order('created_at', { ascending: false }),
     admin
@@ -123,10 +138,15 @@ export default async function AdminReservasPage({
     const statusLabel = bookingsCopy.list.status[b.status] ?? b.status
     const statusColor = bookingsCopy.list.statusColors[b.status] ?? bookingsCopy.list.statusColors.pending_payment
 
+    const guest = firstEmbedded(b.booking_guest_contacts)
+    const customer = customerName(b.profiles, guest)
+
     return {
       id: b.id,
       type,
-      touristName: b.profiles?.full_name ?? '—',
+      touristName: customer.name,
+      isGuest: customer.isGuest,
+      billingLine: type === 'package' ? billingSummary(guest, firstEmbedded(b.transactions)) : null,
       providerName,
       itemLabel,
       dateLabel: formatDate(b.booking_date),
@@ -147,6 +167,8 @@ export default async function AdminReservasPage({
       id: t.id,
       type: 'transport',
       touristName: t.profiles?.full_name ?? '—',
+      isGuest: false,
+      billingLine: null,
       providerName: t.transporters?.profiles?.full_name ?? '—',
       itemLabel: `${t.origin} → ${t.destination}`,
       dateLabel: formatDate(t.requested_datetime),
@@ -221,7 +243,13 @@ export default async function AdminReservasPage({
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>
-                    {copy.touristLabel}: {row.touristName} · {copy.dateLabel}: {row.dateLabel}
+                    {copy.touristLabel}: {row.touristName}
+                    {row.isGuest && (
+                      <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold">
+                        {adminCopy.paquetes.solicitudes.guestBadge}
+                      </span>
+                    )}{' '}
+                    · {copy.dateLabel}: {row.dateLabel}
                   </span>
                   <span className="flex items-center gap-3">
                     <span>
@@ -230,6 +258,7 @@ export default async function AdminReservasPage({
                     <span className="font-medium text-foreground">{row.amountLabel}</span>
                   </span>
                 </div>
+                {row.billingLine && <p className="text-xs text-muted-foreground">{row.billingLine}</p>}
               </div>
             ))}
           </div>

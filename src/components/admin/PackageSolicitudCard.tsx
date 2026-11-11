@@ -6,8 +6,9 @@ import { toast } from 'sonner'
 import { MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { adminCopy } from '@/lib/copy/admin'
-import { manturWhatsappUrl } from '@/lib/whatsapp'
+import { directWhatsappUrl } from '@/lib/whatsapp'
 import ConfirmDeleteButton from '@/components/shared/ConfirmDeleteButton'
+import { MANUAL_PAYMENT_METHODS, bogotaToday } from '@/lib/packages/manualSale'
 import {
   setProviderAvailability,
   confirmPackagePrereserva,
@@ -57,6 +58,8 @@ type Props = {
   packageName: string
   touristName: string
   touristPhone: string | null
+  // Account-less customer of a manual package sale.
+  isGuest?: boolean
   bookingDate: string
   quantity: number
   totalAmount: number
@@ -71,6 +74,7 @@ export default function PackageSolicitudCard({
   packageName,
   touristName,
   touristPhone,
+  isGuest = false,
   bookingDate,
   quantity,
   totalAmount,
@@ -86,11 +90,19 @@ export default function PackageSolicitudCard({
           <p className="font-semibold text-foreground text-sm leading-snug line-clamp-1">{packageName}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {copy.touristLabel}: {touristName}
+            {isGuest && (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                {copy.guestBadge}
+              </span>
+            )}
           </p>
         </div>
         {touristPhone && (
           <a
-            href={manturWhatsappUrl(`Hola ${touristName}, te escribo por tu solicitud del paquete "${packageName}".`)}
+            href={directWhatsappUrl(
+              touristPhone,
+              `Hola ${touristName}, te escribo por tu solicitud del paquete "${packageName}".`,
+            )}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 inline-flex items-center justify-center rounded-lg bg-[#25D366] text-white p-2 hover:bg-[#1ebe59] transition-colors"
@@ -216,14 +228,42 @@ function ProviderToggle({
   )
 }
 
+const fieldClass =
+  'w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[36px]'
+
+// Manual-sales mode: the admin records how the money arrived before the
+// booking flips to confirmed, so accounting has method/date/receipt.
 function PaymentStage({ bookingId }: { bookingId: string }) {
   const dispatch = useToastAction(markPackageBookingPaid)
   const formId = `mark-paid-${bookingId}`
+  const saleCopy = adminCopy.reservas.packageSale
+  const today = bogotaToday()
 
   return (
-    <div className="pt-3 border-t border-border">
-      <form id={formId} action={dispatch}>
+    <div className="pt-3 border-t border-border space-y-3">
+      <form id={formId} action={dispatch} className="grid grid-cols-2 gap-2">
         <input type="hidden" name="bookingId" value={bookingId} />
+        <label className="col-span-2 space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">{saleCopy.paymentMethodLabel}</span>
+          <select name="payment_method" defaultValue="" required className={fieldClass}>
+            <option value="" disabled>
+              {saleCopy.paymentMethodPlaceholder}
+            </option>
+            {MANUAL_PAYMENT_METHODS.map((method) => (
+              <option key={method} value={method}>
+                {adminCopy.reservas.paymentMethods[method]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">{saleCopy.paymentDateLabel}</span>
+          <input type="date" name="paid_date" defaultValue={today} max={today} required className={fieldClass} />
+        </label>
+        <label className="space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">{saleCopy.paymentReferenceLabel}</span>
+          <input type="text" name="payment_reference" maxLength={100} className={fieldClass} />
+        </label>
       </form>
       <ConfirmDeleteButton
         formId={formId}

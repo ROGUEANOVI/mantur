@@ -8,6 +8,7 @@ import AdminManualBookingForm, {
   type ServiceOption,
   type GuideTourOption,
 } from '@/components/admin/AdminManualBookingForm'
+import type { PackageOption } from '@/components/admin/ManualPackageSaleForm'
 
 export default async function AdminReservasNuevaPage() {
   const supabase = await createClient()
@@ -21,7 +22,7 @@ export default async function AdminReservasNuevaPage() {
   const admin = createAdminClient()
   const copy = adminCopy.reservas
 
-  const [{ data: servicesData }, { data: toursData }] = await Promise.all([
+  const [{ data: servicesData }, { data: toursData }, { data: packagesData }] = await Promise.all([
     admin
       .from('services')
       .select('id, name, base_price, capacity, service_types(pricing_unit), businesses!inner(id, name, status, verified)')
@@ -35,10 +36,16 @@ export default async function AdminReservasNuevaPage() {
       .eq('status', 'active')
       .eq('tourist_guides.is_available', true)
       .order('name'),
+    admin
+      .from('packages')
+      .select('id, name, base_price, pricing_unit, capacity')
+      .eq('is_active', true)
+      .order('name'),
   ])
 
   const services = (servicesData ?? []) as unknown as ServiceOption[]
   const guideTours = (toursData ?? []) as unknown as GuideTourOption[]
+  const packages = (packagesData ?? []) as PackageOption[]
 
   return (
     <main className="px-4 py-6 pb-10">
@@ -55,7 +62,7 @@ export default async function AdminReservasNuevaPage() {
         <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
 
         <div className="rounded-2xl border border-border bg-card shadow-sm p-5">
-          <AdminManualBookingForm services={services} guideTours={guideTours} />
+          <AdminManualBookingForm services={services} guideTours={guideTours} packages={packages} />
         </div>
       </div>
     </main>

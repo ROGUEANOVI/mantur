@@ -352,159 +352,93 @@ describe('cancelPackagePrereserva', () => {
 })
 
 describe('markPackageBookingPaid', () => {
+  // Manual payment data the admin records before confirming (2026-11-11).
+  const PAYMENT = { payment_method: 'bank_transfer', paid_date: '2026-01-15', payment_reference: 'TRX-1' }
+
+  function markPaid(fields: Record<string, string> = {}) {
+    return markPackageBookingPaid(formData({ bookingId: BOOKING_ID, ...PAYMENT, ...fields }))
+  }
+
   it('rejects a non-UUID bookingId', async () => {
-    const result = await markPackageBookingPaid(formData({ bookingId: 'nope' }))
+    const result = await markPaid({ bookingId: 'nope' })
     expect(result).toEqual({ error: 'Reserva no encontrada.' })
+  })
+
+  it('requires a payment method', async () => {
+    const result = await markPaid({ payment_method: '' })
+    expect(result).toEqual({ error: 'Selecciona el método de pago.' })
+    expect(markPaidRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a future payment date', async () => {
+    const result = await markPaid({ paid_date: '2999-01-01' })
+    expect(result).toEqual({ error: 'La fecha del pago no puede ser futura.' })
+    expect(markPaidRpcMock).not.toHaveBeenCalled()
   })
 
   it('rejects when the booking does not exist or has no package_id', async () => {
     bookingSingleMock.mockResolvedValue({ data: null })
-    const result = await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+    const result = await markPaid()
     expect(result).toEqual({ error: 'Reserva no encontrada.' })
     expect(markPaidRpcMock).not.toHaveBeenCalled()
   })
 
   it('maps the invalid_booking_state RPC error to friendly copy', async () => {
     markPaidRpcMock.mockResolvedValue({ error: { message: 'invalid_booking_state' } })
-    const result = await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+    const result = await markPaid()
     expect(result).toEqual({ error: 'Esta reserva ya no está en el estado esperado. Actualiza la página.' })
     expect(sendPaidMock).not.toHaveBeenCalled()
   })
 
   it('maps any other RPC error to the generic copy', async () => {
     markPaidRpcMock.mockResolvedValue({ error: { message: 'boom' } })
-    const result = await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+    const result = await markPaid()
     expect(result).toEqual({ error: 'Ocurrió un error. Intenta de nuevo.' })
   })
 
-  it('on success, sends the paid email to the tourist and revalidates', async () => {
+  it('records the manual payment, emails the tourist and revalidates', async () => {
     markPaidRpcMock.mockResolvedValue({ error: null })
-    const result = await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+    const result = await markPaid()
 
     expect(result).toBeUndefined()
-    expect(markPaidRpcMock).toHaveBeenCalledWith({ p_booking_id: BOOKING_ID })
+    expect(markPaidRpcMock).toHaveBeenCalledWith({
+      p_booking_id: BOOKING_ID,
+      p_payment_method: 'bank_transfer',
+      p_payment_reference: 'TRX-1',
+      p_paid_at: '2026-01-15T12:00:00-05:00',
+    })
     expect(sendPaidMock).toHaveBeenCalledWith('turista@example.com', {
       packageName: 'Ruta Serranía del Perijá',
       touristName: 'Ana Pérez',
       bookingDate: '2026-09-10',
       bookingId: BOOKING_ID,
     })
-    expect(notifyProvidersPayoutMock).toHaveBeenCalledWith(expect.anything(), {
-      bookingId: BOOKING_ID,
-      packageName: 'Ruta Serranía del Perijá',
-      bookingDate: '2026-09-10',
-    })
     expect(revalidatePathMock).toHaveBeenCalledWith('/admin/paquetes/solicitudes')
   })
 
-  it('never notifies providers when the RPC fails', async () => {
-    markPaidRpcMock.mockResolvedValue({ error: { message: 'boom' } })
-    await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+  // Regression for the manual-sales decision (2026-11-11): providers are paid
+  // by hand, so marking a package paid must never move money through Wompi
+  // Payouts nor tell providers a payout is on its way.
+  it('never triggers automatic provider payouts or payout notifications', async () => {
+    markPaidRpcMock.mockResolvedValue({ error: null })
+    packageItemsSelectMock.mockResolvedValue({
+      data: [{ internal_cost_cents: 6000000, services: { business_id: PROVIDER_ID }, guide_tours: null }],
+    })
+
+    await markPaid()
+
+    expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
     expect(notifyProvidersPayoutMock).not.toHaveBeenCalled()
   })
 
-  describe('provider payouts (Fase 5)', () => {
-    it('pays out a business provider using the package_item\'s own internal_cost_cents', async () => {
-      markPaidRpcMock.mockResolvedValue({ error: null })
-      packageItemsSelectMock.mockResolvedValue({
-        data: [{ internal_cost_cents: 6000000, services: { business_id: PROVIDER_ID }, guide_tours: null }],
-      })
+  it('sends no email for an account-less (guest) customer', async () => {
+    markPaidRpcMock.mockResolvedValue({ error: null })
+    bookingSingleMock.mockResolvedValue({ data: { ...BOOKING_ROW, tourist_id: null, profiles: null } })
 
-      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
+    const result = await markPaid()
 
-      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(expect.anything(), {
-        transactionId: 'tx-1',
-        recipientType: 'business',
-        recipientId: PROVIDER_ID,
-        amountCents: 6000000,
-      })
-    })
-
-    it('pays out a guide provider resolved via guide_tours.guide_id', async () => {
-      markPaidRpcMock.mockResolvedValue({ error: null })
-      packageItemsSelectMock.mockResolvedValue({
-        data: [{ internal_cost_cents: 4000000, services: null, guide_tours: { guide_id: 'guide-1' } }],
-      })
-
-      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
-
-      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ recipientType: 'guide', recipientId: 'guide-1' }),
-      )
-    })
-
-    it('pays out every package_item independently — one call per provider, same transaction', async () => {
-      markPaidRpcMock.mockResolvedValue({ error: null })
-      packageItemsSelectMock.mockResolvedValue({
-        data: [
-          { internal_cost_cents: 6000000, services: { business_id: 'biz-a' }, guide_tours: null },
-          { internal_cost_cents: 3000000, services: null, guide_tours: { guide_id: 'guide-b' } },
-        ],
-      })
-
-      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
-
-      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledTimes(2)
-      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ recipientType: 'business', recipientId: 'biz-a', amountCents: 6000000 }),
-      )
-      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ recipientType: 'guide', recipientId: 'guide-b', amountCents: 3000000 }),
-      )
-    })
-
-    it('sums internal_cost_cents into a single payout when two items of the same package point at the same provider', async () => {
-      markPaidRpcMock.mockResolvedValue({ error: null })
-      packageItemsSelectMock.mockResolvedValue({
-        data: [
-          { internal_cost_cents: 6000000, services: { business_id: PROVIDER_ID }, guide_tours: null },
-          { internal_cost_cents: 2000000, services: { business_id: PROVIDER_ID }, guide_tours: null },
-        ],
-      })
-
-      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
-
-      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledTimes(1)
-      expect(enqueueAndSendProviderPayoutMock).toHaveBeenCalledWith(expect.anything(), {
-        transactionId: 'tx-1',
-        recipientType: 'business',
-        recipientId: PROVIDER_ID,
-        amountCents: 8000000,
-      })
-    })
-
-    it('logs and still succeeds (email still sent) when no transaction can be found to pay providers out from', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      markPaidRpcMock.mockResolvedValue({ error: null })
-      transactionMaybeSingleMock.mockResolvedValue({ data: null })
-
-      const result = await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
-
-      expect(result).toBeUndefined()
-      expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
-      expect(sendPaidMock).toHaveBeenCalled()
-      // No transaction means no payout was actually enqueued — providers must
-      // not be told "your payment is on its way" when nothing was sent.
-      expect(notifyProvidersPayoutMock).not.toHaveBeenCalled()
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'markPackageBookingPaid: no transaction found to pay providers out from',
-        { bookingId: BOOKING_ID },
-      )
-      consoleErrorSpy.mockRestore()
-    })
-
-    it('skips a package_item with no resolvable provider instead of calling the payout helper with an undefined recipient', async () => {
-      markPaidRpcMock.mockResolvedValue({ error: null })
-      packageItemsSelectMock.mockResolvedValue({
-        data: [{ internal_cost_cents: 1000000, services: null, guide_tours: null }],
-      })
-
-      await markPackageBookingPaid(formData({ bookingId: BOOKING_ID }))
-
-      expect(enqueueAndSendProviderPayoutMock).not.toHaveBeenCalled()
-    })
+    expect(result).toBeUndefined()
+    expect(getUserByIdMock).not.toHaveBeenCalled()
+    expect(sendPaidMock).not.toHaveBeenCalled()
   })
 })

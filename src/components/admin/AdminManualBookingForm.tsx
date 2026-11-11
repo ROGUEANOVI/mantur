@@ -4,7 +4,6 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
-  searchTourists,
   getItemBlockedDates,
   createManualServiceBooking,
   createManualGuideTourBooking,
@@ -15,6 +14,8 @@ import { bookingsCopy } from '@/lib/copy/bookings'
 import { CALENDAR_WEEKDAYS, CALENDAR_MONTHS, calendarActionLabels } from '@/lib/copy/calendar'
 import { QUANTITY_LABELS, type PricingUnit } from '@/lib/services/attributeConfig'
 import BlockedDatesPicker from '@/components/shared/BlockedDatesPicker'
+import TouristPicker from '@/components/admin/TouristPicker'
+import ManualPackageSaleForm, { type PackageOption } from '@/components/admin/ManualPackageSaleForm'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 
@@ -39,7 +40,10 @@ export type GuideTourOption = {
 type Props = {
   services: ServiceOption[]
   guideTours: GuideTourOption[]
+  packages: PackageOption[]
 }
+
+type BookingType = 'service' | 'guide_tour' | 'package'
 
 type FormState = { error: string } | { success: true } | undefined
 
@@ -53,13 +57,67 @@ async function guideTourFormAction(_prev: FormState, formData: FormData): Promis
   return await createManualGuideTourBooking(formData)
 }
 
-export default function AdminManualBookingForm({ services, guideTours }: Props) {
-  const [type, setType] = useState<'service' | 'guide_tour'>('service')
+// Packages are what sells today (manual-sales mode), so they're the first
+// and default choice; their form lives in ManualPackageSaleForm.
+export default function AdminManualBookingForm({ services, guideTours, packages }: Props) {
+  const [type, setType] = useState<BookingType>('package')
 
-  const [touristQuery, setTouristQuery] = useState('')
-  const [touristResults, setTouristResults] = useState<TouristSearchResult[]>([])
+  if (type === 'package') {
+    return (
+      <div className="space-y-5">
+        <TypeSelector value={type} onChange={setType} />
+        <ManualPackageSaleForm packages={packages} />
+      </div>
+    )
+  }
+
+  return <ProviderBookingForm key={type} type={type} onTypeChange={setType} services={services} guideTours={guideTours} />
+}
+
+function TypeSelector({ value, onChange }: { value: BookingType; onChange: (next: BookingType) => void }) {
+  const options: { value: BookingType; label: string }[] = [
+    { value: 'package', label: copy.typePackage },
+    { value: 'service', label: copy.typeService },
+    { value: 'guide_tour', label: copy.typeGuideTour },
+  ]
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm font-medium">{copy.typeLabel}</Label>
+      <div className="grid grid-cols-3 gap-2">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            aria-pressed={value === o.value}
+            className={`rounded-xl border px-2 py-2 text-sm font-medium min-h-11 transition-colors ${
+              value === o.value
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-input text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Service / guide-tour pre-reserva registered on a tourist's behalf.
+function ProviderBookingForm({
+  type,
+  onTypeChange,
+  services,
+  guideTours,
+}: {
+  type: 'service' | 'guide_tour'
+  onTypeChange: (next: BookingType) => void
+  services: ServiceOption[]
+  guideTours: GuideTourOption[]
+}) {
   const [selectedTourist, setSelectedTourist] = useState<TouristSearchResult | null>(null)
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pickerKey, setPickerKey] = useState(0)
 
   const [selectedItemId, setSelectedItemId] = useState('')
   const [blockedDates, setBlockedDates] = useState<string[]>([])
@@ -89,26 +147,11 @@ export default function AdminManualBookingForm({ services, guideTours }: Props) 
     toast.success(copy.success)
     formRef.current?.reset()
     setSelectedTourist(null)
-    setTouristQuery('')
-    setTouristResults([])
+    setPickerKey((k) => k + 1)
     setSelectedItemId('')
     setBlockedDates([])
     setQuantity(1)
   }, [state])
-
-  function handleTouristQueryChange(value: string) {
-    setTouristQuery(value)
-    setSelectedTourist(null)
-    if (searchTimer.current) clearTimeout(searchTimer.current)
-    if (value.trim().length < 2) {
-      setTouristResults([])
-      return
-    }
-    searchTimer.current = setTimeout(async () => {
-      const results = await searchTourists(value)
-      setTouristResults(results)
-    }, 300)
-  }
 
   async function handleItemChange(itemId: string) {
     setSelectedItemId(itemId)
@@ -116,13 +159,6 @@ export default function AdminManualBookingForm({ services, guideTours }: Props) 
     if (!itemId) return
     const dates = await getItemBlockedDates(type, itemId)
     setBlockedDates(dates)
-  }
-
-  function handleTypeChange(next: 'service' | 'guide_tour') {
-    setType(next)
-    setSelectedItemId('')
-    setBlockedDates([])
-    setQuantity(1)
   }
 
   const selectedService = type === 'service' ? services.find((s) => s.id === selectedItemId) : undefined
@@ -150,84 +186,9 @@ export default function AdminManualBookingForm({ services, guideTours }: Props) 
         <input type="hidden" name="guide_tour_id" value={selectedItemId} />
       )}
 
-      <div className="space-y-1.5">
-        <Label className="text-sm font-medium">{copy.typeLabel}</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => handleTypeChange('service')}
-            className={`rounded-xl border px-3 py-2 text-sm font-medium min-h-11 transition-colors ${
-              type === 'service'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-input text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            {copy.typeService}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTypeChange('guide_tour')}
-            className={`rounded-xl border px-3 py-2 text-sm font-medium min-h-11 transition-colors ${
-              type === 'guide_tour'
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-input text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            {copy.typeGuideTour}
-          </button>
-        </div>
-      </div>
+      <TypeSelector value={type} onChange={onTypeChange} />
 
-      <div className="space-y-1.5">
-        <Label className="text-sm font-medium">{copy.touristLabel}</Label>
-        {selectedTourist ? (
-          <div className="flex items-center justify-between rounded-xl border border-input bg-muted/50 px-3 py-2">
-            <div>
-              <p className="text-sm font-medium text-foreground">{selectedTourist.full_name ?? '—'}</p>
-              {selectedTourist.phone && (
-                <p className="text-xs text-muted-foreground">{selectedTourist.phone}</p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedTourist(null)}
-              className="text-sm text-primary hover:underline cursor-pointer"
-            >
-              {copy.touristChange}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            <input
-              type="text"
-              value={touristQuery}
-              onChange={(e) => handleTouristQueryChange(e.target.value)}
-              placeholder={copy.touristSearchPlaceholder}
-              className="flex h-9 w-full rounded-xl border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            />
-            {touristQuery.trim().length < 2 ? (
-              <p className="text-xs text-muted-foreground">{copy.touristSearchHint}</p>
-            ) : touristResults.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{copy.touristNoResults}</p>
-            ) : (
-              <ul className="rounded-xl border border-border divide-y divide-border overflow-hidden">
-                {touristResults.map((t) => (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTourist(t)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer"
-                    >
-                      <span className="font-medium text-foreground">{t.full_name ?? '—'}</span>
-                      {t.phone && <span className="text-muted-foreground"> · {t.phone}</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
+      <TouristPicker key={pickerKey} selected={selectedTourist} onSelect={setSelectedTourist} />
 
       {type === 'service' ? (
         <div className="space-y-1.5">
