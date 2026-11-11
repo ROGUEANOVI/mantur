@@ -29,3 +29,19 @@ ALTER TABLE public.bookings
     char_length(acquisition_campaign) <= 150
     AND acquisition_campaign ~ '^[A-Za-z0-9_.~+:-]+$'
   );
+
+-- Only server paths (service_role) set the channel: a tourist inserting
+-- straight through the client SDK can't pre-label their own booking.
+-- Recreated with every condition from 20261111100000 plus the new columns.
+DROP POLICY "bookings_insert" ON public.bookings;
+CREATE POLICY "bookings_insert"
+  ON public.bookings FOR INSERT
+  WITH CHECK (
+    tourist_id = auth.uid()
+    AND status = 'pending_payment'
+    AND registered_by IS NULL
+    AND catalog_total_amount IS NULL
+    AND price_adjustment_reason IS NULL
+    AND acquisition_source IS NULL
+    AND acquisition_campaign IS NULL
+  );

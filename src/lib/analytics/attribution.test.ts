@@ -90,3 +90,18 @@ describe('parseAcquisition (server)', () => {
     expect(cleanCampaign('a'.repeat(200))).toHaveLength(150)
   })
 })
+
+describe('readAttribution — hardening', () => {
+  it('re-cleans stored values, dropping anything tampered via devtools', () => {
+    window.sessionStorage.setItem(
+      'mantur-attribution-v1',
+      JSON.stringify({ utm_campaign: 'hola, escríbeme a otro número', utm_source: 'meta', evil: 'x', gclid: 42 }),
+    )
+    expect(readAttribution()).toEqual({ utm_source: 'meta' })
+  })
+
+  it('returns {} for corrupt JSON', () => {
+    window.sessionStorage.setItem('mantur-attribution-v1', '{not json')
+    expect(readAttribution()).toEqual({})
+  })
+})

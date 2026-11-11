@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { GoogleTagManager } from '@next/third-parties/google'
 import { legalCopy } from '@/lib/copy/legal'
@@ -9,6 +9,7 @@ import {
   CONSENT_REOPEN_EVENT,
   pushConsentMode,
   readConsent,
+  revokeTracking,
   writeConsent,
   type ConsentChoice,
 } from '@/lib/analytics/consent'
@@ -24,16 +25,26 @@ export default function Analytics({ gtmId }: { gtmId?: string }) {
   // banner never flashes for visitors who already decided.
   const [consent, setConsent] = useState<ConsentChoice | null | undefined>(undefined)
   const [bannerOpen, setBannerOpen] = useState(false)
+  // Latest choice, readable from the window event listener below.
+  const consentRef = useRef<ConsentChoice | null>(null)
 
   useEffect(() => {
     captureAttribution(window.location.search)
 
     const stored = readConsent()
+    consentRef.current = stored
     setConsent(stored)
     setBannerOpen(stored === null)
 
     function onChange(e: Event) {
-      setConsent((e as CustomEvent<ConsentChoice>).detail)
+      const next = (e as CustomEvent<ConsentChoice>).detail
+      // Withdrawn after GTM was allowed: stop it now, not on next visit.
+      if (consentRef.current === 'granted' && next === 'denied') {
+        revokeTracking()
+        return
+      }
+      consentRef.current = next
+      setConsent(next)
       setBannerOpen(false)
     }
     function onReopen() {

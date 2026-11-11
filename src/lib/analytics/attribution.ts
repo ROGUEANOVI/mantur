@@ -42,10 +42,19 @@ export function parseAttribution(search: string): Attribution {
   return result
 }
 
+// Re-validated on read: sessionStorage is same-origin but editable from
+// devtools, and its values end up in WhatsApp messages and form inputs.
 export function readAttribution(): Attribution {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as Attribution) : {}
+    if (!raw) return {}
+    const stored = JSON.parse(raw) as Record<string, unknown>
+    const result: Attribution = {}
+    for (const key of ATTRIBUTION_KEYS) {
+      const value = clean(typeof stored[key] === 'string' ? (stored[key] as string) : null)
+      if (value) result[key] = value
+    }
+    return result
   } catch {
     return {}
   }

@@ -92,3 +92,34 @@ describe('Analytics — consent gate', () => {
     window.history.replaceState(null, '', '/')
   })
 })
+
+describe('Analytics — withdrawing consent', () => {
+  it('after accepting, rejecting sends a denied update, clears tracking cookies and reloads', async () => {
+    const reload = vi.fn()
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...originalLocation, reload } })
+    document.cookie = '_ga=GA1.1.123; path=/'
+    document.cookie = '_fbp=fb.1.456; path=/'
+    document.cookie = 'keep_me=1; path=/'
+
+    window.localStorage.setItem('mantur-consent-v1', 'granted')
+    const user = userEvent.setup()
+    render(<Analytics gtmId="GTM-TEST" />)
+    act(() => reopenConsentBanner())
+    await user.click(screen.getByRole('button', { name: 'Rechazar' }))
+
+    const commands = ((window as DL).dataLayer ?? []).map((e) => Array.from(e as ArrayLike<unknown>))
+    expect(commands).toContainEqual([
+      'consent',
+      'update',
+      { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' },
+    ])
+    expect(document.cookie).not.toContain('_ga=')
+    expect(document.cookie).not.toContain('_fbp=')
+    expect(document.cookie).toContain('keep_me=1')
+    expect(window.localStorage.getItem('mantur-consent-v1')).toBe('denied')
+    expect(reload).toHaveBeenCalledTimes(1)
+
+    Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+  })
+})
