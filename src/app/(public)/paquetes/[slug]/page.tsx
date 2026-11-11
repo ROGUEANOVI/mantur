@@ -16,6 +16,8 @@ import ReviewsList from '@/components/shared/ReviewsList'
 import PackagePrereservaForm from '@/components/paquetes/PackagePrereservaForm'
 import PackageWhatsappCta from '@/components/paquetes/PackageWhatsappCta'
 import { packagePriceParts, packagePriceText } from '@/lib/packages/price'
+import PackageDetailSections from '@/components/paquetes/PackageDetailSections'
+import type { PackageContentFields, PriceTier } from '@/lib/packages/content'
 import { jsonLdScriptProps } from '@/lib/seo/jsonLd'
 import Reveal from '@/components/shared/Reveal'
 
@@ -30,7 +32,7 @@ export async function generateMetadata({
 
   const { data } = await createAdminClient()
     .from('packages')
-    .select('slug, name, description, base_price, pricing_unit, images')
+    .select('slug, name, summary, description, base_price, pricing_unit, images')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
@@ -40,7 +42,7 @@ export async function generateMetadata({
   const title = data.name
   const description = buildMetaDescription(
     packagePriceText(data.base_price, data.pricing_unit),
-    data.description ?? 'Descubre este paquete en Manaure Balcón del Cesar.',
+    data.summary ?? data.description ?? 'Descubre este paquete en Manaure Balcón del Cesar.',
   )
   const image = (data.images as string[] | null)?.[0]
   const url = `${APP_URL}/paquetes/${data.slug}`
@@ -87,7 +89,7 @@ type PackageDetail = {
   capacity: number | null
   images: string[] | null
   videos: string[] | null
-}
+} & PackageContentFields
 
 // Public-safe columns only — package_items has no public SELECT RLS policy
 // (it holds internal_cost_cents, the negotiated cost ManTur pays each
@@ -106,7 +108,11 @@ export default async function PaqueteDetailPage({
 
   const { data: pkgRow, error } = await supabase
     .from('packages')
-    .select('id, slug, name, description, base_price, pricing_unit, capacity, images, videos')
+    .select(
+      'id, slug, name, description, base_price, pricing_unit, capacity, images, videos, ' +
+        'summary, itinerary, includes, what_to_bring, duration_label, meeting_point, difficulty, min_people, ' +
+        'payment_info, cancellation_policy',
+    )
     .eq('slug', slug)
     .single()
 
@@ -115,7 +121,7 @@ export default async function PaqueteDetailPage({
     throw new Error(error.message)
   }
 
-  const pkg = pkgRow as PackageDetail
+  const pkg = pkgRow as unknown as PackageDetail
   const copy = packagesCopy.detail
   const price = packagePriceParts(pkg.base_price, pkg.pricing_unit)
 
@@ -153,6 +159,18 @@ export default async function PaqueteDetailPage({
 
   const itemIds = includedItems.map((item) => item.id)
 
+  // Public-select for active packages (package_price_tiers_select).
+  const { data: tiersData } = await supabase
+    .from('package_price_tiers')
+    .select('min_people, max_people, amount, amount_basis')
+    .eq('package_id', pkg.id)
+    .order('min_people', { ascending: true })
+  const tiers = (tiersData ?? []) as PriceTier[]
+
+  // Once the admin fills the structured fields, they replace the old
+  // free-text description on the page (which repeated the same info).
+  const hasStructuredContent = pkg.includes.length > 0 || pkg.itinerary.length > 0
+
   // Both tables are public-select (see 20260916000000_create_package_reviews.sql)
   // — read via the RLS-respecting client, not the admin one, unlike
   // package_items itself above.
@@ -184,18 +202,46 @@ export default async function PaqueteDetailPage({
     '@context': 'https://schema.org',
     '@type': 'TouristTrip',
     name: pkg.name,
-    description: pkg.description ?? undefined,
+    description: pkg.summary ?? pkg.description ?? undefined,
     image: [pkg.images?.[0] ?? `${APP_URL}/opengraph-image`],
+    url: `${APP_URL}/paquetes/${pkg.slug}`,
     provider: {
-      '@type': 'Organization',
+      '@type': 'TravelAgency',
       name: 'ManTur',
+      url: APP_URL,
     },
-    offers: {
-      '@type': 'Offer',
-      price: String(pkg.base_price),
-      priceCurrency: 'COP',
-      availability: 'https://schema.org/InStock',
-    },
+    ...(pkg.itinerary.length > 0 && {
+      itinerary: {
+        '@type': 'ItemList',
+        itemListElement: pkg.itinerary.map((step, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          item: { '@type': 'TouristAttraction', name: step },
+        })),
+      },
+    }),
+    // One offer per published group price, falling back to the "desde"
+    // base price when no tiers are set.
+    offers:
+      tiers.length > 0
+        ? tiers.map((tier) => ({
+            '@type': 'Offer',
+            price: String(tier.amount),
+            priceCurrency: 'COP',
+            availability: 'https://schema.org/InStock',
+            eligibleQuantity: {
+              '@type': 'QuantitativeValue',
+              minValue: tier.min_people,
+              ...(tier.max_people !== null && { maxValue: tier.max_people }),
+              unitText: tier.amount_basis === 'per_group' ? 'grupo' : 'persona',
+            },
+          }))
+        : {
+            '@type': 'Offer',
+            price: String(pkg.base_price),
+            priceCurrency: 'COP',
+            availability: 'https://schema.org/InStock',
+          },
   }
 
   return (
@@ -231,7 +277,10 @@ export default async function PaqueteDetailPage({
                     />
                   )}
                 </div>
-                {pkg.description && <ExpandableText text={pkg.description} clampLines={8} className="mt-4" />}
+                {pkg.summary && <p className="mt-3 text-base leading-relaxed text-foreground/80">{pkg.summary}</p>}
+                {pkg.description && !hasStructuredContent && (
+                  <ExpandableText text={pkg.description} clampLines={8} className="mt-4" />
+                )}
               </div>
             </>
           }
@@ -270,44 +319,41 @@ export default async function PaqueteDetailPage({
                 panel. The in-app pre-reserva stays below as a secondary path
                 for tourists who prefer it. */}
             <div className="pt-1">
-              <PackageWhatsappCta
-                packageName={pkg.name}
-                slug={pkg.slug}
-                price={price}
-                capacity={pkg.capacity}
-              />
+              <PackageWhatsappCta packageName={pkg.name} slug={pkg.slug} price={price} capacity={pkg.capacity} />
             </div>
 
-            {/* Only real package_items — the free-text description already
-                carries the "¿Qué incluye?" list while items aren't loaded,
-                so no "se está actualizando" placeholder. */}
-            {includedItems.length > 0 && (
-              <section className="pt-2">
-                <h2 className="text-base font-semibold text-foreground mb-2">{copy.includedTitle}</h2>
-                <ul className="space-y-1.5">
-                  {includedItems.map((item) => {
-                    const itemRating = itemRatingsById.get(item.id)
-                    return (
-                      <li key={item.id} className="text-sm text-foreground flex items-baseline gap-1.5">
-                        <span className="text-primary">•</span>
-                        <span className="flex-1">
-                          {item.label}
-                          {item.quantity > 1 && <span className="text-muted-foreground"> ×{item.quantity}</span>}
-                        </span>
-                        {itemRating && (
-                          <RatingSummary
-                            avgRating={itemRating.sum / itemRating.count}
-                            count={itemRating.count}
-                            noReviewsText=""
-                            reviewCountText={packagesCopy.reviews.itemReviewCount}
-                          />
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            )}
+            <div className="pt-4">
+              <PackageDetailSections
+                content={pkg}
+                tiers={tiers}
+                providerItems={
+                  includedItems.length > 0 ? (
+                    <ul className="space-y-1.5">
+                      {includedItems.map((item) => {
+                        const itemRating = itemRatingsById.get(item.id)
+                        return (
+                          <li key={item.id} className="text-sm text-foreground flex items-baseline gap-1.5">
+                            <span className="text-primary">•</span>
+                            <span className="flex-1">
+                              {item.label}
+                              {item.quantity > 1 && <span className="text-muted-foreground"> ×{item.quantity}</span>}
+                            </span>
+                            {itemRating && (
+                              <RatingSummary
+                                avgRating={itemRating.sum / itemRating.count}
+                                count={itemRating.count}
+                                noReviewsText=""
+                                reviewCountText={packagesCopy.reviews.itemReviewCount}
+                              />
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : undefined
+                }
+              />
+            </div>
 
             {reviews.length > 0 && (
               <section className="pt-2">

@@ -159,7 +159,7 @@ export default async function LandingPage() {
     // every active package, not only the ones shown in the showcase.
     admin
       .from('packages')
-      .select('id, slug, name, description, base_price, pricing_unit, capacity, images, is_featured')
+      .select('id, slug, name, summary, description, base_price, pricing_unit, capacity, images, is_featured')
       .eq('is_active', true)
       .order('is_featured', { ascending: false })
       .order('sort_order', { ascending: true })

@@ -42,6 +42,8 @@ const componentEqCallsMock = vi.fn()
 const componentSelectMock = vi.fn()
 const packageItemInsertMock = vi.fn()
 const packageItemDeleteEqMock = vi.fn()
+const tierInsertMock = vi.fn()
+const tierDeleteMock = vi.fn()
 const storageUpload = vi.fn()
 const storageGetPublicUrl = vi.fn()
 const storageRemove = vi.fn()
@@ -80,6 +82,14 @@ vi.mock('@/lib/supabase/admin', () => ({
         }
         return { select: (columns: string) => (componentSelectMock(table, columns), chain) }
       }
+      if (table === 'package_price_tiers') {
+        return {
+          insert: (payload: unknown) => tierInsertMock(payload),
+          delete: () => ({
+            eq: (col1: string, v1: string) => ({ eq: (col2: string, v2: string) => tierDeleteMock({ [col1]: v1, [col2]: v2 }) }),
+          }),
+        }
+      }
       if (table === 'package_items') {
         return {
           insert: (payload: unknown) => packageItemInsertMock(payload),
@@ -111,6 +121,9 @@ const {
   requestPackageVideoUpload,
   confirmPackageVideoUpload,
   deletePackageVideo,
+  updatePackageContent,
+  addPackagePriceTier,
+  removePackagePriceTier,
 } = await import('./actions')
 
 function formData(fields: Record<string, string>) {
@@ -777,5 +790,99 @@ describe('deletePackageVideo', () => {
     profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
     await expect(deletePackageVideo(PACKAGE_ID, 'https://x/a.mp4')).rejects.toThrow('redirect:/')
     expect(packageMediaMaybeSingleMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('updatePackageContent', () => {
+  it('rejects a non-UUID packageId', async () => {
+    const result = await updatePackageContent(formData({ packageId: 'nope' }))
+    expect(result).toEqual({ error: 'Paquete no encontrado.' })
+  })
+
+  it('rejects an unknown package', async () => {
+    packageMediaMaybeSingleMock.mockResolvedValue({ data: null })
+    const result = await updatePackageContent(formData({ packageId: PACKAGE_ID }))
+    expect(result).toEqual({ error: 'Paquete no encontrado.' })
+  })
+
+  it('validates the minimum group against the capacity read from the DB', async () => {
+    packageMediaMaybeSingleMock.mockResolvedValue({ data: { id: PACKAGE_ID, slug: 'fullday', capacity: 4 } })
+    const result = await updatePackageContent(formData({ packageId: PACKAGE_ID, min_people: '5' }))
+    expect(result).toEqual({ error: 'El grupo mínimo no puede superar el cupo máximo del paquete.' })
+    expect(packageMediaUpdateAwaitMock).not.toHaveBeenCalled()
+  })
+
+  it('saves the parsed content and revalidates the public pages', async () => {
+    packageMediaMaybeSingleMock.mockResolvedValue({ data: { id: PACKAGE_ID, slug: 'fullday', capacity: null } })
+    packageMediaUpdateAwaitMock.mockReturnValue({ error: null })
+
+    const result = await updatePackageContent(
+      formData({ packageId: PACKAGE_ID, includes: '- Transporte\n- Almuerzo', difficulty: 'baja' }),
+    )
+
+    expect(result).toEqual({ success: true })
+    expect(packageMediaUpdateAwaitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ includes: ['Transporte', 'Almuerzo'], difficulty: 'baja', summary: null }),
+      PACKAGE_ID,
+    )
+    expect(revalidatePathMock).toHaveBeenCalledWith('/paquetes/fullday')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/')
+  })
+
+  it('maps an update error to the generic copy', async () => {
+    packageMediaMaybeSingleMock.mockResolvedValue({ data: { id: PACKAGE_ID, slug: 'fullday', capacity: null } })
+    packageMediaUpdateAwaitMock.mockReturnValue({ error: { code: '99999' } })
+    const result = await updatePackageContent(formData({ packageId: PACKAGE_ID }))
+    expect(result).toEqual({ error: 'No se pudo guardar el contenido. Intenta de nuevo.' })
+  })
+})
+
+describe('addPackagePriceTier', () => {
+  const TIER = { packageId: PACKAGE_ID, min_people: '2', max_people: '2', amount: '280000', amount_basis: 'per_group' }
+
+  beforeEach(() => {
+    packageMediaMaybeSingleMock.mockResolvedValue({ data: { id: PACKAGE_ID, slug: 'fullday' } })
+  })
+
+  it('validates the tier before touching the DB', async () => {
+    const result = await addPackagePriceTier(formData({ ...TIER, amount: '0' }))
+    expect(result).toEqual({ error: 'El valor debe ser un número entero mayor a 0.' })
+    expect(tierInsertMock).not.toHaveBeenCalled()
+  })
+
+  it('inserts the tier for the package', async () => {
+    tierInsertMock.mockResolvedValue({ error: null })
+    const result = await addPackagePriceTier(formData(TIER))
+    expect(result).toBeUndefined()
+    expect(tierInsertMock).toHaveBeenCalledWith({
+      package_id: PACKAGE_ID,
+      min_people: 2,
+      max_people: 2,
+      amount: 280000,
+      amount_basis: 'per_group',
+    })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/paquetes/fullday')
+  })
+
+  it('explains a duplicate starting group size', async () => {
+    tierInsertMock.mockResolvedValue({ error: { code: '23505' } })
+    const result = await addPackagePriceTier(formData(TIER))
+    expect(result).toEqual({ error: 'Ya existe una tarifa que empieza en ese número de personas.' })
+  })
+})
+
+describe('removePackagePriceTier', () => {
+  const TIER_ID = '55555555-5555-5555-5555-555555555555'
+
+  it('ignores malformed ids', async () => {
+    await removePackagePriceTier(formData({ tierId: 'x', packageId: PACKAGE_ID }))
+    expect(tierDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('deletes the tier scoped to its own package', async () => {
+    packageMediaMaybeSingleMock.mockResolvedValue({ data: { slug: 'fullday' } })
+    await removePackagePriceTier(formData({ tierId: TIER_ID, packageId: PACKAGE_ID }))
+    expect(tierDeleteMock).toHaveBeenCalledWith({ id: TIER_ID, package_id: PACKAGE_ID })
+    expect(revalidatePathMock).toHaveBeenCalledWith('/paquetes/fullday')
   })
 })

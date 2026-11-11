@@ -17,6 +17,28 @@ export const packagesCopy = {
     peopleDecrease: 'Quitar una persona',
     peopleIncrease: 'Agregar una persona',
     groupPricingHint: 'El valor final depende del tamaño del grupo y la fecha.',
+    itineraryTitle: 'Itinerario',
+    whatToBringTitle: 'Qué llevar',
+    detailsTitle: 'Detalles',
+    durationLabel: 'Duración',
+    meetingPointLabel: 'Punto de encuentro',
+    difficultyLabel: 'Dificultad',
+    difficultyValues: { baja: 'Baja', media: 'Media', alta: 'Alta' } as Record<string, string>,
+    minPeopleLabel: 'Grupo mínimo',
+    minPeopleValue: (n: number) => (n === 1 ? '1 persona' : `${n} personas`),
+    tiersTitle: 'Tarifas por grupo',
+    paymentTitle: 'Formas de pago',
+    cancellationTitle: 'Política de cancelación',
+    moreDetails: 'Más detalles',
+  },
+
+  // Rows of the per-group price table (package_price_tiers).
+  tiers: {
+    exactly: (n: number) => (n === 1 ? '1 persona' : `${n} personas`),
+    range: (min: number, max: number) => `${min} a ${max} personas`,
+    orMore: (n: number) => `${n} o más personas`,
+    perPerson: 'por persona',
+    perGroup: 'en total',
   },
 
   // One price display for every package surface (home showcase, /paquetes,

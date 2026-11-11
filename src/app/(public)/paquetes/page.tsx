@@ -39,7 +39,7 @@ export default async function PaquetesPage({
 
   let query = supabase
     .from('packages')
-    .select('id, slug, name, description, base_price, pricing_unit, images', { count: 'exact' })
+    .select('id, slug, name, summary, description, base_price, pricing_unit, images', { count: 'exact' })
 
   // Strip PostgREST filter-DSL delimiters (comma separates or() conditions,
   // parens nest logical groups) so a search term can't inject an extra
