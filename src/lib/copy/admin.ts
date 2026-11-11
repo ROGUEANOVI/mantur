@@ -70,6 +70,11 @@ export const adminCopy = {
     success: 'Reserva registrada. Se notificó al proveedor por correo.',
     // Manual package sale (WhatsApp deals, 2026-11-11).
     packageSale: {
+      sourceLabel: '¿Cómo nos conoció? (opcional)',
+      sourcePlaceholder: '— Selecciona un origen —',
+      campaignLabel: 'Campaña (opcional)',
+      campaignHint: 'Si el mensaje de WhatsApp trae "campaña: …", copia lo que va después.',
+      campaignPlaceholder: 'Ej: mt_ventas_fullday_202611',
       packageLabel: 'Paquete',
       packagePlaceholder: '— Selecciona un paquete —',
       dateLabel: 'Fecha del viaje',
@@ -107,6 +112,18 @@ export const adminCopy = {
       paymentReferencePlaceholder: 'Ej: referencia de la transferencia',
       success: 'Venta registrada.',
     },
+    // bookings.acquisition_source labels (manual sale form + reservas list).
+    acquisitionSources: {
+      meta_ads: 'Anuncio de Meta (Facebook/Instagram)',
+      google_ads: 'Anuncio de Google',
+      instagram: 'Instagram (sin anuncio)',
+      facebook: 'Facebook (sin anuncio)',
+      tiktok: 'TikTok',
+      google_organic: 'Búsqueda en Google / Maps',
+      referral: 'Recomendación',
+      returning: 'Cliente que repite',
+      other: 'Otro',
+    } as Record<string, string>,
     paymentMethods: {
       bank_transfer: 'Transferencia bancaria',
       nequi_daviplata: 'Nequi / Daviplata',
@@ -138,6 +155,7 @@ export const adminCopy = {
     title: 'Reservas',
     subtitle: 'Todas las reservas de servicios, tours, paquetes y traslados en un solo lugar.',
     newButton: 'Registrar reserva',
+    originLabel: 'Origen',
     empty: 'No hay reservas todavía.',
     type: {
       all: 'Todos',

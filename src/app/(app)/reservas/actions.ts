@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveAdminEmails } from '@/lib/adminNotifications'
 import { bookingsCopy } from '@/lib/copy/bookings'
+import { parseAcquisition } from '@/lib/analytics/attribution'
+import { saveAcquisition } from '@/lib/analytics/saveAcquisition'
 import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { buildWompiCheckoutUrl } from '@/lib/wompi/checkout'
 import {
@@ -232,6 +234,8 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
   })
 
   if (rpcError || !bookingId) return { error: bookingsCopy.errors.generic }
+
+  await saveAcquisition(admin, bookingId, parseAcquisition(formData))
 
   await notifyAdminsOfPackagePrereserva(admin, {
     packageName: pkg.name,

@@ -13,6 +13,7 @@ import {
   type PricingUnit,
 } from '@/lib/packages/manualSale'
 import { QUANTITY_LABELS } from '@/lib/services/attributeConfig'
+import { ACQUISITION_SOURCES } from '@/lib/analytics/attribution'
 import TouristPicker from '@/components/admin/TouristPicker'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -195,6 +196,31 @@ export default function ManualPackageSaleForm({ packages }: { packages: PackageO
                 max={capacity ?? undefined}
                 value={quantity}
                 onChange={handleQuantityChange}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          {/* ── Origen (marketing attribution) ────────────────── */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field id="sale-source" label={saleCopy.sourceLabel}>
+              <select id="sale-source" name="acquisition_source" defaultValue="" className={inputClass}>
+                <option value="">{saleCopy.sourcePlaceholder}</option>
+                {ACQUISITION_SOURCES.map((source) => (
+                  <option key={source} value={source}>
+                    {copy.acquisitionSources[source]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="sale-campaign" label={saleCopy.campaignLabel} hint={saleCopy.campaignHint}>
+              <input
+                id="sale-campaign"
+                name="acquisition_campaign"
+                type="text"
+                maxLength={150}
+                autoComplete="off"
+                placeholder={saleCopy.campaignPlaceholder}
                 className={inputClass}
               />
             </Field>

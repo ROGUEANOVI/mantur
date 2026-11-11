@@ -1,5 +1,9 @@
+'use client'
+
 import { MessageCircle } from 'lucide-react'
 import { manturWhatsappUrl, directWhatsappUrl } from '@/lib/whatsapp'
+import { track, type TrackEventMap } from '@/lib/analytics/track'
+import { campaignTag, readAttribution } from '@/lib/analytics/attribution'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -15,17 +19,34 @@ type Props = {
   // Round icon-only button for tight spots where WhatsApp is the secondary
   // action (PackageShowcase cards). The label stays as the accessible name.
   iconOnly?: boolean
+  // ManTur sales touchpoints pass this: the click is tracked as a lead
+  // (whatsapp_click → GA4 generate_lead / Meta Contact) and the campaign
+  // that brought the visitor is appended to the message, so the admin can
+  // record it when registering the sale. Never set for a provider's phone.
+  tracking?: TrackEventMap['whatsapp_click']
 }
 
 // Same visual pattern already used for the guide-contact WhatsApp button on
 // the booking confirmation page — kept identical here for consistency
 // across the app's WhatsApp touchpoints.
-export default function WhatsappButton({ message, label, className, phone, iconOnly = false }: Props) {
+export default function WhatsappButton({ message, label, className, phone, iconOnly = false, tracking }: Props) {
+  const href = phone ? directWhatsappUrl(phone, message) : manturWhatsappUrl(message)
+
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (!tracking || phone) return
+    track('whatsapp_click', tracking)
+    const tag = campaignTag(readAttribution())
+    // Rewrite the link just before the browser follows it, so the server
+    // render stays identical for every visitor.
+    if (tag) e.currentTarget.href = manturWhatsappUrl(`${message} · campaña: ${tag}`)
+  }
+
   return (
     <a
-      href={phone ? directWhatsappUrl(phone, message) : manturWhatsappUrl(message)}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={handleClick}
       aria-label={iconOnly ? label : undefined}
       title={iconOnly ? label : undefined}
       className={cn(
