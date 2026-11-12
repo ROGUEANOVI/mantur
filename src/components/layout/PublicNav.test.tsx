@@ -62,11 +62,23 @@ describe('PublicNav — guest (no session)', () => {
     authGetUser.mockResolvedValue({ data: { user: null } })
     await renderPublicNav()
 
-    expect(screen.getByRole('link', { name: 'Explorar' })).toHaveAttribute('href', '/negocios')
+    expect(screen.getByRole('link', { name: 'Negocios' })).toHaveAttribute('href', '/negocios')
     expect(screen.getByRole('link', { name: 'Lugares Imperdibles' })).toHaveAttribute('href', '/lugares')
     expect(screen.getByRole('link', { name: 'Paquetes' })).toHaveAttribute('href', '/paquetes')
     expect(screen.getByRole('link', { name: 'Transportadores' })).toHaveAttribute('href', '/transportistas')
     expect(screen.getByRole('link', { name: 'Guías' })).toHaveAttribute('href', '/guias')
+  })
+
+  it('lists Paquetes first and Negocios second in the main nav', async () => {
+    authGetUser.mockResolvedValue({ data: { user: null } })
+    await renderPublicNav()
+
+    const mainLinks = ['Paquetes', 'Negocios', 'Lugares Imperdibles', 'Transportadores', 'Guías']
+    const positions = mainLinks.map((name) => {
+      const link = screen.getAllByRole('link', { name })[0]
+      return Array.from(document.querySelectorAll('a')).indexOf(link as HTMLAnchorElement)
+    })
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
   })
 
   it('renders the brand link to the homepage', async () => {

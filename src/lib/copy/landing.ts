@@ -1,7 +1,7 @@
 export const landingCopy = {
   nav: {
     brand: 'ManTur',
-    negocios: 'Explorar',
+    negocios: 'Negocios',
     lugares: 'Lugares Imperdibles',
     transportistas: 'Transportadores',
     guias: 'Guías',
@@ -40,15 +40,6 @@ export const landingCopy = {
   featured: {
     title: 'Negocios destacados',
     badge: 'Destacado',
-  },
-
-  categories: {
-    title: 'Explora por categoría',
-    resort: 'Balnearios',
-    restaurant: 'Restaurantes',
-    farm: 'Fincas',
-    eatery: 'Estaderos',
-    other: 'Otros',
   },
 
   placesPreview: {

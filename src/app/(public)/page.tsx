@@ -4,13 +4,6 @@ import Image from 'next/image'
 import {
   Store,
   Waves,
-  Utensils,
-  Home,
-  Beer,
-  Wine,
-  Coffee,
-  BedDouble,
-  Sandwich,
   Star,
   MapPin,
   Search,
@@ -29,7 +22,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { landingCopy } from '@/lib/copy/landing'
 import { roleRequestsCopy } from '@/lib/copy/roleRequests'
 import Reveal from '@/components/shared/Reveal'
-import { cn } from '@/lib/utils'
 import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
 import HeroSlideshow from '@/components/shared/HeroSlideshow'
 import PackageShowcase, { type ShowcasePackage } from '@/components/paquetes/PackageShowcase'
@@ -66,34 +58,6 @@ type PlacePreview = {
   images: string[] | null
 }
 
-type CategoryRow = {
-  id: string
-  slug: string
-  name: string
-}
-
-const MAX_LANDING_CATEGORIES = 5
-
-// Keyed by business_categories.slug — covers every category seeded today
-// plus a couple of legacy/inactive slugs, with Store as the generic fallback.
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-  resort: Waves,
-  balneario: Waves,
-  restaurant: Utensils,
-  farm: Home,
-  casa_de_campo: Trees,
-  eatery: Beer,
-  cafeteria: Coffee,
-  hospedaje: BedDouble,
-  comidas_rapidas: Sandwich,
-  estanco: Wine,
-  other: Store,
-}
-
-const PRIMARY_STYLE = 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground'
-const ACCENT_STYLE = 'bg-accent/15 text-accent group-hover:bg-accent group-hover:text-accent-foreground'
-const NEUTRAL_STYLE = 'bg-muted text-muted-foreground group-hover:bg-foreground/10 group-hover:text-foreground'
-
 const PLACE_TYPE_ICONS: Record<PlaceType, React.ElementType> = {
   waterfall: Droplets,
   river: Waves,
@@ -129,8 +93,6 @@ export default async function LandingPage() {
   const [
     { data: featured },
     { data: places },
-    { data: categoriesData },
-    { data: categoryLinks },
     { data: packagesData },
   ] = await Promise.all([
     admin
@@ -146,14 +108,6 @@ export default async function LandingPage() {
       .from('places')
       .select('id, slug, name, description, type, images')
       .order('created_at', { ascending: false }),
-    // Same source as /negocios' filter pills — the landing's category
-    // shortcuts must stay in sync with what's actually active there.
-    admin
-      .from('business_categories')
-      .select('id, slug, name')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true }),
-    admin.from('business_category_links').select('category_id'),
     // Admin-curated order: featured first, then sort_order, then name.
     // Read in full (a handful of rows) so the hero's "desde" price covers
     // every active package, not only the ones shown in the showcase.
@@ -172,19 +126,6 @@ export default async function LandingPage() {
   const packagesList = (packagesData ?? []) as ShowcasePackage[]
   const minPackagePrice =
     packagesList.length > 0 ? Math.min(...packagesList.map((p) => Number(p.base_price))) : null
-
-  // Show only the categories with actual listings — an active-but-empty
-  // category (e.g. Estanco today) is a dead end as a landing shortcut, even
-  // though it's legitimately a valid filter once /negocios has businesses in it.
-  const businessCountByCategory = new Map<string, number>()
-  for (const link of categoryLinks ?? []) {
-    businessCountByCategory.set(link.category_id, (businessCountByCategory.get(link.category_id) ?? 0) + 1)
-  }
-  const categories = ((categoriesData ?? []) as CategoryRow[])
-    .map((c) => ({ ...c, count: businessCountByCategory.get(c.id) ?? 0 }))
-    .filter((c) => c.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, MAX_LANDING_CATEGORIES)
 
   // One image per distinct place (not every photo of the same place) so the
   // slideshow actually shows variety instead of looping the same spot.
@@ -261,41 +202,6 @@ export default async function LandingPage() {
       {/* ── Paquetes ─────────────────────────────────────────── */}
       {/* First section, overlapping the hero: packages are what sells today. */}
       <PackageShowcase packages={packagesList} />
-
-      {/* ── Categorías ───────────────────────────────────────── */}
-      {/* Takes the hero overlap back only when there's no package showcase. */}
-      {categories.length > 0 && (
-        <section className={cn('relative px-4', packagesList.length > 0 ? 'pt-12' : '-mt-14')}>
-          <div className="mx-auto max-w-5xl">
-            <Reveal>
-              <h2 className="mb-4 text-lg font-bold text-foreground">
-                {copy.categories.title}
-              </h2>
-            </Reveal>
-            <div className="scrollbar-none -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0">
-              {categories.map((category, i) => {
-                const Icon = CATEGORY_ICONS[category.slug] ?? Store
-                const style = category.slug === 'other' ? NEUTRAL_STYLE : i % 2 === 0 ? PRIMARY_STYLE : ACCENT_STYLE
-                return (
-                  <Reveal key={category.id} delay={i * 60} className="shrink-0 snap-start">
-                    <Link
-                      href={`/negocios?type=${category.slug}`}
-                      className="group flex h-32 w-28 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:h-36 sm:w-32"
-                    >
-                      <div className={cn('flex size-14 shrink-0 items-center justify-center rounded-full transition-colors', style)}>
-                        <Icon className="size-6" aria-hidden="true" strokeWidth={1.5} />
-                      </div>
-                      <span className="line-clamp-2 text-xs font-semibold leading-tight text-foreground group-hover:text-primary">
-                        {category.name}
-                      </span>
-                    </Link>
-                  </Reveal>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* ── Destacados ───────────────────────────────────────── */}
       {featuredList.length > 0 && (
