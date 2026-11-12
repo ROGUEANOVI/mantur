@@ -15,7 +15,8 @@ import RatingSummary from '@/components/shared/RatingSummary'
 import ReviewsList from '@/components/shared/ReviewsList'
 import PackagePrereservaForm from '@/components/paquetes/PackagePrereservaForm'
 import PackageWhatsappCta from '@/components/paquetes/PackageWhatsappCta'
-import { packagePriceParts, packagePriceText } from '@/lib/packages/price'
+import { groupDeal, headlineText, packageHeadline } from '@/lib/packages/price'
+import PackagePrice from '@/components/paquetes/PackagePrice'
 import PackageDetailSections from '@/components/paquetes/PackageDetailSections'
 import TrackView from '@/components/analytics/TrackView'
 import type { PackageContentFields, PriceTier } from '@/lib/packages/content'
@@ -33,16 +34,29 @@ export async function generateMetadata({
 
   const { data } = await createAdminClient()
     .from('packages')
-    .select('slug, name, summary, description, base_price, pricing_unit, images')
+    .select(
+      'slug, name, summary, description, base_price, pricing_unit, min_people, images, ' +
+        'package_price_tiers(min_people, max_people, amount, amount_basis)',
+    )
     .eq('slug', slug)
     .eq('is_active', true)
-    .single()
+    .single<{
+      slug: string
+      name: string
+      summary: string | null
+      description: string | null
+      base_price: number | string
+      pricing_unit: string
+      min_people: number | null
+      images: string[] | null
+      package_price_tiers: PriceTier[] | null
+    }>()
 
   if (!data) return {}
 
   const title = data.name
   const description = buildMetaDescription(
-    packagePriceText(data.base_price, data.pricing_unit),
+    headlineText(packageHeadline(data, data.package_price_tiers ?? [])),
     data.summary ?? data.description ?? 'Descubre este paquete en Manaure Balcón del Cesar.',
   )
   const image = (data.images as string[] | null)?.[0]
@@ -124,7 +138,6 @@ export default async function PaqueteDetailPage({
 
   const pkg = pkgRow as unknown as PackageDetail
   const copy = packagesCopy.detail
-  const price = packagePriceParts(pkg.base_price, pkg.pricing_unit)
 
   // Packages keep a real in-app pre-reserva flow (unlike services/guide
   // tours, WhatsApp-only since the manual-ops pivot) — same tourist/guest/
@@ -167,6 +180,10 @@ export default async function PaqueteDetailPage({
     .eq('package_id', pkg.id)
     .order('min_people', { ascending: true })
   const tiers = (tiersData ?? []) as PriceTier[]
+  // Price of the smallest bookable group, spelled out ("Pareja: $280.000").
+  const price = packageHeadline(pkg, tiers)
+  // "Grupos de 6+: desde $120.000 c/u" — only when bigger groups pay less.
+  const deal = groupDeal(pkg, tiers)
 
   // Once the admin fills the structured fields, they replace the old
   // free-text description on the page (which repeated the same info).
@@ -306,10 +323,8 @@ export default async function PaqueteDetailPage({
 
           <Reveal className="space-y-3">
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                {price.from} <span className="text-2xl font-extrabold text-accent tabular-nums">{price.amount}</span>
-                {price.unit && <span> {price.unit}</span>}
-              </p>
+              <PackagePrice headline={price} variant="detail" />
+              {deal && <p className="text-sm font-medium text-primary">{deal}</p>}
               {pkg.capacity != null && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Users className="size-4 shrink-0 text-primary" aria-hidden="true" />
