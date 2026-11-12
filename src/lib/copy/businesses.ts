@@ -196,13 +196,13 @@ export const miNegocioCopy = {
 
 export const businessesCopy = {
   nav: {
-    businesses: 'Explorar',
+    businesses: 'Negocios',
     places: 'Lugares',
     services: 'Servicios',
   },
 
   businesses: {
-    pageTitle: 'Explora Manaure',
+    pageTitle: 'Negocios de Manaure',
     pageSubtitle: 'Descubre los mejores balnearios, restaurantes y fincas de Manaure',
     filterLabel: 'Filtrar por tipo',
     listLabel: 'Lista',

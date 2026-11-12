@@ -44,6 +44,10 @@ beforeEach(() => {
     disconnect() {}
   } as unknown as typeof ResizeObserver
   Element.prototype.scrollTo = vi.fn()
+  globalThis.IntersectionObserver = class {
+    observe() {}
+    disconnect() {}
+  } as unknown as typeof IntersectionObserver
 })
 
 const two = [makeEvent(), makeEvent({ id: 'e2', title: 'Feria Ganadera', days: '20', months: 'dic' })]
@@ -52,6 +56,12 @@ describe('EventsBanner', () => {
   it('renders nothing without events', () => {
     const { container } = render(<EventsBanner events={[]} />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('names the carousel with its visible section heading', () => {
+    render(<EventsBanner events={two} />)
+    expect(screen.getByRole('region', { name: copy.title })).toBeInTheDocument()
+    expect(screen.getByText(copy.subtitle)).toBeInTheDocument()
   })
 
   it('shows a single event with no rotation controls', () => {
