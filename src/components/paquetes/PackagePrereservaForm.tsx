@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { track } from '@/lib/analytics/track'
 import { cleanCampaign, readAttribution, sourceFromAttribution } from '@/lib/analytics/attribution'
+import { findTier, quotePackage } from '@/lib/packages/quote'
+import { describeTier, type PriceTier } from '@/lib/packages/content'
 
 type Props = {
   packageId: string
@@ -20,6 +22,9 @@ type Props = {
   pricingUnit: PricingUnit
   // Same id the other package events use (view_item, whatsapp_click).
   packageSlug?: string
+  // Published group fares (preview only — the server re-quotes from the DB).
+  tiers?: PriceTier[]
+  minPeople?: number | null
   // Same three-state access gate used by the pre-pivot TourBookingForm:
   // 'tourist' renders the real form, 'guest' points to /login (a secondary,
   // outlined link — WhatsApp is the primary CTA on the page), 'other_role'
@@ -49,6 +54,8 @@ export default function PackagePrereservaForm({
   price,
   capacity,
   pricingUnit,
+  tiers = [],
+  minPeople = null,
   access,
 }: Props) {
   if (access === 'other_role') return null
@@ -71,6 +78,8 @@ export default function PackagePrereservaForm({
       price={price}
       capacity={capacity}
       pricingUnit={pricingUnit}
+      tiers={tiers}
+      minPeople={minPeople}
     />
   )
 }
@@ -81,9 +90,11 @@ function PrereservaFormFields({
   price,
   capacity,
   pricingUnit,
+  tiers = [],
+  minPeople = null,
 }: Omit<Props, 'access'>) {
   const today = new Date().toISOString().split('T')[0]
-  const [quantity, setQuantity] = useState(1)
+  const [quantity, setQuantity] = useState(Math.max(1, minPeople ?? 1))
   // First-touch campaign (sessionStorage), read after mount so server and
   // client render the same empty inputs.
   const [acquisition, setAcquisition] = useState<{ source: string; campaign: string }>({ source: '', campaign: '' })
@@ -101,7 +112,9 @@ function PrereservaFormFields({
     undefined,
   )
 
-  const total = pricingUnit === 'fixed' ? price : price * quantity
+  const quote = quotePackage({ base_price: price, pricing_unit: pricingUnit }, tiers, quantity)
+  const total = quote.ok ? quote.total : 0
+  const tier = quote.ok && quote.source === 'tier' ? findTier(tiers, quantity) : null
 
   useEffect(() => {
     if (state?.error) toast.error(state.error)
@@ -164,18 +177,26 @@ function PrereservaFormFields({
       </div>
 
       <div className="rounded-xl border border-border bg-muted/50 p-4 space-y-0.5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">{bookingsCopy.form.totalLabel}</span>
-          <span className="text-base font-semibold text-primary">${total.toLocaleString('es-CO')} COP</span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {pricingUnit === 'fixed'
-            ? UNIT_SUFFIX.fixed
-            : `$${price.toLocaleString('es-CO')} × ${quantity} ${UNIT_SUFFIX[pricingUnit]}`}
-        </p>
+        {quote.ok ? (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">{bookingsCopy.form.totalLabel}</span>
+              <span className="text-base font-semibold text-primary">${total.toLocaleString('es-CO')} COP</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {tier
+                ? `${describeTier(tier).people}: ${describeTier(tier).price}`
+                : pricingUnit === 'fixed'
+                  ? UNIT_SUFFIX.fixed
+                  : `$${price.toLocaleString('es-CO')} × ${quantity} ${UNIT_SUFFIX[pricingUnit]}`}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{bookingsCopy.errors.noTierForGroup}</p>
+        )}
       </div>
 
-      <Button type="submit" className="w-full rounded-xl min-h-11" disabled={isPending}>
+      <Button type="submit" className="w-full rounded-xl min-h-11" disabled={isPending || !quote.ok}>
         {isPending ? bookingsCopy.form.packageSubmitting : bookingsCopy.form.packageSubmit}
       </Button>
     </form>

@@ -81,6 +81,7 @@ export const bookingsCopy = {
   errors: {
     notFound: 'No se encontró el servicio o tour seleccionado.',
     packageNotFound: 'No se encontró el paquete seleccionado.',
+    noTierForGroup: 'Para ese número de personas cotizamos el precio a tu medida. Escríbenos por WhatsApp.',
     unavailable: 'Esto no está disponible en este momento.',
     invalidQuantity: 'La cantidad debe ser al menos 1.',
     capacityExceeded: 'Supera el cupo máximo disponible.',

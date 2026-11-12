@@ -93,3 +93,15 @@ describe('PackageWhatsappCta', () => {
     expect(screen.getAllByRole('link', { name: 'Reservar por WhatsApp' })).toHaveLength(1)
   })
 })
+
+describe('PackageWhatsappCta — minimum group', () => {
+  it('starts at and never goes below the package minimum', async () => {
+    const user = userEvent.setup()
+    render(<PackageWhatsappCta {...PROPS} capacity={12} minPeople={6} />)
+
+    expect(messageOf(inlineWhatsappLink())).toContain('para 6 personas')
+    expect(screen.getByRole('button', { name: 'Quitar una persona' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Agregar una persona' }))
+    expect(messageOf(inlineWhatsappLink())).toContain('para 7 personas')
+  })
+})

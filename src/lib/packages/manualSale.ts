@@ -1,6 +1,8 @@
 import { adminCopy } from '@/lib/copy/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { normalizeColombianPhone } from '@/lib/phone'
+import { quotePackage } from '@/lib/packages/quote'
+import type { PriceTier } from '@/lib/packages/content'
 
 // Pure validation for an admin-registered package sale (WhatsApp deal) —
 // kept free of Supabase so every branch is unit-testable. The Server Action
@@ -37,7 +39,9 @@ export type GuestCustomer = {
 export type ParsedManualSale = {
   quantity: number
   bookingDate: string
-  catalogTotal: number
+  // null when the package has group tiers but none covers this group size
+  // (quoted by hand: the agreed total is then mandatory).
+  catalogTotal: number | null
   totalAmount: number
   priceAdjustmentReason: string | null
   notes: string | null
@@ -73,11 +77,12 @@ function addYears(date: string, years: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-// Same per_person/per_night/fixed rule as createPackagePrereserva.
-export function computeCatalogTotal(pkg: SalePackage, quantity: number) {
-  const storedQuantity = pkg.pricing_unit === 'fixed' ? 1 : quantity
-  const catalogTotal = pkg.pricing_unit === 'fixed' ? Number(pkg.base_price) : Number(pkg.base_price) * quantity
-  return { storedQuantity, catalogTotal }
+// Catalog total for the sale: group tiers first, base_price rule otherwise
+// (see quotePackage). null = no published fare for this group size.
+export function computeCatalogTotal(pkg: SalePackage, quantity: number, tiers: readonly PriceTier[] = []) {
+  const quote = quotePackage(pkg, tiers, quantity)
+  if (!quote.ok) return { storedQuantity: quantity, catalogTotal: null }
+  return { storedQuantity: quote.storedQuantity, catalogTotal: quote.total }
 }
 
 function text(formData: FormData, key: string): string {
@@ -89,6 +94,7 @@ export function parseManualPackageSale(
   pkg: SalePackage,
   customerMode: 'registered' | 'guest',
   today: string = bogotaToday(),
+  tiers: readonly PriceTier[] = [],
 ): { error: string } | { sale: ParsedManualSale } {
   const errors = adminCopy.reservas.errors
 
@@ -96,14 +102,15 @@ export function parseManualPackageSale(
   const quantity = parseInt(text(formData, 'quantity'), 10)
   if (!Number.isInteger(quantity) || quantity < 1) return { error: bookingsCopy.errors.invalidQuantity }
   if (pkg.capacity !== null && quantity > pkg.capacity) return { error: bookingsCopy.errors.capacityExceeded }
-  const { storedQuantity, catalogTotal } = computeCatalogTotal(pkg, quantity)
+  const { storedQuantity, catalogTotal } = computeCatalogTotal(pkg, quantity, tiers)
 
   // ── Trip date: past allowed (late registration), up to 2 years ahead ───
   const bookingDate = text(formData, 'booking_date')
   if (!isRealDate(bookingDate) || bookingDate > addYears(today, 2)) return { error: errors.invalidSaleDate }
 
-  // ── Optional agreed total ──────────────────────────────────────────────
-  let totalAmount = catalogTotal
+  // ── Agreed total: optional, or mandatory when there's no catalog fare ──
+  if (catalogTotal === null && formData.get('price_override') !== 'on') return { error: errors.noTierForGroup }
+  let totalAmount = catalogTotal ?? 0
   let priceAdjustmentReason: string | null = null
   if (formData.get('price_override') === 'on') {
     const rawAgreed = text(formData, 'agreed_total')

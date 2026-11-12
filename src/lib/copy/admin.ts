@@ -97,6 +97,9 @@ export const adminCopy = {
         PP: 'Pasaporte',
       } as Record<string, string>,
       catalogTotalLabel: 'Total de catálogo',
+      noCatalogTotal: 'Sin tarifa publicada',
+      noTierHint: (people: number) =>
+        `Este paquete no tiene tarifa publicada para ${people} ${people === 1 ? 'persona' : 'personas'}. Escribe el total acordado y el motivo.`,
       overrideToggle: 'Precio acordado distinto al de catálogo',
       agreedTotalLabel: 'Total acordado (COP)',
       adjustmentReasonLabel: 'Motivo del precio acordado',
@@ -139,6 +142,7 @@ export const adminCopy = {
       invalidSaleDate: 'Elige una fecha de viaje válida.',
       invalidAgreedTotal: 'El total acordado debe ser un número entero mayor a 0.',
       adjustmentReasonRequired: 'Escribe el motivo del precio acordado (entre 3 y 300 caracteres).',
+      noTierForGroup: 'Este paquete no tiene tarifa publicada para ese número de personas. Marca "Precio acordado" y escribe el total y el motivo.',
       guestNameRequired: 'Escribe el nombre completo del cliente.',
       guestPhoneInvalid: 'El teléfono debe ser un celular colombiano de 10 dígitos.',
       guestDocumentInvalid: 'Revisa el documento: elige el tipo y escribe un número válido (5 a 20 caracteres).',

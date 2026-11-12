@@ -165,3 +165,45 @@ describe('PackagePrereservaForm — form fields', () => {
     })
   })
 })
+
+describe('PackagePrereservaForm — group fares preview', () => {
+  const TIERS = [
+    { min_people: 2, max_people: 2, amount: 280000, amount_basis: 'per_group' as const },
+    { min_people: 3, max_people: 3, amount: 380000, amount_basis: 'per_group' as const },
+  ]
+
+  it('starts at the minimum group and previews the tier total', () => {
+    render(
+      <PackagePrereservaForm
+        packageId={PACKAGE_ID}
+        price={120000}
+        capacity={15}
+        pricingUnit="per_person"
+        tiers={TIERS}
+        minPeople={2}
+        access="tourist"
+      />,
+    )
+    expect(screen.getByRole('spinbutton')).toHaveValue(2)
+    expect(screen.getByText('$280.000 COP')).toBeInTheDocument()
+    expect(screen.getByText('2 personas: $280.000 en total')).toBeInTheDocument()
+  })
+
+  it('disables the request and points to WhatsApp when no fare covers the group', () => {
+    render(
+      <PackagePrereservaForm
+        packageId={PACKAGE_ID}
+        price={120000}
+        capacity={15}
+        pricingUnit="per_person"
+        tiers={TIERS}
+        minPeople={4}
+        access="tourist"
+      />,
+    )
+    expect(
+      screen.getByText('Para ese número de personas cotizamos el precio a tu medida. Escríbenos por WhatsApp.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Solicitar disponibilidad' })).toBeDisabled()
+  })
+})

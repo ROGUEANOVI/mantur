@@ -28,6 +28,8 @@ const profileSingle = vi.fn()
 const serviceSingle = vi.fn()
 const guideTourSingle = vi.fn()
 const packageSingle = vi.fn()
+// package_price_tiers list for quotePackage — empty (base_price rule) unless a test sets tiers.
+const packageTiersList = vi.fn(async () => ({ data: [] as unknown[] }))
 const transportRequestSingle = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -45,6 +47,9 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       if (table === 'packages') {
         return { select: () => ({ eq: () => ({ single: packageSingle }) }) }
+      }
+      if (table === 'package_price_tiers') {
+        return { select: () => ({ eq: () => packageTiersList() }) }
       }
       if (table === 'transport_requests') {
         return { select: () => ({ eq: () => ({ single: transportRequestSingle }) }) }
@@ -173,6 +178,7 @@ function serviceRow(overrides: Partial<{
 
 beforeEach(() => {
   vi.clearAllMocks()
+  packageTiersList.mockResolvedValue({ data: [] })
   authGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   profileSingle.mockResolvedValue({ data: { role: 'tourist' } })
   checkRateLimitMock.mockResolvedValue(true)
@@ -562,6 +568,56 @@ function packageRow(overrides: Partial<{
     pricing_unit: overrides.pricing_unit ?? 'per_person',
   }
 }
+
+describe('createPackagePrereserva — group fares (package_price_tiers)', () => {
+  const TIERS = [
+    { min_people: 2, max_people: 2, amount: 280000, amount_basis: 'per_group' },
+    { min_people: 3, max_people: 3, amount: 380000, amount_basis: 'per_group' },
+    { min_people: 6, max_people: 15, amount: 120000, amount_basis: 'per_person' },
+  ]
+
+  it('charges the group total of the matching tier, never base_price × people', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    packageTiersList.mockResolvedValue({ data: TIERS })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
+
+    await expect(
+      createPackagePrereserva(formData({ package_id: PACKAGE_ID, quantity: '3', booking_date: FUTURE_DATE })),
+    ).rejects.toThrow()
+
+    expect(createPackagePrereservaRpcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ p_total_amount: 380000, p_quantity: 3 }),
+    )
+  })
+
+  it('multiplies a per-person tier by the group size', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    packageTiersList.mockResolvedValue({ data: TIERS })
+    createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
+
+    await expect(
+      createPackagePrereserva(formData({ package_id: PACKAGE_ID, quantity: '7', booking_date: FUTURE_DATE })),
+    ).rejects.toThrow()
+
+    expect(createPackagePrereservaRpcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ p_total_amount: 840000, p_quantity: 7 }),
+    )
+  })
+
+  it('refuses a group size with no published fare and sends the tourist to WhatsApp', async () => {
+    packageSingle.mockResolvedValue({ data: packageRow() })
+    packageTiersList.mockResolvedValue({ data: TIERS })
+
+    const result = await createPackagePrereserva(
+      formData({ package_id: PACKAGE_ID, quantity: '4', booking_date: FUTURE_DATE }),
+    )
+
+    expect(result).toEqual({
+      error: 'Para ese número de personas cotizamos el precio a tu medida. Escríbenos por WhatsApp.',
+    })
+    expect(createPackagePrereservaRpcMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('createPackagePrereserva', () => {
   it('rejects a rate-limited request without querying the package', async () => {
