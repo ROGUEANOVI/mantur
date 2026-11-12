@@ -58,25 +58,33 @@ describe('PackageShowcase', () => {
     expect(decodedWhatsappText(link)).toBe('Hola ManTur, quiero información del paquete: FullDay Manaure (ref: fullday-manaure)')
   })
 
-  it('shows every price as a "Desde" floor with its pricing unit', () => {
+  it('leads with the smallest group price, group spelled out — never a bare "Desde"', () => {
     render(
       <PackageShowcase
-        packages={[pkg(), pkg({ id: '2', slug: 'cascada', name: 'Cascada', base_price: 150000, pricing_unit: 'per_person' })]}
+        packages={[
+          pkg({
+            min_people: 2,
+            tiers: [
+              { min_people: 2, max_people: 2, amount: 280000, amount_basis: 'per_group' },
+              { min_people: 6, max_people: 15, amount: 120000, amount_basis: 'per_person' },
+            ],
+          }),
+          pkg({ id: '2', slug: 'cascada', name: 'Cascada', base_price: 150000, pricing_unit: 'per_person', min_people: 3 }),
+        ]}
       />,
     )
+    expect(screen.getByText('Pareja:', { exact: false })).toBeInTheDocument()
     expect(screen.getByText('$280.000')).toBeInTheDocument()
-    expect(screen.getByText('por grupo')).toBeInTheDocument()
-    expect(screen.getAllByText('Desde')).toHaveLength(2)
+    expect(screen.getByText('$140.000 c/u')).toBeInTheDocument()
+    expect(screen.queryByText('$120.000')).not.toBeInTheDocument()
     expect(screen.getByText('$150.000')).toBeInTheDocument()
-    expect(screen.getByText('por persona')).toBeInTheDocument()
+    expect(screen.getByText('mínimo 3 personas')).toBeInTheDocument()
+    expect(screen.queryByText('Desde')).not.toBeInTheDocument()
   })
 
-  it('shows capacity only when the package has one', () => {
-    const { rerender } = render(<PackageShowcase packages={[pkg({ capacity: 12 })]} />)
-    expect(screen.getByText('Hasta 12 personas')).toBeInTheDocument()
-
-    rerender(<PackageShowcase packages={[pkg({ capacity: null })]} />)
-    expect(screen.queryByText(/Hasta/)).not.toBeInTheDocument()
+  it('keeps capacity off the card (it lives on the detail page)', () => {
+    render(<PackageShowcase packages={[pkg({ capacity: 12 })]} />)
+    expect(screen.queryByText(/Hasta 12 personas/)).not.toBeInTheDocument()
   })
 
   it('shows the "Recomendado" badge only on featured packages', () => {

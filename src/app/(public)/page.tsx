@@ -25,6 +25,8 @@ import Reveal from '@/components/shared/Reveal'
 import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
 import HeroSlideshow from '@/components/shared/HeroSlideshow'
 import PackageShowcase, { type ShowcasePackage } from '@/components/paquetes/PackageShowcase'
+import { packageHeadline } from '@/lib/packages/price'
+import type { PriceTier } from '@/lib/packages/content'
 
 export const metadata: Metadata = {
   title: 'ManTur — Turismo con alma local',
@@ -113,7 +115,10 @@ export default async function LandingPage() {
     // every active package, not only the ones shown in the showcase.
     admin
       .from('packages')
-      .select('id, slug, name, summary, description, base_price, pricing_unit, capacity, images, is_featured')
+      .select(
+        'id, slug, name, summary, description, base_price, pricing_unit, capacity, min_people, images, is_featured, ' +
+          'package_price_tiers(min_people, max_people, amount, amount_basis)',
+      )
       .eq('is_active', true)
       .order('is_featured', { ascending: false })
       .order('sort_order', { ascending: true })
@@ -123,9 +128,16 @@ export default async function LandingPage() {
   const featuredList = (featured ?? []) as FeaturedBusiness[]
   const allPlaces = (places ?? []) as PlacePreview[]
   const placesList = allPlaces.slice(0, 6)
-  const packagesList = (packagesData ?? []) as ShowcasePackage[]
+  const packagesList = (
+    (packagesData ?? []) as unknown as (Omit<ShowcasePackage, 'tiers'> & { package_price_tiers: PriceTier[] | null })[]
+  ).map(({ package_price_tiers, ...p }) => ({ ...p, tiers: package_price_tiers ?? [] }))
+  // Hero link: the lowest per-person price someone actually pays at the
+  // smallest bookable group of a package (e.g. a couple doing the FullDay),
+  // never a big-group-only fare.
   const minPackagePrice =
-    packagesList.length > 0 ? Math.min(...packagesList.map((p) => Number(p.base_price))) : null
+    packagesList.length > 0
+      ? Math.min(...packagesList.map((p) => Math.round(packageHeadline(p, p.tiers).perPerson)))
+      : null
 
   // One image per distinct place (not every photo of the same place) so the
   // slideshow actually shows variety instead of looping the same spot.

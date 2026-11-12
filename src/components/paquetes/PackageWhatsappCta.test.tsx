@@ -28,7 +28,7 @@ afterEach(() => {
 const PROPS = {
   packageName: 'FullDay Manaure',
   slug: 'fullday-manaure',
-  price: { from: 'Desde', amount: '$280.000', unit: 'por grupo' },
+  price: { label: 'Pareja', amount: '$280.000', unit: 'en total', detail: '$140.000 c/u', perPerson: 140000 },
   capacity: null,
   basePrice: 280000,
   pricingUnit: 'fixed',
@@ -86,8 +86,8 @@ describe('PackageWhatsappCta', () => {
     act(() => triggerIntersection(false))
     const links = screen.getAllByRole('link', { name: 'Reservar por WhatsApp' })
     expect(links).toHaveLength(2)
-    expect(screen.getByText('Desde · por grupo')).toBeInTheDocument()
     expect(screen.getByText('$280.000')).toBeInTheDocument()
+    expect(screen.getByText('$140.000 c/u')).toBeInTheDocument()
 
     act(() => triggerIntersection(true))
     expect(screen.getAllByRole('link', { name: 'Reservar por WhatsApp' })).toHaveLength(1)

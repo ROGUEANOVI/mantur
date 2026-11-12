@@ -41,16 +41,18 @@ export const packagesCopy = {
     perGroup: 'en total',
   },
 
-  // One price display for every package surface (home showcase, /paquetes,
-  // detail). Always "Desde": several packages are priced per group size, so
-  // the stored base_price is the lowest real fare, not a fixed one.
+  // Price headline for every package surface (src/lib/packages/price.ts):
+  // the price of the smallest bookable group, with the group spelled out.
   price: {
-    from: 'Desde',
-    unit: {
-      per_person: 'por persona',
-      per_night: 'por noche',
-      fixed: 'por grupo',
-    } as Record<string, string>,
+    couple: 'Pareja',
+    group: (n: number) => (n === 1 ? '1 persona' : `Grupo de ${n}`),
+    range: (min: number, max: number | null) => (max === null ? `${min}+ personas` : `${min} a ${max} personas`),
+    total: 'en total',
+    perPerson: 'por persona',
+    perNight: 'por noche',
+    each: 'c/u',
+    minimum: (n: number) => `mínimo ${n} personas`,
+    groupDeal: (n: number, amount: string) => `Grupos de ${n}+: desde ${amount} c/u`,
   },
 
   // ManTur-mediated WhatsApp contact — open to every visitor, logged in or

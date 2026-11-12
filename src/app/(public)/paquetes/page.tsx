@@ -40,7 +40,11 @@ export default async function PaquetesPage({
 
   let query = supabase
     .from('packages')
-    .select('id, slug, name, summary, description, base_price, pricing_unit, images', { count: 'exact' })
+    .select(
+      'id, slug, name, summary, description, base_price, pricing_unit, min_people, images, ' +
+        'package_price_tiers(min_people, max_people, amount, amount_basis)',
+      { count: 'exact' },
+    )
 
   // Strip PostgREST filter-DSL delimiters (comma separates or() conditions,
   // parens nest logical groups) so a search term can't inject an extra
@@ -58,7 +62,9 @@ export default async function PaquetesPage({
 
   if (error) throw new Error(error.message)
 
-  const packageRows = (packages ?? []) as PackageCardRow[]
+  const packageRows = (
+    (packages ?? []) as unknown as (Omit<PackageCardRow, 'tiers'> & { package_price_tiers: PackageCardRow['tiers'] | null })[]
+  ).map(({ package_price_tiers, ...p }) => ({ ...p, tiers: package_price_tiers ?? [] }))
   const totalCount = count ?? 0
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 

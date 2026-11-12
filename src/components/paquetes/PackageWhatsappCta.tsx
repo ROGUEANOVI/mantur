@@ -6,13 +6,15 @@ import { Minus, Plus } from 'lucide-react'
 import { packagesCopy } from '@/lib/copy/packages'
 import WhatsappButton from '@/components/shared/WhatsappButton'
 import { quotePackage } from '@/lib/packages/quote'
+import type { PriceHeadline } from '@/lib/packages/price'
+import PackagePrice from '@/components/paquetes/PackagePrice'
 import type { PriceTier } from '@/lib/packages/content'
 
 type Props = {
   packageName: string
   slug: string
-  // From packagePriceParts(): { from: 'Desde', amount: '$X', unit: 'por persona' }.
-  price: { from: string; amount: string; unit: string }
+  // Price headline (src/lib/packages/price.ts) shown in the sticky bar.
+  price: PriceHeadline
   capacity: number | null
   // For the whatsapp_click lead value (estimate: catalog floor × group).
   basePrice: number
@@ -138,10 +140,7 @@ export default function PackageWhatsappCta({
           >
             <div className="mx-auto flex max-w-5xl items-center gap-3">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs text-muted-foreground">
-                  {[price.from, price.unit].filter(Boolean).join(' · ')}
-                </p>
-                <p className="text-base font-extrabold leading-tight text-foreground tabular-nums">{price.amount}</p>
+                <PackagePrice headline={price} variant="compact" />
               </div>
               <WhatsappButton
                 message={message}
