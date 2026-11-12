@@ -3,6 +3,36 @@
 Guía paso a paso para conectar las herramientas de medición. El sitio
 (mantur.co) ya envía los eventos; esta configuración decide a dónde llegan.
 
+## Estado actual (11/11/2026)
+
+| | Valor |
+|---|---|
+| Contenedor GTM | `GTM-5BJG7CLK`, **versión 2 publicada** ("GA4 + Meta Pixel - eventos de paquetes") |
+| GA4 | Propiedad "ManTur", ID de medición `G-CQ7ZNJBWNB`. Verificado en tiempo real: `page_view`, `view_item`, `view_item_list`, `generate_lead` |
+| Meta | Conjunto de datos (Pixel) `1865471110898555` del portafolio ManTur. Verificado: `PageView`, `ViewContent`, `Contact` |
+| Vercel | `NEXT_PUBLIC_GTM_ID=GTM-5BJG7CLK` (solo Production) |
+
+La configuración completa de GTM está en `docs/specs/gtm/mantur-gtm-completo.json`
+(Administrar → Importar contenedor → Combinar). Si se cambia algo en GTM,
+exporta el contenedor y reemplaza ese archivo.
+
+**Pendiente:** en GA4 → Administrar → Eventos, marcar `generate_lead` con la
+estrella de evento clave. GA4 lo muestra en esa lista hasta 24 h después
+del primer evento.
+
+### Notas de la verificación
+
+- **Secuenciación de etiquetas:** cada etiqueta de evento (GA4 y Meta) ejecuta
+  primero su etiqueta base. Hace falta porque `view_item` se registra antes de
+  que el visitante acepte las cookies y GTM lo procesa al cargar.
+- **Si GA4 no recibe datos desde un computador** pero sí desde el celular con
+  datos móviles, revisa la red o el equipo. En la prueba del 11/11, todas las
+  solicitudes a `google-analytics.com` de ese computador respondían 503 (DNS o
+  antivirus con bloqueo de rastreadores). No era un problema de la configuración.
+- **Vista previa de GTM:** Tag Assistant solo se conecta con la ventana que
+  abre él mismo, y esa ventana debe tener las cookies aceptadas; si no, GTM no
+  carga y la conexión agota el tiempo.
+
 - Contenedor de GTM: **GTM-5BJG7CLK**
 - GTM solo carga cuando el visitante **acepta** el aviso de cookies. Si
   rechaza, no se envía nada a Google ni a Meta.
@@ -41,6 +71,11 @@ quieres a tu medida?").
    retención a **14 meses**.
 
 ## 3. Configurar GTM
+
+> Atajo: todo lo de esta sección ya está en `docs/specs/gtm/mantur-gtm-completo.json`.
+> Impórtalo con Combinar en vez de crearlo a mano. Los pasos de abajo sirven
+> como referencia o para recrearlo. La versión importada usa etiquetas de
+> HTML personalizado para el Pixel, en lugar de la plantilla de la galería.
 
 En tagmanager.google.com, contenedor GTM-5BJG7CLK:
 
