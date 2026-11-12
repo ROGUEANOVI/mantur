@@ -37,14 +37,25 @@ export const MAX_SHOWCASE_PACKAGES = 4
 // Mobile: a horizontal snap carousel of equal photo cards, each peeking the
 // next. Desktop: the same cards in a 4-column row. The "a tu medida" banner
 // sits below both. CSS-only — no client JS needed for either layout.
-export default function PackageShowcase({ packages }: { packages: ShowcasePackage[] }) {
+// `overlapHero` lifts the section into the hero's fade; the home page turns
+// it off when the events banner already takes that spot.
+export default function PackageShowcase({
+  packages,
+  overlapHero = true,
+}: {
+  packages: ShowcasePackage[]
+  overlapHero?: boolean
+}) {
   const copy = packagesCopy.showcase
   const shown = packages.slice(0, MAX_SHOWCASE_PACKAGES)
 
   if (shown.length === 0) return null
 
   return (
-    <section aria-labelledby="package-showcase-title" className="relative -mt-14 px-4">
+    <section
+      aria-labelledby="package-showcase-title"
+      className={cn('relative px-4', overlapHero ? '-mt-14' : 'pt-10 sm:pt-12')}
+    >
       <div className="mx-auto max-w-5xl">
         <Reveal className="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
           <div>

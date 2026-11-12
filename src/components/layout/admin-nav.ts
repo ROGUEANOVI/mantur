@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, TreePine, Percent, Tag, Layers, Users, Car, Compass, IdCard, Undo2, Package, CalendarPlus, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Building2, TreePine, Percent, Tag, Layers, Users, Car, Compass, IdCard, Undo2, Package, CalendarPlus, CalendarDays, type LucideIcon } from 'lucide-react'
 
 export type AdminNavCountKey = 'negocios' | 'solicitudes' | 'reembolsos' | 'paquetesSolicitudes'
 
@@ -31,6 +31,7 @@ export const ADMIN_NAV_GROUPS: AdminNavItem[][] = [
   [
     { href: '/admin/lugares',     label: 'Lugares',     exact: false, Icon: TreePine },
     { href: '/admin/paquetes',    label: 'Paquetes',    exact: false, Icon: Package, countKey: 'paquetesSolicitudes' },
+    { href: '/admin/eventos',     label: 'Eventos',     exact: false, Icon: CalendarDays },
     { href: '/admin/transportes', label: 'Transportes', exact: false, Icon: Car },
   ],
   [

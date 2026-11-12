@@ -25,6 +25,9 @@ import Reveal from '@/components/shared/Reveal'
 import FeaturedCarousel from '@/components/shared/FeaturedCarousel'
 import HeroSlideshow from '@/components/shared/HeroSlideshow'
 import PackageShowcase, { type ShowcasePackage } from '@/components/paquetes/PackageShowcase'
+import EventsBanner from '@/components/eventos/EventsBanner'
+import { toBannerEvent, type EventRow } from '@/lib/events/banner'
+import { todayInBogota } from '@/lib/events/dates'
 import { packageHeadline } from '@/lib/packages/price'
 import type { PriceTier } from '@/lib/packages/content'
 
@@ -91,11 +94,13 @@ const JOIN_ROLES = [
 export default async function LandingPage() {
   const admin = createAdminClient()
   const copy = landingCopy
+  const today = todayInBogota()
 
   const [
     { data: featured },
     { data: places },
     { data: packagesData },
+    { data: eventsData },
   ] = await Promise.all([
     admin
       .from('businesses')
@@ -123,6 +128,19 @@ export default async function LandingPage() {
       .order('is_featured', { ascending: false })
       .order('sort_order', { ascending: true })
       .order('name'),
+    // Events banner: active events that haven't finished yet (Colombia
+    // date), in the admin's order. A single-day event has ends_on = null.
+    admin
+      .from('tourism_events')
+      .select(
+        'id, title, summary, starts_on, ends_on, time_label, location_label, image_url, cta_type, external_url, ' +
+          'places(name, slug), packages(slug, name, is_active)',
+      )
+      .eq('is_active', true)
+      .or(`ends_on.gte.${today},and(ends_on.is.null,starts_on.gte.${today})`)
+      .order('sort_order', { ascending: true })
+      .order('starts_on', { ascending: true })
+      .limit(8),
   ])
 
   const featuredList = (featured ?? []) as FeaturedBusiness[]
@@ -134,6 +152,7 @@ export default async function LandingPage() {
   // Hero link: the lowest per-person price someone actually pays at the
   // smallest bookable group of a package (e.g. a couple doing the FullDay),
   // never a big-group-only fare.
+  const bannerEvents = ((eventsData ?? []) as unknown as EventRow[]).map((e) => toBannerEvent(e, today))
   const minPackagePrice =
     packagesList.length > 0
       ? Math.min(...packagesList.map((p) => Math.round(packageHeadline(p, p.tiers).perPerson)))
@@ -211,9 +230,14 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ── Eventos ──────────────────────────────────────────── */}
+      {/* Admin-curated events take the hero overlap when there are any. */}
+      <EventsBanner events={bannerEvents} />
+
       {/* ── Paquetes ─────────────────────────────────────────── */}
-      {/* First section, overlapping the hero: packages are what sells today. */}
-      <PackageShowcase packages={packagesList} />
+      {/* Packages are what sells today: first section after the events
+          banner, or overlapping the hero when no event is running. */}
+      <PackageShowcase packages={packagesList} overlapHero={bannerEvents.length === 0} />
 
       {/* ── Destacados ───────────────────────────────────────── */}
       {featuredList.length > 0 && (
