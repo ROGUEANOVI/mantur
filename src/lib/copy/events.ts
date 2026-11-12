@@ -1,7 +1,8 @@
 export const eventsCopy = {
   // Home page banner, between the hero and the packages showcase.
   banner: {
-    regionLabel: 'Eventos en Manaure',
+    title: 'Eventos en Manaure',
+    subtitle: 'Fiestas, ferias y planes que se vienen en el municipio.',
     slideLabel: (n: number, total: number) => `Evento ${n} de ${total}`,
     goTo: (n: number, title: string) => `Ver evento ${n}: ${title}`,
     pause: 'Pausar eventos',

@@ -6,7 +6,6 @@ import {
   Waves,
   Star,
   MapPin,
-  Search,
   ArrowRight,
   ChevronRight,
   Droplets,
@@ -191,38 +190,14 @@ export default async function LandingPage() {
             {copy.hero.subtitle}
           </p>
 
-          {/* Search */}
-          <form
-            action="/negocios"
-            method="GET"
-            className="animate-fade-up [animation-delay:300ms] mx-auto mt-8 flex w-full max-w-xl flex-col gap-2 rounded-2xl bg-white p-2 shadow-xl sm:flex-row"
-          >
-            <div className="relative flex-1">
-              <Search
-                className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                name="q"
-                placeholder="¿Qué quieres explorar hoy?"
-                className="h-12 w-full rounded-xl border border-transparent bg-transparent pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-border focus:outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              className="min-h-11 shrink-0 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-md transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-lg"
-            >
-              Explorar
-            </button>
-          </form>
-
           {minPackagePrice != null && (
+            // The hero's one action: packages are what sells today. (The old
+            // search box only searched /negocios, which has its own search.)
             <Link
               href="/paquetes"
-              className="animate-fade-up [animation-delay:400ms] group mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-black/35 px-4 text-sm font-semibold text-white underline-offset-4 backdrop-blur-sm transition-colors hover:bg-black/50 hover:underline"
+              className="animate-fade-up [animation-delay:300ms] group mt-8 inline-flex min-h-12 items-center gap-2 rounded-xl bg-accent px-6 text-sm font-bold text-accent-foreground shadow-[0_10px_24px_-10px_rgb(0_0_0/0.6)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent/90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-bosque sm:text-base"
             >
-              <Package className="size-4" aria-hidden="true" strokeWidth={1.75} />
+              <Package className="size-5" aria-hidden="true" strokeWidth={1.75} />
               {copy.hero.packagesLink(`$${minPackagePrice.toLocaleString('es-CO')}`)}
               <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
             </Link>

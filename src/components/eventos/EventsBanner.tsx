@@ -7,6 +7,7 @@ import { ArrowRight, CalendarDays, ExternalLink, MapPin, Pause, Play } from 'luc
 import { eventsCopy } from '@/lib/copy/events'
 import type { BannerEvent } from '@/lib/events/banner'
 import WhatsappButton from '@/components/shared/WhatsappButton'
+import Reveal from '@/components/shared/Reveal'
 import { cn } from '@/lib/utils'
 
 // Time each event stays on screen before the banner moves on.
@@ -79,9 +80,20 @@ export default function EventsBanner({ events }: { events: BannerEvent[] }) {
   return (
     <section
       aria-roledescription="carrusel"
-      aria-label={copy.regionLabel}
+      aria-labelledby="events-banner-title"
       className="relative z-10 -mt-14 px-4"
     >
+      {/* Same heading scale as the packages showcase below, so the two
+          sections read as one system. */}
+      <Reveal className="mx-auto mb-5 max-w-5xl">
+        <h2
+          id="events-banner-title"
+          className="text-balance text-xl font-extrabold leading-tight text-foreground sm:text-2xl"
+        >
+          {copy.title}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">{copy.subtitle}</p>
+      </Reveal>
       <div
         className="relative mx-auto max-w-5xl overflow-hidden rounded-2xl bg-bosque shadow-[0_18px_40px_-16px_rgb(0_0_0/0.45)]"
         // Mouse only: on touch, a tap fires a sticky "hover" that would pause
