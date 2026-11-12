@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveAdminEmails } from '@/lib/adminNotifications'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { parseAcquisition } from '@/lib/analytics/attribution'
-import { quotePackage } from '@/lib/packages/quote'
+import { MAX_PACKAGE_PEOPLE, quotePackage } from '@/lib/packages/quote'
 import type { PriceTier } from '@/lib/packages/content'
 import { saveAcquisition } from '@/lib/analytics/saveAcquisition'
 import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
@@ -207,7 +207,7 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
   if (!Number.isInteger(quantity) || quantity < 1) {
     return { error: bookingsCopy.errors.invalidQuantity }
   }
-  if (pkg.capacity !== null && quantity > pkg.capacity) {
+  if (quantity > (pkg.capacity ?? MAX_PACKAGE_PEOPLE)) {
     return { error: bookingsCopy.errors.capacityExceeded }
   }
 

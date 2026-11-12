@@ -685,6 +685,7 @@ export const adminCopy = {
         invalidAmount: 'El valor debe ser un número entero mayor a 0.',
         invalidBasis: 'Elige si el valor es por persona o del grupo.',
         duplicateMin: 'Ya existe una tarifa que empieza en ese número de personas.',
+        overlap: 'Ese rango de personas se cruza con otra tarifa del paquete. Ajusta el "Desde" o el "Hasta".',
         generic: 'No se pudo guardar la tarifa. Intenta de nuevo.',
       },
     },

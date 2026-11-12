@@ -282,3 +282,11 @@ describe('parseManualPackageSale — group fares', () => {
     })
   })
 })
+
+describe('parseManualPackageSale — quantity cap', () => {
+  it('caps the group at 100 people when the package has no capacity', () => {
+    const NO_CAPACITY: SalePackage = { base_price: 1000, pricing_unit: 'per_person', capacity: null }
+    expect(errorOf({ ...BASE, quantity: '101' }, NO_CAPACITY)).toBe('Supera el cupo máximo disponible.')
+    expect(sale({ ...BASE, quantity: '100' }, NO_CAPACITY).quantity).toBe(100)
+  })
+})

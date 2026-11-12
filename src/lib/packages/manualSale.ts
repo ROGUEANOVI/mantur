@@ -1,7 +1,7 @@
 import { adminCopy } from '@/lib/copy/admin'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { normalizeColombianPhone } from '@/lib/phone'
-import { quotePackage } from '@/lib/packages/quote'
+import { MAX_PACKAGE_PEOPLE, quotePackage } from '@/lib/packages/quote'
 import type { PriceTier } from '@/lib/packages/content'
 
 // Pure validation for an admin-registered package sale (WhatsApp deal) —
@@ -101,7 +101,7 @@ export function parseManualPackageSale(
   // ── Quantity & catalog total ───────────────────────────────────────────
   const quantity = parseInt(text(formData, 'quantity'), 10)
   if (!Number.isInteger(quantity) || quantity < 1) return { error: bookingsCopy.errors.invalidQuantity }
-  if (pkg.capacity !== null && quantity > pkg.capacity) return { error: bookingsCopy.errors.capacityExceeded }
+  if (quantity > (pkg.capacity ?? MAX_PACKAGE_PEOPLE)) return { error: bookingsCopy.errors.capacityExceeded }
   const { storedQuantity, catalogTotal } = computeCatalogTotal(pkg, quantity, tiers)
 
   // ── Trip date: past allowed (late registration), up to 2 years ahead ───

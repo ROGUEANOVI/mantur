@@ -24,11 +24,28 @@ export type PackageQuote =
   | { ok: true; total: number; storedQuantity: number; source: 'tier' | 'base' }
   | { ok: false; reason: 'no_tier_for_group' }
 
+// Upper bound for packages with no capacity set — a sanity cap so an
+// open-ended tier can't produce an absurd total, not a business rule.
+export const MAX_PACKAGE_PEOPLE = 100
+
+// Deterministic even if an admin ever saved overlapping ranges: the tier
+// with the lowest min_people that covers the group wins (the admin action
+// also rejects overlaps on save).
 export function findTier<T extends Pick<PriceTier, 'min_people' | 'max_people'>>(
   tiers: readonly T[],
   people: number,
 ): T | null {
-  return tiers.find((t) => people >= t.min_people && (t.max_people === null || people <= t.max_people)) ?? null
+  return (
+    [...tiers]
+      .sort((a, b) => a.min_people - b.min_people)
+      .find((t) => people >= t.min_people && (t.max_people === null || people <= t.max_people)) ?? null
+  )
+}
+
+// Two-decimal money, so a per-person amount × people never carries float
+// noise into an equality check against the stored numeric(12,2).
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100
 }
 
 export function quotePackage(pkg: QuotablePackage, tiers: readonly PriceTier[], people: number): PackageQuote {
@@ -36,7 +53,7 @@ export function quotePackage(pkg: QuotablePackage, tiers: readonly PriceTier[], 
     const tier = findTier(tiers, people)
     if (!tier) return { ok: false, reason: 'no_tier_for_group' }
     const amount = Number(tier.amount)
-    const total = tier.amount_basis === 'per_group' ? amount : amount * people
+    const total = roundMoney(tier.amount_basis === 'per_group' ? amount : amount * people)
     // With tiers the price depends on the group size, so keep the real
     // number of people on the booking.
     return { ok: true, total, storedQuantity: people, source: 'tier' }
@@ -44,5 +61,5 @@ export function quotePackage(pkg: QuotablePackage, tiers: readonly PriceTier[], 
 
   const base = Number(pkg.base_price)
   if (pkg.pricing_unit === 'fixed') return { ok: true, total: base, storedQuantity: 1, source: 'base' }
-  return { ok: true, total: base * people, storedQuantity: people, source: 'base' }
+  return { ok: true, total: roundMoney(base * people), storedQuantity: people, source: 'base' }
 }

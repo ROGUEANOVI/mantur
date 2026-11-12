@@ -55,3 +55,18 @@ describe('quotePackage', () => {
     expect(quotePackage(FULLDAY, tiers, 2)).toMatchObject({ ok: true, total: 440000 })
   })
 })
+
+describe('quotePackage — hardening', () => {
+  it('picks the lowest-starting tier deterministically if ranges ever overlap', () => {
+    const overlapping: PriceTier[] = [
+      { min_people: 3, max_people: 6, amount: 999, amount_basis: 'per_group' },
+      { min_people: 2, max_people: 4, amount: 111, amount_basis: 'per_group' },
+    ]
+    expect(quotePackage(FULLDAY, overlapping, 3)).toMatchObject({ ok: true, total: 111 })
+  })
+
+  it('rounds per-person totals to cents (no float noise)', () => {
+    const tiers: PriceTier[] = [{ min_people: 1, max_people: null, amount: '0.10', amount_basis: 'per_person' }]
+    expect(quotePackage(FULLDAY, tiers, 3)).toMatchObject({ ok: true, total: 0.3 })
+  })
+})

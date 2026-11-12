@@ -656,10 +656,18 @@ describe('createPackagePrereserva', () => {
     expect(result).toEqual({ error: 'Supera el cupo máximo disponible.' })
   })
 
-  it('allows any quantity when capacity is null (no cap)', async () => {
+  // Sanity cap (MAX_PACKAGE_PEOPLE) when no capacity is set, so an
+  // open-ended fare can't produce an absurd total.
+  it('caps the group at 100 people when capacity is null', async () => {
     packageSingle.mockResolvedValue({ data: packageRow({ capacity: null }) })
     createPackagePrereservaRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
-    const fd = formData({ package_id: PACKAGE_ID, quantity: '500', booking_date: FUTURE_DATE })
+
+    const over = await createPackagePrereserva(
+      formData({ package_id: PACKAGE_ID, quantity: '101', booking_date: FUTURE_DATE }),
+    )
+    expect(over).toEqual({ error: 'Supera el cupo máximo disponible.' })
+
+    const fd = formData({ package_id: PACKAGE_ID, quantity: '100', booking_date: FUTURE_DATE })
     await expect(createPackagePrereserva(fd)).rejects.toThrow('redirect:/reservas/booking-1/confirmacion')
   })
 

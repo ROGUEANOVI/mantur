@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { describeTier, joinLines, parseLines, parsePackageContent, parsePriceTier } from './content'
+import { describeTier, joinLines, parseLines, parsePackageContent, parsePriceTier, tierOverlaps } from './content'
 
 function fd(fields: Record<string, string>) {
   const f = new FormData()
@@ -140,5 +140,22 @@ describe('describeTier', () => {
       people: '6 o más personas',
       price: '$190.000 por persona',
     })
+  })
+})
+
+describe('tierOverlaps', () => {
+  const EXISTING = [
+    { min_people: 2, max_people: 2 },
+    { min_people: 6, max_people: null },
+  ]
+
+  it('allows adjacent, non-overlapping ranges', () => {
+    expect(tierOverlaps({ min_people: 3, max_people: 5 }, EXISTING)).toBe(false)
+  })
+
+  it('detects overlap with an exact size and with an open-ended range', () => {
+    expect(tierOverlaps({ min_people: 1, max_people: 2 }, EXISTING)).toBe(true)
+    expect(tierOverlaps({ min_people: 10, max_people: 12 }, EXISTING)).toBe(true)
+    expect(tierOverlaps({ min_people: 4, max_people: null }, EXISTING)).toBe(true)
   })
 })
