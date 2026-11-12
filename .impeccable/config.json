@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/components/eventos/EventsBanner.test.tsx"
+        ],
+        "createdAt": "2026-11-12T18:52:47.207Z",
+        "reason": "model: next/image test double in a Vitest file, never rendered to users"
+      }
+    ]
+  }
+}
