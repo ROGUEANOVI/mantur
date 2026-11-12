@@ -8,6 +8,7 @@ import { bookingsCopy } from '@/lib/copy/bookings'
 import { adminCopy } from '@/lib/copy/admin'
 import { getBlockedDates } from '@/lib/availability'
 import { parseManualPackageSale, type PricingUnit } from '@/lib/packages/manualSale'
+import type { PriceTier } from '@/lib/packages/content'
 import { parseAcquisition } from '@/lib/analytics/attribution'
 import { saveAcquisition } from '@/lib/analytics/saveAcquisition'
 import {
@@ -327,7 +328,14 @@ export async function createManualPackageSale(formData: FormData): Promise<Booki
     if (!(await validateTourist(admin, touristId))) return { error: copy.errors.touristNotFound }
   }
 
-  const parsed = parseManualPackageSale(formData, pkg, customerMode)
+  // Published group fares decide the catalog total (quotePackage).
+  const { data: tiersData } = await admin
+    .from('package_price_tiers')
+    .select('min_people, max_people, amount, amount_basis')
+    .eq('package_id', pkg.id)
+  const tiers = (tiersData ?? []) as PriceTier[]
+
+  const parsed = parseManualPackageSale(formData, pkg, customerMode, undefined, tiers)
   if ('error' in parsed) return { error: parsed.error }
   const { sale } = parsed
 

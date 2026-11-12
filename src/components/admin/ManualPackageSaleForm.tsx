@@ -13,6 +13,7 @@ import {
   type PricingUnit,
 } from '@/lib/packages/manualSale'
 import { QUANTITY_LABELS } from '@/lib/services/attributeConfig'
+import type { PriceTier } from '@/lib/packages/content'
 import { ACQUISITION_SOURCES } from '@/lib/analytics/attribution'
 import TouristPicker from '@/components/admin/TouristPicker'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,8 @@ export type PackageOption = {
   base_price: number | string
   pricing_unit: PricingUnit
   capacity: number | null
+  // Published group fares; preview only — the server re-reads them.
+  tiers: PriceTier[]
 }
 
 type FormState = { error: string } | { success: true } | undefined
@@ -80,7 +83,12 @@ export default function ManualPackageSaleForm({ packages }: { packages: PackageO
 
   const selectedPackage = packages.find((p) => p.id === packageId)
   const capacity = selectedPackage?.capacity ?? null
-  const catalogTotal = selectedPackage ? computeCatalogTotal(selectedPackage, quantity).catalogTotal : 0
+  const catalogTotal = selectedPackage
+    ? computeCatalogTotal(selectedPackage, quantity, selectedPackage.tiers).catalogTotal
+    : 0
+  // No published fare for this group size: the agreed total is mandatory.
+  const needsQuote = selectedPackage !== undefined && catalogTotal === null
+  const showOverride = priceOverride || needsQuote
   const quantityLabel = selectedPackage ? QUANTITY_LABELS[selectedPackage.pricing_unit] : bookingsCopy.form.quantity
 
   function handleQuantityChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -241,26 +249,38 @@ export default function ManualPackageSaleForm({ packages }: { packages: PackageO
           <div className="space-y-3 rounded-xl border border-border bg-muted/50 p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{saleCopy.catalogTotalLabel}</span>
-              <span
-                className={cn(
-                  'text-base font-semibold tabular-nums',
-                  priceOverride ? 'text-muted-foreground line-through' : 'text-primary',
-                )}
-              >
-                {formatCOP(catalogTotal)}
-              </span>
+              {catalogTotal === null ? (
+                <span className="text-sm font-medium text-muted-foreground">{saleCopy.noCatalogTotal}</span>
+              ) : (
+                <span
+                  className={cn(
+                    'text-base font-semibold tabular-nums',
+                    priceOverride ? 'text-muted-foreground line-through' : 'text-primary',
+                  )}
+                >
+                  {formatCOP(catalogTotal)}
+                </span>
+              )}
             </div>
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                name="price_override"
-                checked={priceOverride}
-                onChange={(e) => setPriceOverride(e.target.checked)}
-                className="size-4 cursor-pointer accent-primary"
-              />
-              {saleCopy.overrideToggle}
-            </label>
-            {priceOverride && (
+            {needsQuote ? (
+              <>
+                {/* Forced on: there is no catalog fare to fall back to. */}
+                <input type="hidden" name="price_override" value="on" />
+                <p className="text-xs text-muted-foreground">{saleCopy.noTierHint(quantity)}</p>
+              </>
+            ) : (
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  name="price_override"
+                  checked={priceOverride}
+                  onChange={(e) => setPriceOverride(e.target.checked)}
+                  className="size-4 cursor-pointer accent-primary"
+                />
+                {saleCopy.overrideToggle}
+              </label>
+            )}
+            {showOverride && (
               <div className="grid grid-cols-1 gap-3">
                 <Field id="sale-agreed-total" label={saleCopy.agreedTotalLabel}>
                   <input

@@ -332,6 +332,8 @@ export default async function PaqueteDetailPage({
                 capacity={pkg.capacity}
                 basePrice={Number(pkg.base_price)}
                 pricingUnit={pkg.pricing_unit}
+                tiers={tiers}
+                minPeople={pkg.min_people}
               />
             </div>
 
@@ -384,6 +386,8 @@ export default async function PaqueteDetailPage({
                 <PackagePrereservaForm
                   packageId={pkg.id}
                   packageSlug={pkg.slug}
+                  tiers={tiers}
+                  minPeople={pkg.min_people}
                   price={Number(pkg.base_price)}
                   capacity={pkg.capacity}
                   pricingUnit={pkg.pricing_unit}

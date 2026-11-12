@@ -43,6 +43,7 @@ const componentSelectMock = vi.fn()
 const packageItemInsertMock = vi.fn()
 const packageItemDeleteEqMock = vi.fn()
 const tierInsertMock = vi.fn()
+const tierListMock = vi.fn(async () => ({ data: [] as unknown[] }))
 const tierDeleteMock = vi.fn()
 const storageUpload = vi.fn()
 const storageGetPublicUrl = vi.fn()
@@ -85,6 +86,7 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'package_price_tiers') {
         return {
           insert: (payload: unknown) => tierInsertMock(payload),
+          select: () => ({ eq: () => tierListMock() }),
           delete: () => ({
             eq: (col1: string, v1: string) => ({ eq: (col2: string, v2: string) => tierDeleteMock({ [col1]: v1, [col2]: v2 }) }),
           }),
@@ -842,6 +844,16 @@ describe('addPackagePriceTier', () => {
 
   beforeEach(() => {
     packageMediaMaybeSingleMock.mockResolvedValue({ data: { id: PACKAGE_ID, slug: 'fullday' } })
+    tierListMock.mockResolvedValue({ data: [] })
+  })
+
+  it('rejects a range that overlaps an existing tier (same group size, two prices)', async () => {
+    tierListMock.mockResolvedValue({ data: [{ min_people: 2, max_people: 4 }] })
+    const result = await addPackagePriceTier(formData({ ...TIER, min_people: '3', max_people: '6' }))
+    expect(result).toEqual({
+      error: 'Ese rango de personas se cruza con otra tarifa del paquete. Ajusta el "Desde" o el "Hasta".',
+    })
+    expect(tierInsertMock).not.toHaveBeenCalled()
   })
 
   it('validates the tier before touching the DB', async () => {

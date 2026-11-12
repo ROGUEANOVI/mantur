@@ -17,8 +17,26 @@ vi.mock('sonner', () => ({
 }))
 
 const PACKAGES: PackageOption[] = [
-  { id: 'pkg-1', name: 'FullDay Manaure', base_price: '280000.00', pricing_unit: 'fixed', capacity: null },
-  { id: 'pkg-2', name: 'Cascada el Chorro de la Vela', base_price: 150000, pricing_unit: 'per_person', capacity: 10 },
+  { id: 'pkg-1', name: 'FullDay Manaure', base_price: '280000.00', pricing_unit: 'fixed', capacity: null, tiers: [] },
+  {
+    id: 'pkg-2',
+    name: 'Cascada el Chorro de la Vela',
+    base_price: 150000,
+    pricing_unit: 'per_person',
+    capacity: 10,
+    tiers: [],
+  },
+  {
+    id: 'pkg-3',
+    name: 'Casa de Campo',
+    base_price: 182500,
+    pricing_unit: 'per_person',
+    capacity: 12,
+    tiers: [
+      { min_people: 6, max_people: 6, amount: 1470000, amount_basis: 'per_group' },
+      { min_people: 8, max_people: 8, amount: 1712000, amount_basis: 'per_group' },
+    ],
+  },
 ]
 
 beforeEach(() => {
@@ -119,5 +137,34 @@ describe('ManualPackageSaleForm', () => {
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('El teléfono debe ser un celular colombiano de 10 dígitos.'),
     )
+  })
+})
+
+describe('ManualPackageSaleForm — group fares', () => {
+  it('previews the tier total for a covered group size', async () => {
+    const user = userEvent.setup()
+    render(<ManualPackageSaleForm packages={PACKAGES} />)
+
+    await pickPackage(user, 'Casa de Campo')
+    const quantity = screen.getByRole('spinbutton', { name: /personas/i })
+    await user.tripleClick(quantity)
+    await user.keyboard('8')
+
+    expect(screen.getByText('$1.712.000 COP')).toBeInTheDocument()
+  })
+
+  it('forces the agreed total when no fare covers the group size', async () => {
+    const user = userEvent.setup()
+    render(<ManualPackageSaleForm packages={PACKAGES} />)
+
+    await pickPackage(user, 'Casa de Campo')
+    const quantity = screen.getByRole('spinbutton', { name: /personas/i })
+    await user.tripleClick(quantity)
+    await user.keyboard('7')
+
+    expect(screen.getByText('Sin tarifa publicada')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Precio acordado distinto al de catálogo')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Total acordado (COP)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Motivo del precio acordado')).toBeInTheDocument()
   })
 })

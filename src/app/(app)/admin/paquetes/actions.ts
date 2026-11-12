@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { adminCopy } from '@/lib/copy/admin'
 import { DESCRIPTION_MAX_LENGTH } from '@/lib/validation'
-import { parsePackageContent, parsePriceTier } from '@/lib/packages/content'
+import { parsePackageContent, parsePriceTier, tierOverlaps, type PriceTier } from '@/lib/packages/content'
 
 type ActionResult = { error: string } | { success: true }
 
@@ -205,6 +205,15 @@ export async function addPackagePriceTier(formData: FormData): Promise<{ error: 
 
   const { data: pkg } = await admin.from('packages').select('id, slug').eq('id', packageId).maybeSingle()
   if (!pkg) return { error: adminCopy.paquetes.errors.notFound }
+
+  // Ranges must not overlap, or the same group size would have two prices.
+  const { data: existing } = await admin
+    .from('package_price_tiers')
+    .select('min_people, max_people')
+    .eq('package_id', packageId)
+  if (tierOverlaps(parsed.tier, (existing ?? []) as Pick<PriceTier, 'min_people' | 'max_people'>[])) {
+    return { error: copy.overlap }
+  }
 
   const { error } = await admin.from('package_price_tiers').insert({ package_id: packageId, ...parsed.tier })
   if (error) {

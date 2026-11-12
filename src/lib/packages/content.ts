@@ -137,6 +137,15 @@ export function parsePriceTier(formData: FormData): { error: string } | { tier: 
   return { tier: { min_people: minPeople, max_people: maxPeople, amount, amount_basis: basis as TierBasis } }
 }
 
+// True when [min, max] (max null = "or more") intersects any existing range.
+export function tierOverlaps(
+  tier: Pick<PriceTier, 'min_people' | 'max_people'>,
+  existing: readonly Pick<PriceTier, 'min_people' | 'max_people'>[],
+): boolean {
+  const end = (t: Pick<PriceTier, 'max_people'>) => t.max_people ?? Number.POSITIVE_INFINITY
+  return existing.some((e) => tier.min_people <= end(e) && e.min_people <= end(tier))
+}
+
 function peopleRange(tier: Pick<PriceTier, 'min_people' | 'max_people'>): string {
   const copy = packagesCopy.tiers
   if (tier.max_people === tier.min_people) return copy.exactly(tier.min_people)

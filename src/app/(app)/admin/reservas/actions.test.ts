@@ -69,6 +69,7 @@ const guideToursSingleMock = vi.fn()
 const businessOwnerSingleMock = vi.fn() // notifyBusinessOfServicePrereserva
 const guideProfileIdSingleMock = vi.fn() // notifyGuideOfTourPrereserva
 const packagesSingleMock = vi.fn() // createManualPackageSale
+const packageTiersListMock = vi.fn() // createManualPackageSale → quotePackage
 
 const createServicePrereservaRpcMock = vi.fn()
 const createGuideTourPrereservaRpcMock = vi.fn()
@@ -93,6 +94,7 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'businesses') return builder(businessOwnerSingleMock)
       if (table === 'tourist_guides') return builder(guideProfileIdSingleMock)
       if (table === 'packages') return builder(packagesSingleMock)
+      if (table === 'package_price_tiers') return builder(packageTiersListMock, packageTiersListMock)
       throw new Error(`unexpected table on admin client: ${table}`)
     },
     auth: { admin: { getUserById: getUserByIdMock } },
@@ -376,6 +378,7 @@ describe('createManualPackageSale', () => {
   }
 
   beforeEach(() => {
+    packageTiersListMock.mockResolvedValue({ data: [] })
     packagesSingleMock.mockResolvedValue({ data: packageRow() })
     createManualPackageSaleRpcMock.mockResolvedValue({ data: 'booking-1', error: null })
   })
@@ -471,6 +474,50 @@ describe('createManualPackageSale', () => {
     const result = await createManualPackageSale(formData({ ...GUEST_SALE, guest_phone: '123' }))
     expect(result).toEqual({ error: 'El teléfono debe ser un celular colombiano de 10 dígitos.' })
     expect(createManualPackageSaleRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('uses the matching group fare as the catalog total', async () => {
+    packageTiersListMock.mockResolvedValue({
+      data: [{ min_people: 2, max_people: 2, amount: 440000, amount_basis: 'per_group' }],
+    })
+    await createManualPackageSale(formData(GUEST_SALE))
+    expect(createManualPackageSaleRpcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ p_catalog_total_amount: 440000, p_total_amount: 440000, p_quantity: 2 }),
+    )
+  })
+
+  it('requires an agreed total when no fare covers the group size', async () => {
+    packageTiersListMock.mockResolvedValue({
+      data: [{ min_people: 6, max_people: 6, amount: 1470000, amount_basis: 'per_group' }],
+    })
+    const result = await createManualPackageSale(formData({ ...GUEST_SALE, quantity: '7' }))
+    expect(result).toEqual({
+      error:
+        'Este paquete no tiene tarifa publicada para ese número de personas. Marca "Precio acordado" y escribe el total y el motivo.',
+    })
+    expect(createManualPackageSaleRpcMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a hand-quoted total for an uncovered group size, with no catalog total', async () => {
+    packageTiersListMock.mockResolvedValue({
+      data: [{ min_people: 6, max_people: 6, amount: 1470000, amount_basis: 'per_group' }],
+    })
+    await createManualPackageSale(
+      formData({
+        ...GUEST_SALE,
+        quantity: '7',
+        price_override: 'on',
+        agreed_total: '1600000',
+        price_adjustment_reason: 'Grupo de 7 cotizado por WhatsApp',
+      }),
+    )
+    expect(createManualPackageSaleRpcMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_catalog_total_amount: null,
+        p_total_amount: 1600000,
+        p_price_adjustment_reason: 'Grupo de 7 cotizado por WhatsApp',
+      }),
+    )
   })
 
   it('maps an RPC failure to the generic sale error', async () => {

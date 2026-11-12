@@ -7,6 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveAdminEmails } from '@/lib/adminNotifications'
 import { bookingsCopy } from '@/lib/copy/bookings'
 import { parseAcquisition } from '@/lib/analytics/attribution'
+import { MAX_PACKAGE_PEOPLE, quotePackage } from '@/lib/packages/quote'
+import type { PriceTier } from '@/lib/packages/content'
 import { saveAcquisition } from '@/lib/analytics/saveAcquisition'
 import { bookingRateLimit, checkRateLimit } from '@/lib/rate-limit'
 import { buildWompiCheckoutUrl } from '@/lib/wompi/checkout'
@@ -205,7 +207,7 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
   if (!Number.isInteger(quantity) || quantity < 1) {
     return { error: bookingsCopy.errors.invalidQuantity }
   }
-  if (pkg.capacity !== null && quantity > pkg.capacity) {
+  if (quantity > (pkg.capacity ?? MAX_PACKAGE_PEOPLE)) {
     return { error: bookingsCopy.errors.capacityExceeded }
   }
 
@@ -215,10 +217,17 @@ export async function createPackagePrereserva(formData: FormData): Promise<Booki
     return { error: bookingsCopy.errors.invalidDate }
   }
 
-  // Same per_person/per_night/fixed convention as createBooking() above.
-  const totalAmount =
-    pkg.pricing_unit === 'fixed' ? Number(pkg.base_price) : Number(pkg.base_price) * quantity
-  const storedQuantity = pkg.pricing_unit === 'fixed' ? 1 : quantity
+  // Published group fares decide the total (quotePackage), read from the DB
+  // like the price itself — package_price_tiers is public-select for
+  // active packages. No fare for this group size → quote over WhatsApp.
+  const { data: tiersData } = await supabase
+    .from('package_price_tiers')
+    .select('min_people, max_people, amount, amount_basis')
+    .eq('package_id', pkg.id)
+  const quote = quotePackage(pkg, (tiersData ?? []) as PriceTier[], quantity)
+  if (!quote.ok) return { error: bookingsCopy.errors.noTierForGroup }
+  const totalAmount = quote.total
+  const storedQuantity = quote.storedQuantity
 
   const rawNotes = (formData.get('notes') as string | null)?.trim() || null
 

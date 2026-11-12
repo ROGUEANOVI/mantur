@@ -248,3 +248,45 @@ describe('display helpers', () => {
     expect(billingSummary(null, { manual_payment_method: null, manual_payment_reference: null, paid_at: null })).toBeNull()
   })
 })
+
+describe('parseManualPackageSale — group fares', () => {
+  const TIERS = [
+    { min_people: 6, max_people: 6, amount: 1470000, amount_basis: 'per_group' as const },
+    { min_people: 8, max_people: 8, amount: 1712000, amount_basis: 'per_group' as const },
+  ]
+  const CASA: SalePackage = { base_price: 182500, pricing_unit: 'per_person', capacity: 12 }
+
+  it('takes the catalog total from the matching tier', () => {
+    const result = parseManualPackageSale(fd({ ...BASE, quantity: '8' }), CASA, 'registered', TODAY, TIERS)
+    expect(result).toMatchObject({ sale: { catalogTotal: 1712000, totalAmount: 1712000, quantity: 8 } })
+  })
+
+  it('requires an agreed total when no tier covers the group', () => {
+    const result = parseManualPackageSale(fd({ ...BASE, quantity: '7' }), CASA, 'registered', TODAY, TIERS)
+    expect(result).toEqual({
+      error:
+        'Este paquete no tiene tarifa publicada para ese número de personas. Marca "Precio acordado" y escribe el total y el motivo.',
+    })
+  })
+
+  it('stores a hand-quoted total with its reason and no catalog total', () => {
+    const result = parseManualPackageSale(
+      fd({ ...BASE, quantity: '7', price_override: 'on', agreed_total: '1600000', price_adjustment_reason: 'Grupo de 7' }),
+      CASA,
+      'registered',
+      TODAY,
+      TIERS,
+    )
+    expect(result).toMatchObject({
+      sale: { catalogTotal: null, totalAmount: 1600000, priceAdjustmentReason: 'Grupo de 7' },
+    })
+  })
+})
+
+describe('parseManualPackageSale — quantity cap', () => {
+  it('caps the group at 100 people when the package has no capacity', () => {
+    const NO_CAPACITY: SalePackage = { base_price: 1000, pricing_unit: 'per_person', capacity: null }
+    expect(errorOf({ ...BASE, quantity: '101' }, NO_CAPACITY)).toBe('Supera el cupo máximo disponible.')
+    expect(sale({ ...BASE, quantity: '100' }, NO_CAPACITY).quantity).toBe(100)
+  })
+})

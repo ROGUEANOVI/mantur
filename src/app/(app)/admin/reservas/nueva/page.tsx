@@ -38,14 +38,16 @@ export default async function AdminReservasNuevaPage() {
       .order('name'),
     admin
       .from('packages')
-      .select('id, name, base_price, pricing_unit, capacity')
+      .select('id, name, base_price, pricing_unit, capacity, package_price_tiers(min_people, max_people, amount, amount_basis)')
       .eq('is_active', true)
       .order('name'),
   ])
 
   const services = (servicesData ?? []) as unknown as ServiceOption[]
   const guideTours = (toursData ?? []) as unknown as GuideTourOption[]
-  const packages = (packagesData ?? []) as PackageOption[]
+  const packages = ((packagesData ?? []) as unknown as (Omit<PackageOption, 'tiers'> & {
+    package_price_tiers: PackageOption['tiers'] | null
+  })[]).map(({ package_price_tiers, ...p }) => ({ ...p, tiers: package_price_tiers ?? [] }))
 
   return (
     <main className="px-4 py-6 pb-10">

@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { Minus, Plus } from 'lucide-react'
 import { packagesCopy } from '@/lib/copy/packages'
 import WhatsappButton from '@/components/shared/WhatsappButton'
+import { quotePackage } from '@/lib/packages/quote'
+import type { PriceTier } from '@/lib/packages/content'
 
 type Props = {
   packageName: string
@@ -15,6 +17,10 @@ type Props = {
   // For the whatsapp_click lead value (estimate: catalog floor × group).
   basePrice: number
   pricingUnit: string
+  // Group fares, so the lead value matches what that group would pay.
+  tiers?: PriceTier[]
+  // The stepper never goes below the package's minimum group.
+  minPeople?: number | null
 }
 
 const DEFAULT_PEOPLE = 2
@@ -27,10 +33,20 @@ const FALLBACK_MAX_PEOPLE = 30
 // needed. Below `lg`, the inline block sits after the gallery and the
 // description, so a sticky bottom bar carries the same CTA whenever the
 // inline one is out of view.
-export default function PackageWhatsappCta({ packageName, slug, price, capacity, basePrice, pricingUnit }: Props) {
+export default function PackageWhatsappCta({
+  packageName,
+  slug,
+  price,
+  capacity,
+  basePrice,
+  pricingUnit,
+  tiers = [],
+  minPeople = null,
+}: Props) {
   const copy = packagesCopy.detail
   const max = capacity ?? FALLBACK_MAX_PEOPLE
-  const [people, setPeople] = useState(Math.min(DEFAULT_PEOPLE, max))
+  const min = Math.min(Math.max(1, minPeople ?? 1), max)
+  const [people, setPeople] = useState(Math.min(Math.max(DEFAULT_PEOPLE, min), max))
   const inlineRef = useRef<HTMLDivElement>(null)
   // Starts hidden so server HTML and first paint never flash the bar.
   const [inlineVisible, setInlineVisible] = useState(true)
@@ -55,7 +71,11 @@ export default function PackageWhatsappCta({ packageName, slug, price, capacity,
   const trackingBase = {
     paquete_id: slug,
     paquete_nombre: packageName,
-    value: pricingUnit === 'fixed' ? basePrice : basePrice * people,
+    // Estimate for analytics only; groups without a published fare report 0.
+    value: (() => {
+      const quote = quotePackage({ base_price: basePrice, pricing_unit: pricingUnit }, tiers, people)
+      return quote.ok ? quote.total : 0
+    })(),
     currency: 'COP' as const,
   }
 
@@ -69,8 +89,8 @@ export default function PackageWhatsappCta({ packageName, slug, price, capacity,
           <div role="group" aria-labelledby="package-people-label" className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setPeople((n) => Math.max(1, n - 1))}
-              disabled={people <= 1}
+              onClick={() => setPeople((n) => Math.max(min, n - 1))}
+              disabled={people <= min}
               aria-label={copy.peopleDecrease}
               className="inline-flex size-11 items-center justify-center rounded-xl border border-input text-foreground transition-colors hover:bg-muted disabled:opacity-40"
             >
